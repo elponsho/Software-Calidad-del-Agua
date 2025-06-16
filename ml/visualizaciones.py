@@ -2,8 +2,11 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import os
 
-# Ruta para guardar imágenes temporalmente
-ruta_imagen = "temp_grafica.png"
+# Ruta para guardar imágenes temporalmente. Se genera a partir de la
+# ubicación de este archivo para evitar problemas cuando la aplicación se
+# ejecuta desde otros directorios.
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+ruta_imagen = os.path.join(BASE_DIR, "temp_grafica.png")
 
 def generar_boxplot(df, columna):
     plt.figure(figsize=(5, 4))
