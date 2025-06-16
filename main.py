@@ -12,7 +12,7 @@ class VentanaPrincipal(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("App ML con Qt")
-        self.setGeometry(100, 100, 1000, 800)
+        self.setGeometry(100, 100, 1000, 900)
 
         self.stack = QStackedWidget()
         self.setCentralWidget(self.stack)
@@ -38,14 +38,14 @@ class VentanaPrincipal(QMainWindow):
         # De carga de datos (carga los datos que se hayan subido en excel o csv y realiza el procesamiento) → menú
         def ir_a_menu():
             self.pantalla_menu.df = self.pantalla_carga.df
-            self.pantalla_prepro.df = self.pantalla_carga.df
-            self.pantalla_bivariado.df = self.pantalla_carga.df
+            self.pantalla_prepro.cargar_dataframe(self.pantalla_carga.df)
+            self.pantalla_bivariado.cargar_dataframe(self.pantalla_carga.df)
             self.stack.setCurrentIndex(1)
 
         self.pantalla_carga.btn_cargar.clicked.connect(ir_a_menu)
 
         # Desde menú principal
-        self.pantalla_menu.btn_preprocesamiento.clicked.connect(lambda: self.stack.setCurrentIndex(2))
+        self.pantalla_menu.btn_prepro.clicked.connect(lambda: self.stack.setCurrentIndex(2))
         self.pantalla_prepro.cambiar_a_bivariado.connect(lambda: self.stack.setCurrentIndex(3))
         self.pantalla_menu.btn_ml.clicked.connect(lambda: self.stack.setCurrentIndex(4))
         self.pantalla_menu.btn_dl.clicked.connect(lambda: self.stack.setCurrentIndex(5))
