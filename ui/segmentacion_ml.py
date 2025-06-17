@@ -539,80 +539,81 @@ class ResultadosVisuales(QWidget):
             print(error_msg)
             self.resumen_content.setText(error_msg)
 
-            def mostrar_prediccion(self, resultados):
-                """Mostrar resultados de predicción optimizado"""
-                try:
-                    precision = resultados['precision']
-                    importancias = resultados['importancias']
-                    ejemplos = resultados['ejemplos']
+    def mostrar_prediccion(self, resultados):
+        """Mostrar resultados de predicción optimizado"""
+        try:
+            precision = resultados['precision']
+            importancias = resultados['importancias']
+            ejemplos = resultados['ejemplos']
 
-                    # HTML corregido
-                    resumen_html = f"""
-                    <div style="font-family: Arial; font-size: 14px; padding: 20px;">
-                        <div style="text-align: center; background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%); 
-                                    color: #333; padding: 20px; border-radius: 10px; margin-bottom: 20px;">
-                            <h2>🤖 Sistema de Predicción</h2>
-                            <h3>Precisión del Sistema: {precision:.1f}%</h3>
-                            <p style="font-size: 16px;">El sistema puede predecir la calidad del agua con alta confiabilidad</p>
+            # HTML corregido
+            resumen_html = f"""
+            <div style="font-family: Arial; font-size: 14px; padding: 20px;">
+                <div style="text-align: center; background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%); 
+                            color: #333; padding: 20px; border-radius: 10px; margin-bottom: 20px;">
+                    <h2>🤖 Sistema de Predicción</h2>
+                    <h3>Precisión del Sistema: {precision:.1f}%</h3>
+                    <p style="font-size: 16px;">El sistema puede predecir la calidad del agua con alta confiabilidad</p>
+                </div>
+
+                <div style="background: #e8f5e8; padding: 15px; border-radius: 8px; margin: 15px 0;">
+                    <h3 style="color: #2e7d32;">📊 Importancia de Parámetros</h3>
+                    <p>Estos parámetros son los más importantes para determinar la calidad:</p>
+            """
+
+            # Mostrar importancias
+            if isinstance(importancias, list):
+                for item in importancias:
+                    porcentaje = item['Importancia'] * 100
+                    resumen_html += f"""
+                    <div style="margin: 8px 0;">
+                        <strong>{item['Parámetro']}:</strong> {porcentaje:.1f}% de importancia
+                        <div style="background: #f0f0f0; height: 8px; border-radius: 4px; margin-top: 3px;">
+                            <div style="background: #4CAF50; height: 8px; width: {porcentaje}%; border-radius: 4px;"></div>
                         </div>
-
-                        <div style="background: #e8f5e8; padding: 15px; border-radius: 8px; margin: 15px 0;">
-                            <h3 style="color: #2e7d32;">📊 Importancia de Parámetros</h3>
-                            <p>Estos parámetros son los más importantes para determinar la calidad:</p>
+                    </div>
                     """
 
-                    # Mostrar importancias
-                    if isinstance(importancias, list):
-                        for item in importancias:
-                            porcentaje = item['Importancia'] * 100
-                            resumen_html += f"""
-                            <div style="margin: 8px 0;">
-                                <strong>{item['Parámetro']}:</strong> {porcentaje:.1f}% de importancia
-                                <div style="background: #f0f0f0; height: 8px; border-radius: 4px; margin-top: 3px;">
-                                    <div style="background: #4CAF50; height: 8px; width: {porcentaje}%; border-radius: 4px;"></div>
-                                </div>
-                            </div>
-                            """
+            resumen_html += """
+                </div>
 
-                    resumen_html += """
-                        </div>
+                <div style="background: #e3f2fd; padding: 15px; border-radius: 8px; margin: 15px 0;">
+                    <h3 style="color: #1565c0;">🔮 Ejemplos de Predicción</h3>
+            """
 
-                        <div style="background: #e3f2fd; padding: 15px; border-radius: 8px; margin: 15px 0;">
-                            <h3 style="color: #1565c0;">🔮 Ejemplos de Predicción</h3>
-                    """
+            # Mostrar ejemplos
+            for i, ejemplo in enumerate(ejemplos, 1):
+                color_pred = {
+                    'Excelente': '#4CAF50',
+                    'Buena': '#8BC34A',
+                    'Regular': '#FF9800',
+                    'Necesita Tratamiento': '#F44336'
+                }.get(ejemplo['Predicción'], '#666')
 
-                    # Mostrar ejemplos
-                    for i, ejemplo in enumerate(ejemplos, 1):
-                        color_pred = {
-                            'Excelente': '#4CAF50',
-                            'Buena': '#8BC34A',
-                            'Regular': '#FF9800',
-                            'Necesita Tratamiento': '#F44336'
-                        }.get(ejemplo['Predicción'], '#666')
+                resumen_html += f"""
+                <div style="background: white; padding: 10px; margin: 8px 0; border-radius: 5px; 
+                            border-left: 4px solid {color_pred};">
+                    <h4>Muestra {i}</h4>
+                    <p><strong>pH:</strong> {ejemplo['pH']:.2f} | <strong>Oxígeno:</strong> {ejemplo['Oxígeno']:.1f} mg/L | 
+                       <strong>Turbidez:</strong> {ejemplo['Turbidez']:.1f} NTU | 
+                       <strong>Conductividad:</strong> {ejemplo['Conductividad']:.1f}</p>
+                    <p><strong>Predicción:</strong> <span style="color: {color_pred}; font-weight: bold;">
+                       {ejemplo['Predicción']}</span> (Confianza: {ejemplo['Confianza']:.1f}%)</p>
+                </div>
+                """
 
-                        resumen_html += f"""
-                        <div style="background: white; padding: 10px; margin: 8px 0; border-radius: 5px; 
-                                    border-left: 4px solid {color_pred};">
-                            <h4>Muestra {i}</h4>
-                            <p><strong>pH:</strong> {ejemplo['pH']:.2f} | <strong>Oxígeno:</strong> {ejemplo['Oxígeno']:.1f} mg/L | 
-                               <strong>Turbidez:</strong> {ejemplo['Turbidez']:.1f} NTU | 
-                               <strong>Conductividad:</strong> {ejemplo['Conductividad']:.1f}</p>
-                            <p><strong>Predicción:</strong> <span style="color: {color_pred}; font-weight: bold;">
-                               {ejemplo['Predicción']}</span> (Confianza: {ejemplo['Confianza']:.1f}%)</p>
-                        </div>
-                        """
+            resumen_html += "</div></div>"
+            self.resumen_content.setText(resumen_html)
 
-                    resumen_html += "</div></div>"
-                    self.resumen_content.setText(resumen_html)
+            # Crear gráfico de importancias
+            if MATPLOTLIB_AVAILABLE:
+                self.crear_grafico_importancias_simple(importancias)
 
-                    # Crear gráfico de importancias
-                    if MATPLOTLIB_AVAILABLE:
-                        self.crear_grafico_importancias_simple(importancias)
+        except Exception as e:
+            error_msg = f"❌ Error en mostrar_prediccion: {str(e)}"
+            print(error_msg)
+            self.mostrar_error_en_pantalla("Error en Predicción", error_msg)
 
-                except Exception as e:
-                    error_msg = f"❌ Error en mostrar_prediccion: {str(e)}"
-                    print(error_msg)
-                    self.resumen_content.setText(error_msg)
 
     def mostrar_optimizacion(self, resultados):
         """Mostrar resultados de optimización"""
@@ -666,7 +667,387 @@ class ResultadosVisuales(QWidget):
         except Exception as e:
             error_msg = f"❌ Error en mostrar_optimizacion: {str(e)}"
             print(error_msg)
-            self.resumen_content.setText(error_msg)
+            self.mostrar_error_en_pantalla("Error en Optimización", error_msg)
+
+    def mostrar_agrupamiento(self, resultados):
+                """Mostrar resultados de agrupamiento optimizado"""
+                try:
+                    analisis = resultados['analisis_grupos']
+
+                    # HTML corregido
+                    resumen_html = """
+                    <div style="font-family: Arial; font-size: 14px; padding: 20px;">
+                        <div style="text-align: center; background: linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%); 
+                                    color: white; padding: 20px; border-radius: 10px; margin-bottom: 20px;">
+                            <h2>🔍 Agrupamiento de Muestras</h2>
+                            <p style="font-size: 16px;">Se encontraron patrones similares usando clustering</p>
+                        </div>
+                    """
+
+                    colores_grupos = ['#e8f5e8', '#e3f2fd', '#fff3e0']
+                    colores_bordes = ['#4CAF50', '#2196F3', '#FF9800']
+
+                    for i, (grupo, info) in enumerate(analisis.items()):
+                        color_fondo = colores_grupos[i % len(colores_grupos)]
+                        color_borde = colores_bordes[i % len(colores_bordes)]
+
+                        resumen_html += f"""
+                        <div style="background: {color_fondo}; border-left: 5px solid {color_borde}; 
+                                    padding: 15px; margin: 15px 0; border-radius: 8px;">
+                            <h3 style="color: {color_borde}; margin-top: 0;">📊 {grupo}</h3>
+                            <p><strong>Cantidad de muestras:</strong> {info['cantidad']}</p>
+                            <p><strong>Calidad promedio:</strong> {info['calidad_promedio']:.1f}/100</p>
+                            <p><strong>Características principales:</strong> {', '.join(info['caracteristicas'])}</p>
+                        </div>
+                        """
+
+                    resumen_html += "</div>"
+                    self.resumen_content.setText(resumen_html)
+
+                    # Crear gráfico de agrupamiento
+                    if MATPLOTLIB_AVAILABLE:
+                        self.crear_grafico_agrupamiento_simple(resultados)
+
+                except Exception as e:
+                    error_msg = f"❌ Error en mostrar_agrupamiento: {str(e)}"
+                    print(error_msg)
+                    self.mostrar_error_en_pantalla("Error en Agrupamiento", error_msg)
+
+                    def mostrar_calidad_agua(self, resultados):
+                        """Mostrar resultados de análisis de calidad del agua optimizado"""
+                        try:
+                            stats = resultados['estadisticas']
+                            distribucion = resultados['distribucion']
+
+                            # HTML corregido sin espacios en etiquetas
+                            resumen_html = f"""
+                            <div style="font-family: Arial; font-size: 14px; padding: 20px;">
+                                <div style="text-align: center; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+                                            color: white; padding: 20px; border-radius: 10px; margin-bottom: 20px;">
+                                    <h2>🧪 Análisis de Calidad del Agua</h2>
+                                    <h3>{resultados['estado_general']}</h3>
+                                    <p style="font-size: 16px;">{resultados['mensaje']}</p>
+                                </div>
+
+                                <div style="background: #e8f5e8; padding: 15px; border-radius: 8px; border-left: 5px solid #4CAF50;">
+                                    <h3 style="color: #2e7d32; margin-top: 0;">📊 Estadísticas Generales</h3>
+                                    <p><strong>Total de muestras:</strong> {stats['total_muestras']}</p>
+                                    <p><strong>Calidad promedio:</strong> {stats['calidad_promedio']:.1f}/100</p>
+                                    <p><strong>pH promedio:</strong> {stats['ph_promedio']:.2f}</p>
+                                    <p><strong>Oxígeno:</strong> {stats['oxigeno_promedio']:.1f} mg/L</p>
+                                    <p><strong>Turbidez:</strong> {stats['turbidez_promedio']:.1f} NTU</p>
+                                    <p><strong>Conductividad:</strong> {stats['conductividad_promedio']:.1f} μS/cm</p>
+                                </div>
+
+                                <div style="background: #fff3e0; padding: 15px; border-radius: 8px; margin-top: 15px;">
+                                    <h3 style="color: #ef6c00;">📈 Distribución de Calidad</h3>
+                            """
+
+                            # Añadir distribución de calidad
+                            total_muestras = sum(distribucion.values())
+                            for calidad, cantidad in distribucion.items():
+                                porcentaje = (cantidad / total_muestras) * 100
+                                color_barra = {
+                                    'Excelente': '#4CAF50',
+                                    'Buena': '#8BC34A',
+                                    'Regular': '#FF9800',
+                                    'Necesita Tratamiento': '#F44336'
+                                }.get(calidad, '#9E9E9E')
+
+                                resumen_html += f"""
+                                    <div style="margin: 8px 0;">
+                                        <strong>{calidad}:</strong> {cantidad} muestras ({porcentaje:.1f}%)
+                                        <div style="background: #f0f0f0; height: 12px; border-radius: 6px; margin-top: 3px;">
+                                            <div style="background: {color_barra}; height: 12px; width: {porcentaje}%; 
+                                                        border-radius: 6px; transition: width 0.3s ease;"></div>
+                                        </div>
+                                    </div>
+                                """
+
+                            resumen_html += """
+                                </div>
+
+                                <div style="background: #e3f2fd; padding: 15px; border-radius: 8px; margin-top: 15px;">
+                                    <h3 style="color: #1565c0;">💡 Recomendaciones</h3>
+                            """
+
+                            # Generar recomendaciones automáticas
+                            recomendaciones = self.generar_recomendaciones_calidad(stats, distribucion)
+                            for rec in recomendaciones:
+                                resumen_html += f"<p>• {rec}</p>"
+
+                            resumen_html += "</div></div>"
+
+                            self.resumen_content.setText(resumen_html)
+
+                            # Actualizar tab de recomendaciones
+                            self.actualizar_recomendaciones_calidad(stats, distribucion)
+
+                            # Crear gráficos optimizados
+                            if MATPLOTLIB_AVAILABLE:
+                                self.crear_graficos_calidad_optimizado(resultados)
+
+                        except Exception as e:
+                            error_msg = f"❌ Error en mostrar_calidad_agua: {str(e)}"
+                            print(error_msg)
+                            self.mostrar_error_en_pantalla("Error en Calidad del Agua", error_msg)
+
+    def mostrar_error_en_pantalla(self, titulo, mensaje):
+        """Mostrar errores en la pantalla principal en lugar de solo en consola"""
+        error_html = f"""
+        <div style="font-family: Arial; font-size: 14px; padding: 20px;">
+            <div style="text-align: center; background: linear-gradient(135deg, #ff6b6b 0%, #ee5a52 100%); 
+                        color: white; padding: 20px; border-radius: 10px; margin-bottom: 20px;">
+                <h2>❌ {titulo}</h2>
+                <p style="font-size: 16px;">Se produjo un error durante el procesamiento</p>
+            </div>
+
+            <div style="background: #fff5f5; border-left: 5px solid #ff6b6b; padding: 15px; 
+                        margin: 15px 0; border-radius: 8px;">
+                <h3 style="color: #d63031; margin-top: 0;">🚨 Detalles del Error</h3>
+                <p style="font-family: monospace; background: #f8f9fa; padding: 10px; 
+                          border-radius: 4px; word-wrap: break-word;">{mensaje}</p>
+            </div>
+
+            <div style="background: #e3f2fd; padding: 15px; border-radius: 8px; margin-top: 15px;">
+                <h3 style="color: #1565c0;">💡 Posibles Soluciones</h3>
+                <ul>
+                    <li>Verificar que todas las dependencias estén instaladas</li>
+                    <li>Reintentar el análisis</li>
+                    <li>Limpiar el cache del sistema</li>
+                    <li>Liberar memoria si el sistema está sobrecargado</li>
+                </ul>
+            </div>
+        </div>
+        """
+        self.resumen_content.setText(error_html)
+
+    def crear_graficos_calidad_optimizado(self, resultados):
+        """Crear gráficos optimizados para calidad del agua"""
+        try:
+            self.figure.clear()
+
+            # Convertir datos si es necesario
+            if isinstance(resultados['datos'], list):
+                datos = pd.DataFrame(resultados['datos'])
+            else:
+                datos = resultados['datos']
+
+            distribucion = resultados['distribucion']
+
+            # Crear subplots
+            ax1 = self.figure.add_subplot(2, 2, 1)  # Distribución de calidad
+            ax2 = self.figure.add_subplot(2, 2, 2)  # Parámetros promedio
+            ax3 = self.figure.add_subplot(2, 2, 3)  # Histograma pH
+            ax4 = self.figure.add_subplot(2, 2, 4)  # Scatter plot
+
+            # Gráfico 1: Distribución de calidad (pie chart)
+            colores = ['#4CAF50', '#8BC34A', '#FF9800', '#F44336']
+            labels = list(distribucion.keys())
+            sizes = list(distribucion.values())
+
+            if sizes and sum(sizes) > 0:
+                wedges, texts, autotexts = ax1.pie(sizes, labels=labels, autopct='%1.1f%%',
+                                                   colors=colores[:len(labels)], startangle=90)
+                ax1.set_title('📊 Distribución de Calidad', fontsize=10, fontweight='bold')
+                # Mejorar legibilidad
+                for autotext in autotexts:
+                    autotext.set_color('white')
+                    autotext.set_fontweight('bold')
+            else:
+                ax1.text(0.5, 0.5, 'Sin datos\npara mostrar', ha='center', va='center')
+                ax1.set_title('📊 Distribución de Calidad', fontsize=10, fontweight='bold')
+
+            # Gráfico 2: Parámetros promedio (bar chart)
+            try:
+                if hasattr(datos, 'mean'):
+                    parametros = ['pH', 'Oxígeno', 'Turbidez', 'Conductividad']
+                    valores = [
+                        datos['pH'].mean(),
+                        datos['Oxígeno_Disuelto'].mean(),
+                        datos['Turbidez'].mean(),
+                        datos['Conductividad'].mean() / 100  # Escalar para visualización
+                    ]
+                else:
+                    # Procesar lista de diccionarios
+                    ph_vals = [d.get('pH', 0) for d in datos]
+                    ox_vals = [d.get('Oxígeno_Disuelto', 0) for d in datos]
+                    turb_vals = [d.get('Turbidez', 0) for d in datos]
+                    cond_vals = [d.get('Conductividad', 0) for d in datos]
+
+                    parametros = ['pH', 'Oxígeno', 'Turbidez', 'Conductividad']
+                    valores = [
+                        sum(ph_vals) / len(ph_vals) if ph_vals else 0,
+                        sum(ox_vals) / len(ox_vals) if ox_vals else 0,
+                        sum(turb_vals) / len(turb_vals) if turb_vals else 0,
+                        (sum(cond_vals) / len(cond_vals)) / 100 if cond_vals else 0
+                    ]
+
+                colores_bar = ['#2196F3', '#4CAF50', '#FF9800', '#9C27B0']
+                barras = ax2.bar(parametros, valores, color=colores_bar, alpha=0.8, edgecolor='black',
+                                 linewidth=0.5)
+                ax2.set_title('📈 Parámetros Promedio', fontsize=10, fontweight='bold')
+                ax2.set_ylabel('Valor')
+                ax2.tick_params(axis='x', rotation=45)
+
+                # Añadir valores en las barras
+                for barra, valor in zip(barras, valores):
+                    if valor > 0:
+                        height = barra.get_height()
+                        ax2.text(barra.get_x() + barra.get_width() / 2., height + height * 0.02,
+                                 f'{valor:.1f}', ha='center', va='bottom', fontweight='bold', fontsize=8)
+
+            except Exception as e:
+                ax2.text(0.5, 0.5, f'Error:\n{str(e)[:30]}...', ha='center', va='center')
+                ax2.set_title('📈 Parámetros Promedio', fontsize=10, fontweight='bold')
+
+            # Gráfico 3: Histograma de pH
+            try:
+                if hasattr(datos, 'hist'):
+                    ph_data = datos['pH'].dropna()
+                else:
+                    ph_data = [d.get('pH', 7) for d in datos if d.get('pH')]
+
+                if len(ph_data) > 0:
+                    ax3.hist(ph_data, bins=15, alpha=0.7, color='#3F51B5', edgecolor='black', linewidth=0.5)
+                    ax3.axvline(x=7, color='red', linestyle='--', linewidth=2, label='pH Neutro')
+                    ax3.axvspan(6.5, 8.5, alpha=0.2, color='green', label='Rango Aceptable')
+                    ax3.set_title('📊 Distribución de pH', fontsize=10, fontweight='bold')
+                    ax3.set_xlabel('pH')
+                    ax3.set_ylabel('Frecuencia')
+                    ax3.legend(fontsize=8)
+                else:
+                    ax3.text(0.5, 0.5, 'Sin datos de pH', ha='center', va='center')
+                    ax3.set_title('📊 Distribución de pH', fontsize=10, fontweight='bold')
+            except Exception as e:
+                ax3.text(0.5, 0.5, f'Error pH:\n{str(e)[:20]}', ha='center', va='center')
+                ax3.set_title('📊 Distribución de pH', fontsize=10, fontweight='bold')
+
+            # Gráfico 4: Scatter plot Oxígeno vs Turbidez
+            try:
+                if hasattr(datos, 'plot'):
+                    ox_data = datos['Oxígeno_Disuelto'].values
+                    turb_data = datos['Turbidez'].values
+                    calidad_scores = datos['Calidad_Score'].values
+                else:
+                    ox_data = [d.get('Oxígeno_Disuelto', 8) for d in datos]
+                    turb_data = [d.get('Turbidez', 2) for d in datos]
+                    calidad_scores = [d.get('Calidad_Score', 75) for d in datos]
+
+                if len(ox_data) > 0 and len(turb_data) > 0:
+                    scatter = ax4.scatter(ox_data, turb_data, c=calidad_scores,
+                                          cmap='RdYlGn', alpha=0.7, s=50, edgecolors='black', linewidth=0.5)
+                    ax4.set_title('💧 Oxígeno vs Turbidez', fontsize=10, fontweight='bold')
+                    ax4.set_xlabel('Oxígeno Disuelto (mg/L)')
+                    ax4.set_ylabel('Turbidez (NTU)')
+
+                    # Añadir colorbar
+                    cbar = self.figure.colorbar(scatter, ax=ax4, shrink=0.8)
+                    cbar.set_label('Calidad Score', rotation=270, labelpad=15, fontsize=8)
+                else:
+                    ax4.text(0.5, 0.5, 'Sin datos suficientes', ha='center', va='center')
+                    ax4.set_title('💧 Oxígeno vs Turbidez', fontsize=10, fontweight='bold')
+            except Exception as e:
+                ax4.text(0.5, 0.5, f'Error scatter:\n{str(e)[:20]}', ha='center', va='center')
+                ax4.set_title('💧 Oxígeno vs Turbidez', fontsize=10, fontweight='bold')
+
+            self.figure.suptitle('🔬 Análisis Completo de Calidad del Agua', fontsize=12, fontweight='bold')
+            self.figure.tight_layout()
+            self.canvas.draw()
+
+        except Exception as e:
+            print(f"❌ Error completo en gráficos: {e}")
+            self.figure.clear()
+            ax = self.figure.add_subplot(1, 1, 1)
+            ax.text(0.5, 0.5, f'❌ Error al crear gráficos:\n{str(e)}',
+                    ha='center', va='center', transform=ax.transAxes, fontsize=12,
+                    bbox=dict(boxstyle="round,pad=0.3", facecolor="lightcoral", alpha=0.7))
+            ax.set_title('Error en Visualización', fontsize=14, fontweight='bold')
+            self.canvas.draw()
+
+            # También mostrar el error en pantalla
+            self.mostrar_error_en_pantalla("Error en Gráficos",
+                                           f"Error al crear gráficos de calidad del agua: {str(e)}")
+
+    def mostrar_comparacion(self, resultados):
+        """Mostrar comparación de métodos - función completa"""
+        try:
+            metodos = resultados['metodos']
+            mejor_metodo = max(metodos, key=lambda x: x['precision'])
+
+            resumen_html = f"""
+               <div style="font-family: Arial; font-size: 14px; padding: 20px;">
+                   <div style="text-align: center; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+                               color: white; padding: 20px; border-radius: 10px; margin-bottom: 20px;">
+                       <h2>🔬 Comparación de Métodos</h2>
+                       <p style="font-size: 16px;">Evaluación de diferentes enfoques de análisis</p>
+                       <p><strong>Mejor método:</strong> {mejor_metodo['metodo']} ({mejor_metodo['precision']:.1f}%)</p>
+                   </div>
+               """
+
+            for metodo in metodos:
+                es_mejor = metodo == mejor_metodo
+                color = '#4CAF50' if es_mejor else '#2196F3'
+                icon = '🏆' if es_mejor else '🔬'
+
+                resumen_html += f"""
+                   <div style="background: {'#e8f5e8' if es_mejor else '#e3f2fd'}; 
+                               border-left: 5px solid {color}; padding: 15px; margin: 15px 0; border-radius: 8px;">
+                       <h3 style="color: {color}; margin-top: 0;">{icon} {metodo['metodo']}</h3>
+                       <p><strong>Precisión:</strong> {metodo['precision']:.1f}%</p>
+                       <p><strong>Ventajas:</strong> {metodo['ventajas']}</p>
+                       {'<p style="color: #4CAF50; font-weight: bold;">✅ Método recomendado</p>' if es_mejor else ''}
+
+                       <div style="background: #f0f0f0; height: 10px; border-radius: 5px; margin-top: 8px;">
+                           <div style="background: {color}; height: 10px; width: {metodo['precision']}%; 
+                                       border-radius: 5px; transition: width 0.3s ease;"></div>
+                       </div>
+                   </div>
+                   """
+
+            # Agregar análisis comparativo
+            resumen_html += """
+               <div style="background: #fff3e0; padding: 15px; border-radius: 8px; margin-top: 15px;">
+                   <h3 style="color: #ef6c00;">📊 Análisis Comparativo</h3>
+                   <p><strong>Conclusiones:</strong></p>
+                   <ul>
+               """
+
+            # Generar conclusiones automáticas
+            precision_max = max(m['precision'] for m in metodos)
+            precision_min = min(m['precision'] for m in metodos)
+            diferencia = precision_max - precision_min
+
+            if diferencia < 5:
+                resumen_html += "<li>Los métodos muestran rendimiento similar, elegir por facilidad de uso</li>"
+            elif diferencia < 15:
+                resumen_html += "<li>Hay diferencias moderadas en precisión, considerar el método recomendado</li>"
+            else:
+                resumen_html += "<li>Diferencias significativas en rendimiento, usar el método óptimo</li>"
+
+            if precision_max > 90:
+                resumen_html += "<li>Excelente precisión general del sistema de análisis</li>"
+            elif precision_max > 80:
+                resumen_html += "<li>Buena precisión, sistema confiable para toma de decisiones</li>"
+            else:
+                resumen_html += "<li>Precisión moderada, considerar mejorar el conjunto de datos</li>"
+
+            resumen_html += """
+                   </ul>
+               </div>
+               </div>
+               """
+
+            self.resumen_content.setText(resumen_html)
+
+            # Crear gráfico de comparación
+            if MATPLOTLIB_AVAILABLE:
+                self.crear_grafico_comparacion_simple(metodos)
+
+        except Exception as e:
+            error_msg = f"❌ Error en mostrar_comparacion: {str(e)}"
+            print(error_msg)
+            self.mostrar_error_en_pantalla("Error en Comparación", error_msg)
 
     def crear_grafico_agrupamiento_simple(self, resultados):
         """Crear gráfico simple de agrupamiento"""
@@ -851,6 +1232,61 @@ class ResultadosVisuales(QWidget):
             recomendaciones.append("🚨 Sistema crítico: Requiere intervención inmediata y completa")
 
         return recomendaciones
+
+    def actualizar_recomendaciones_calidad(self, stats, distribucion):
+        """Actualizar el tab de recomendaciones con análisis detallado"""
+        try:
+            recomendaciones = self.generar_recomendaciones_calidad(stats, distribucion)
+
+            html_recomendaciones = """
+               <div style="font-family: Arial; font-size: 14px; padding: 20px;">
+                   <div style="text-align: center; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+                               color: white; padding: 15px; border-radius: 10px; margin-bottom: 20px;">
+                       <h2>💡 Recomendaciones Inteligentes</h2>
+                       <p>Análisis automático y sugerencias de mejora</p>
+                   </div>
+
+                   <div style="background: #e8f5e8; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+                       <h3 style="color: #2e7d32;">🎯 Acciones Recomendadas</h3>
+               """
+
+            for i, rec in enumerate(recomendaciones):
+                icon_color = '#4CAF50' if '✅' in rec else '#FF9800' if '🟡' in rec else '#F44336'
+                html_recomendaciones += f"""
+                   <div style="background: white; padding: 12px; margin: 8px 0; border-radius: 6px; 
+                               border-left: 4px solid {icon_color}; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                       <p style="margin: 0; font-weight: 500;">{rec}</p>
+                   </div>
+                   """
+
+            html_recomendaciones += """
+                   </div>
+
+                   <div style="background: #e3f2fd; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+                       <h3 style="color: #1565c0;">📋 Plan de Acción Sugerido</h3>
+                       <ol style="padding-left: 20px;">
+                           <li><strong>Inmediato (0-7 días):</strong> Abordar problemas críticos marcados en rojo</li>
+                           <li><strong>Corto plazo (1-4 semanas):</strong> Implementar mejoras moderadas</li>
+                           <li><strong>Mediano plazo (1-3 meses):</strong> Optimizar sistemas existentes</li>
+                           <li><strong>Largo plazo (3+ meses):</strong> Establecer protocolos de mantenimiento</li>
+                       </ol>
+                   </div>
+
+                   <div style="background: #fff3e0; padding: 15px; border-radius: 8px;">
+                       <h3 style="color: #ef6c00;">🔄 Frecuencia de Monitoreo Recomendada</h3>
+                       <p><strong>Parámetros críticos:</strong> Diario (pH, Oxígeno)</p>
+                       <p><strong>Parámetros importantes:</strong> Semanal (Turbidez, Conductividad)</p>
+                       <p><strong>Análisis completo:</strong> Mensual (Evaluación integral)</p>
+                   </div>
+               </div>
+               """
+
+            self.recomendaciones_content.setText(html_recomendaciones)
+
+        except Exception as e:
+            error_msg = f"❌ Error al generar recomendaciones: {str(e)}"
+            print(error_msg)
+            self.mostrar_error_en_pantalla("Error en Recomendaciones", error_msg)
 
     def actualizar_recomendaciones_calidad(self, stats, distribucion):
         """Actualizar el tab de recomendaciones con análisis detallado"""
