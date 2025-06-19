@@ -21,6 +21,8 @@ try:
     import matplotlib.patches as patches
     from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
     from matplotlib.figure import Figure
+    from scipy.cluster.hierarchy import dendrogram, linkage, fcluster
+    from scipy.spatial.distance import pdist
 
     plt.style.use('default')
     MATPLOTLIB_AVAILABLE = True
@@ -167,7 +169,7 @@ def analizar_calidad_agua_proceso(n_muestras=150):
 
         return {
             'tipo': 'calidad_agua',
-            'datos': df.to_dict('records'),  # Convertir a dict para serialización
+            'datos': df.to_dict('records'),
             'estadisticas': stats,
             'distribucion': distribucion_calidad,
             'estado_general': estado_general,
@@ -178,22 +180,52 @@ def analizar_calidad_agua_proceso(n_muestras=150):
 
 
 def agrupar_muestras_proceso(n_muestras=100):
-    """Función para agrupamiento - ejecutada en proceso separado"""
+    """Función para agrupamiento jerárquico - ejecutada en proceso separado"""
     try:
         df = generar_datos_agua_optimizado(n_muestras)
         X = df[['pH', 'Oxígeno_Disuelto', 'Turbidez', 'Conductividad']].values
 
+        # Estandarizar datos
         scaler = StandardScaler()
         X_scaled = scaler.fit_transform(X)
 
-        clustering = AgglomerativeClustering(n_clusters=3, linkage='ward')
-        grupos = clustering.fit_predict(X_scaled)
+        # Calcular matriz de distancias y linkage jerárquico
+        distances = pdist(X_scaled)
+        linkage_matrix = linkage(distances, method='ward')
 
-        df['Grupo'] = grupos
+        # Realizar clustering jerárquico con diferentes números de clusters
+        n_clusters_options = [2, 3, 4, 5]
+        clustering_results = {}
 
+        for n_clusters in n_clusters_options:
+            # Obtener clusters usando fcluster
+            cluster_labels = fcluster(linkage_matrix, n_clusters, criterion='maxclust') - 1
+
+            # Calcular silhouette score
+            if n_clusters > 1 and len(set(cluster_labels)) > 1:
+                silhouette_avg = silhouette_score(X_scaled, cluster_labels)
+            else:
+                silhouette_avg = 0
+
+            clustering_results[n_clusters] = {
+                'labels': cluster_labels.tolist(),
+                'silhouette_score': float(silhouette_avg)
+            }
+
+        # Seleccionar el mejor número de clusters basado en silhouette score
+        best_n_clusters = max(clustering_results.keys(),
+                              key=lambda k: clustering_results[k]['silhouette_score'])
+
+        best_labels = clustering_results[best_n_clusters]['labels']
+        df['Grupo'] = best_labels
+
+        # Análisis de cada grupo
         analisis_grupos = {}
-        for grupo in range(3):
+        for grupo in range(best_n_clusters):
             muestras_grupo = df[df['Grupo'] == grupo]
+
+            if len(muestras_grupo) == 0:
+                continue
 
             caracteristicas = []
             if muestras_grupo['pH'].mean() > 7.5:
@@ -207,19 +239,33 @@ def agrupar_muestras_proceso(n_muestras=100):
             if muestras_grupo['Oxígeno_Disuelto'].mean() < 6:
                 caracteristicas.append("Bajo oxígeno")
 
+            if muestras_grupo['Conductividad'].mean() > 800:
+                caracteristicas.append("Alta conductividad")
+            elif muestras_grupo['Conductividad'].mean() < 300:
+                caracteristicas.append("Baja conductividad")
+
             if not caracteristicas:
                 caracteristicas.append("Parámetros normales")
 
             analisis_grupos[f"Grupo {grupo + 1}"] = {
                 'cantidad': int(len(muestras_grupo)),
                 'caracteristicas': caracteristicas,
-                'calidad_promedio': float(muestras_grupo['Calidad_Score'].mean())
+                'calidad_promedio': float(muestras_grupo['Calidad_Score'].mean()),
+                'ph_promedio': float(muestras_grupo['pH'].mean()),
+                'oxigeno_promedio': float(muestras_grupo['Oxígeno_Disuelto'].mean()),
+                'turbidez_promedio': float(muestras_grupo['Turbidez'].mean()),
+                'conductividad_promedio': float(muestras_grupo['Conductividad'].mean())
             }
 
         return {
             'tipo': 'agrupamiento',
             'datos': df.to_dict('records'),
-            'analisis_grupos': analisis_grupos
+            'analisis_grupos': analisis_grupos,
+            'linkage_matrix': linkage_matrix.tolist(),  # Para dendrograma
+            'clustering_results': clustering_results,
+            'best_n_clusters': best_n_clusters,
+            'feature_names': ['pH', 'Oxígeno_Disuelto', 'Turbidez', 'Conductividad'],
+            'scaled_data': X_scaled.tolist()
         }
     except Exception as e:
         return {'error': str(e)}
@@ -442,7 +488,7 @@ class OptimizedMLWorker(QThread):
 
 
 class ResultadosVisuales(QWidget):
-    """Widget optimizado para mostrar resultados"""
+    """Widget optimizado para mostrar resultados con clustering jerárquico"""
 
     def __init__(self):
         super().__init__()
@@ -493,7 +539,7 @@ class ResultadosVisuales(QWidget):
         # Tab gráficos
         graficos_layout = QVBoxLayout()
         if MATPLOTLIB_AVAILABLE:
-            self.figure = Figure(figsize=(10, 6), dpi=80)  # Reducir DPI para mejor rendimiento
+            self.figure = Figure(figsize=(10, 6), dpi=80)
             self.canvas = FigureCanvas(self.figure)
             graficos_layout.addWidget(self.canvas)
         else:
@@ -517,7 +563,6 @@ class ResultadosVisuales(QWidget):
         try:
             self.current_data = resultados
 
-            # Debug: Verificar que llegaron los resultados
             print(f"📊 Mostrando resultados para: {tipo_analisis}")
             print(f"🔍 Claves disponibles: {list(resultados.keys())}")
 
@@ -525,6 +570,7 @@ class ResultadosVisuales(QWidget):
                 self.mostrar_calidad_agua(resultados)
             elif tipo_analisis == "agrupar_muestras":
                 self.mostrar_agrupamiento(resultados)
+                self.mostrar_clustering_jerarquico_en_graficos(resultados)  # Mover a gráficos
             elif tipo_analisis == "predecir_calidad":
                 self.mostrar_prediccion(resultados)
             elif tipo_analisis == "optimizar_sistema":
@@ -538,6 +584,354 @@ class ResultadosVisuales(QWidget):
             error_msg = f"❌ Error al mostrar resultados: {str(e)}\n\nTipo: {tipo_analisis}\nDatos: {str(resultados)[:200]}..."
             print(error_msg)
             self.resumen_content.setText(error_msg)
+
+    def mostrar_clustering_jerarquico_en_graficos(self, resultados):
+        """Mostrar análisis de clustering jerárquico en la pestaña de gráficos"""
+        try:
+            if not MATPLOTLIB_AVAILABLE:
+                return
+
+            # Limpiar figura existente
+            self.figure.clear()
+
+            # Obtener datos del clustering jerárquico
+            linkage_matrix = np.array(resultados['linkage_matrix'])
+            clustering_results = resultados['clustering_results']
+            best_n_clusters = resultados['best_n_clusters']
+            feature_names = resultados['feature_names']
+            datos = pd.DataFrame(resultados['datos'])
+
+            # Crear layout de subplots 2x2
+            gs = self.figure.add_gridspec(2, 2, hspace=0.4, wspace=0.4)
+
+            # 1. Dendrograma principal (arriba, ocupa toda la fila)
+            ax1 = self.figure.add_subplot(gs[0, :])
+
+            # Crear dendrograma
+            dendrogram_result = dendrogram(
+                linkage_matrix,
+                ax=ax1,
+                truncate_mode='lastp',
+                p=25,  # Mostrar últimas 25 fusiones
+                show_leaf_counts=True,
+                leaf_rotation=90,
+                leaf_font_size=8,
+                color_threshold=0.7 * max(linkage_matrix[:, 2])
+            )
+
+            ax1.set_title('🌳 Dendrograma - Clustering Jerárquico de Muestras de Agua',
+                          fontsize=12, fontweight='bold')
+            ax1.set_xlabel('Índice de Muestra o (Tamaño del Cluster)')
+            ax1.set_ylabel('Distancia Ward')
+            ax1.grid(True, alpha=0.3)
+
+            # 2. Gráfico de silhouette scores (abajo izquierda)
+            ax2 = self.figure.add_subplot(gs[1, 0])
+
+            n_clusters_list = list(clustering_results.keys())
+            silhouette_scores = [clustering_results[k]['silhouette_score'] for k in n_clusters_list]
+
+            bars = ax2.bar(n_clusters_list, silhouette_scores,
+                           color=['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4'][:len(n_clusters_list)],
+                           alpha=0.8, edgecolor='black', linewidth=0.5)
+
+            # Destacar el mejor número de clusters
+            best_idx = n_clusters_list.index(best_n_clusters)
+            bars[best_idx].set_color('#FFD93D')
+            bars[best_idx].set_edgecolor('#FF6B35')
+            bars[best_idx].set_linewidth(2)
+
+            ax2.set_title('📊 Silhouette Score\npor Número de Clusters', fontweight='bold', fontsize=10)
+            ax2.set_xlabel('Número de Clusters')
+            ax2.set_ylabel('Silhouette Score')
+            ax2.grid(True, alpha=0.3)
+
+            # Añadir valores en las barras
+            for bar, score in zip(bars, silhouette_scores):
+                height = bar.get_height()
+                ax2.text(bar.get_x() + bar.get_width() / 2., height + 0.01,
+                         f'{score:.3f}', ha='center', va='bottom', fontweight='bold', fontsize=8)
+
+            # 3. Visualización de clusters en 2D PCA (abajo derecha)
+            ax3 = self.figure.add_subplot(gs[1, 1])
+
+            # Realizar PCA para visualización 2D
+            from sklearn.decomposition import PCA
+            scaler = StandardScaler()
+            X_scaled = scaler.fit_transform(datos[feature_names])
+
+            pca = PCA(n_components=2)
+            X_pca = pca.fit_transform(X_scaled)
+
+            # Obtener etiquetas del mejor clustering
+            best_labels = clustering_results[best_n_clusters]['labels']
+
+            # Colores para clusters
+            colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7'][:best_n_clusters]
+
+            for i in range(best_n_clusters):
+                cluster_mask = np.array(best_labels) == i
+                ax3.scatter(X_pca[cluster_mask, 0], X_pca[cluster_mask, 1],
+                            c=colors[i], label=f'Cluster {i + 1}', alpha=0.7, s=50,
+                            edgecolors='black', linewidth=0.5)
+
+            ax3.set_title('🎯 Clusters en Espacio PCA', fontweight='bold', fontsize=10)
+            ax3.set_xlabel(f'PC1 ({pca.explained_variance_ratio_[0]:.1%} varianza)')
+            ax3.set_ylabel(f'PC2 ({pca.explained_variance_ratio_[1]:.1%} varianza)')
+            ax3.legend(bbox_to_anchor=(1.05, 1), loc='upper left', fontsize=8)
+            ax3.grid(True, alpha=0.3)
+
+            self.figure.suptitle(
+                f'🔬 Análisis Completo de Clustering Jerárquico - {best_n_clusters} Clusters Óptimos',
+                fontsize=14, fontweight='bold'
+            )
+
+            # Ajustar layout y dibujar
+            self.figure.tight_layout()
+            self.canvas.draw()
+
+        except Exception as e:
+            print(f"❌ Error en clustering jerárquico: {e}")
+            self.figure.clear()
+            ax = self.figure.add_subplot(1, 1, 1)
+            ax.text(0.5, 0.5, f'❌ Error al crear visualización jerárquica:\n{str(e)}',
+                    ha='center', va='center', transform=ax.transAxes, fontsize=12,
+                    bbox=dict(boxstyle="round,pad=0.3", facecolor="lightcoral", alpha=0.7))
+            ax.set_title('Error en Clustering Jerárquico', fontsize=14, fontweight='bold')
+            self.canvas.draw()
+            2.
+            text(bar.get_x() + bar.get_width() / 2., height + 0.01,
+                 f'{score:.3f}', ha='center', va='bottom', fontweight='bold', fontsize=8)
+
+            # 3. Visualización de clusters en 2D (PCA)
+            ax3 = self.figure_jerarquico.add_subplot(gs[1, 1])
+
+            # Realizar PCA para visualización 2D
+            from sklearn.decomposition import PCA
+            scaler = StandardScaler()
+            X_scaled = scaler.fit_transform(datos[feature_names])
+
+            pca = PCA(n_components=2)
+            X_pca = pca.fit_transform(X_scaled)
+
+            # Obtener etiquetas del mejor clustering
+            best_labels = clustering_results[best_n_clusters]['labels']
+
+            # Colores para clusters
+            colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7'][:best_n_clusters]
+
+            for i in range(best_n_clusters):
+                cluster_mask = np.array(best_labels) == i
+                ax3.scatter(X_pca[cluster_mask, 0], X_pca[cluster_mask, 1],
+                            c=colors[i], label=f'Cluster {i + 1}', alpha=0.7, s=50,
+                            edgecolors='black', linewidth=0.5)
+
+            ax3.set_title('🎯 Clusters en Espacio PCA', fontweight='bold')
+            ax3.set_xlabel(f'PC1 ({pca.explained_variance_ratio_[0]:.1%} varianza)')
+            ax3.set_ylabel(f'PC2 ({pca.explained_variance_ratio_[1]:.1%} varianza)')
+            ax3.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+            ax3.grid(True, alpha=0.3)
+
+            self.figure_jerarquico.suptitle(
+                f'🔬 Análisis Completo de Clustering Jerárquico - {best_n_clusters} Clusters Óptimos',
+                fontsize=14, fontweight='bold'
+            )
+
+            self.canvas_jerarquico.draw()
+
+        except Exception as e:
+            print(f"❌ Error en clustering jerárquico: {e}")
+            self.figure_jerarquico.clear()
+            ax = self.figure_jerarquico.add_subplot(1, 1, 1)
+            ax.text(0.5, 0.5, f'❌ Error al crear visualización jerárquica:\n{str(e)}',
+                    ha='center', va='center', transform=ax.transAxes, fontsize=12,
+                    bbox=dict(boxstyle="round,pad=0.3", facecolor="lightcoral", alpha=0.7))
+            ax.set_title('Error en Clustering Jerárquico', fontsize=14, fontweight='bold')
+            self.canvas_jerarquico.draw()
+
+    def mostrar_agrupamiento(self, resultados):
+        """Mostrar resultados de agrupamiento optimizado con información jerárquica"""
+        try:
+            analisis = resultados['analisis_grupos']
+            clustering_results = resultados.get('clustering_results', {})
+            best_n_clusters = resultados.get('best_n_clusters', 3)
+
+            # HTML mejorado con información jerárquica
+            resumen_html = f"""
+            <div style="font-family: Arial; font-size: 14px; padding: 20px;">
+                <div style="text-align: center; background: linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%); 
+                            color: white; padding: 20px; border-radius: 10px; margin-bottom: 20px;">
+                    <h2>🔍 Clustering Jerárquico de Muestras</h2>
+                    <p style="font-size: 16px;">Análisis automático encontró {best_n_clusters} grupos óptimos</p>
+                    <p style="font-size: 14px;">📊 Método: Ward Linkage | 🎯 Optimización: Silhouette Score</p>
+                </div>
+
+                <div style="background: #e8f5e8; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+                    <h3 style="color: #2e7d32; margin-top: 0;">🏆 Resultados de Optimización</h3>
+                    <p><strong>Número óptimo de clusters:</strong> {best_n_clusters}</p>
+            """
+
+            # Mostrar scores de silhouette para diferentes números de clusters
+            if clustering_results:
+                resumen_html += "<p><strong>Scores de evaluación:</strong></p><ul>"
+                for n_clusters, result in clustering_results.items():
+                    score = result['silhouette_score']
+                    is_best = (n_clusters == best_n_clusters)
+                    icon = "🏆" if is_best else "📊"
+                    style = "color: #27ae60; font-weight: bold;" if is_best else ""
+                    resumen_html += f"<li style='{style}'>{icon} {n_clusters} clusters: {score:.3f}</li>"
+                resumen_html += "</ul>"
+
+            resumen_html += "</div>"
+
+            # Mostrar análisis de cada grupo
+            colores_grupos = ['#e8f5e8', '#e3f2fd', '#fff3e0', '#fce4ec', '#f3e5f5']
+            colores_bordes = ['#4CAF50', '#2196F3', '#FF9800', '#E91E63', '#9C27B0']
+
+            for i, (grupo, info) in enumerate(analisis.items()):
+                color_fondo = colores_grupos[i % len(colores_grupos)]
+                color_borde = colores_bordes[i % len(colores_bordes)]
+
+                resumen_html += f"""
+                <div style="background: {color_fondo}; border-left: 5px solid {color_borde}; 
+                            padding: 15px; margin: 15px 0; border-radius: 8px;">
+                    <h3 style="color: {color_borde}; margin-top: 0;">📊 {grupo}</h3>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                        <div>
+                            <p><strong>Cantidad de muestras:</strong> {info['cantidad']}</p>
+                            <p><strong>Calidad promedio:</strong> {info['calidad_promedio']:.1f}/100</p>
+                            <p><strong>Características:</strong> {', '.join(info['caracteristicas'])}</p>
+                        </div>
+                        <div>
+                            <p><strong>pH promedio:</strong> {info.get('ph_promedio', 0):.2f}</p>
+                            <p><strong>Oxígeno:</strong> {info.get('oxigeno_promedio', 0):.1f} mg/L</p>
+                            <p><strong>Turbidez:</strong> {info.get('turbidez_promedio', 0):.1f} NTU</p>
+                            <p><strong>Conductividad:</strong> {info.get('conductividad_promedio', 0):.1f} μS/cm</p>
+                        </div>
+                    </div>
+                </div>
+                """
+
+            # Agregar explicación del método
+            resumen_html += """
+            <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin-top: 15px; border-left: 5px solid #6c757d;">
+                <h3 style="color: #495057; margin-top: 0;">🔬 Metodología Utilizada</h3>
+                <p><strong>Algoritmo:</strong> Clustering Jerárquico Aglomerativo</p>
+                <p><strong>Método de Enlace:</strong> Ward (minimiza varianza intra-cluster)</p>
+                <p><strong>Métrica de Evaluación:</strong> Silhouette Score</p>
+                <p><strong>Preprocesamiento:</strong> Estandarización Z-score</p>
+                <p><strong>Visualización:</strong> Dendrograma + PCA para representación 2D</p>
+            </div>
+            """
+
+            resumen_html += "</div>"
+            self.resumen_content.setText(resumen_html)
+
+            # Crear gráfico de agrupamiento mejorado
+            if MATPLOTLIB_AVAILABLE:
+                self.crear_grafico_agrupamiento_mejorado(resultados)
+
+        except Exception as e:
+            error_msg = f"❌ Error en mostrar_agrupamiento: {str(e)}"
+            print(error_msg)
+            self.mostrar_error_en_pantalla("Error en Agrupamiento", error_msg)
+
+    def crear_grafico_agrupamiento_mejorado(self, resultados):
+        """Crear gráfico de agrupamiento normal (no jerárquico) para otros análisis"""
+        try:
+            # Si es clustering jerárquico, usar la función especial
+            if 'linkage_matrix' in resultados:
+                self.mostrar_clustering_jerarquico_en_graficos(resultados)
+                return
+
+            # Para otros tipos de agrupamiento, usar visualización estándar
+            self.figure.clear()
+            datos = pd.DataFrame(resultados['datos']) if isinstance(resultados['datos'], list) else resultados['datos']
+
+            # Crear múltiples subplots
+            gs = self.figure.add_gridspec(2, 2, hspace=0.3, wspace=0.3)
+
+            # 1. Scatter plot por grupos (pH vs Oxígeno)
+            ax1 = self.figure.add_subplot(gs[0, 0])
+            grupos_unicos = datos['Grupo'].unique()
+            colores = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7']
+
+            for i, grupo in enumerate(grupos_unicos):
+                grupo_data = datos[datos['Grupo'] == grupo]
+                ax1.scatter(grupo_data['pH'], grupo_data['Oxígeno_Disuelto'],
+                            c=colores[i % len(colores)], label=f'Cluster {grupo + 1}',
+                            alpha=0.7, s=60, edgecolors='black', linewidth=0.5)
+
+            ax1.set_xlabel('pH')
+            ax1.set_ylabel('Oxígeno Disuelto (mg/L)')
+            ax1.set_title('🎯 Clusters: pH vs Oxígeno', fontweight='bold')
+            ax1.legend()
+            ax1.grid(True, alpha=0.3)
+
+            # 2. Scatter plot Turbidez vs Conductividad
+            ax2 = self.figure.add_subplot(gs[0, 1])
+            for i, grupo in enumerate(grupos_unicos):
+                grupo_data = datos[datos['Grupo'] == grupo]
+                ax2.scatter(grupo_data['Turbidez'], grupo_data['Conductividad'],
+                            c=colores[i % len(colores)], label=f'Cluster {grupo + 1}',
+                            alpha=0.7, s=60, edgecolors='black', linewidth=0.5)
+
+            ax2.set_xlabel('Turbidez (NTU)')
+            ax2.set_ylabel('Conductividad (μS/cm)')
+            ax2.set_title('🎯 Clusters: Turbidez vs Conductividad', fontweight='bold')
+            ax2.legend()
+            ax2.grid(True, alpha=0.3)
+
+            # 3. Distribución de calidad por cluster
+            ax3 = self.figure.add_subplot(gs[1, 0])
+            cluster_quality = []
+            cluster_labels = []
+
+            for grupo in grupos_unicos:
+                grupo_data = datos[datos['Grupo'] == grupo]
+                cluster_quality.append(grupo_data['Calidad_Score'].mean())
+                cluster_labels.append(f'Cluster {grupo + 1}')
+
+            bars = ax3.bar(cluster_labels, cluster_quality,
+                           color=colores[:len(grupos_unicos)], alpha=0.8,
+                           edgecolor='black', linewidth=0.5)
+
+            ax3.set_ylabel('Calidad Promedio')
+            ax3.set_title('📊 Calidad Promedio por Cluster', fontweight='bold')
+            ax3.grid(True, alpha=0.3, axis='y')
+
+            # Añadir valores en las barras
+            for bar, value in zip(bars, cluster_quality):
+                height = bar.get_height()
+                ax3.text(bar.get_x() + bar.get_width() / 2., height + 1,
+                         f'{value:.1f}', ha='center', va='bottom', fontweight='bold')
+
+            # 4. Box plot de pH por cluster
+            ax4 = self.figure.add_subplot(gs[1, 1])
+            ph_data_by_cluster = []
+            cluster_names = []
+
+            for grupo in grupos_unicos:
+                grupo_data = datos[datos['Grupo'] == grupo]
+                ph_data_by_cluster.append(grupo_data['pH'].values)
+                cluster_names.append(f'C{grupo + 1}')
+
+            bp = ax4.boxplot(ph_data_by_cluster, labels=cluster_names, patch_artist=True)
+
+            # Colorear box plots
+            for patch, color in zip(bp['boxes'], colores[:len(grupos_unicos)]):
+                patch.set_facecolor(color)
+                patch.set_alpha(0.7)
+
+            ax4.set_ylabel('pH')
+            ax4.set_title('📦 Distribución de pH por Cluster', fontweight='bold')
+            ax4.grid(True, alpha=0.3, axis='y')
+
+            self.figure.suptitle('🔍 Análisis Completo de Clustering', fontsize=14, fontweight='bold')
+            self.canvas.draw()
+
+        except Exception as e:
+            print(f"Error en gráfico agrupamiento: {e}")
 
     def mostrar_prediccion(self, resultados):
         """Mostrar resultados de predicción optimizado"""
@@ -614,14 +1008,12 @@ class ResultadosVisuales(QWidget):
             print(error_msg)
             self.mostrar_error_en_pantalla("Error en Predicción", error_msg)
 
-
     def mostrar_optimizacion(self, resultados):
         """Mostrar resultados de optimización"""
         try:
             configuraciones = resultados['resultados']
             mejor = resultados['mejor_config']
 
-            # HTML corregido
             resumen_html = f"""
             <div style="font-family: Arial; font-size: 14px; padding: 20px;">
                 <div style="text-align: center; background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%); 
@@ -669,131 +1061,165 @@ class ResultadosVisuales(QWidget):
             print(error_msg)
             self.mostrar_error_en_pantalla("Error en Optimización", error_msg)
 
-    def mostrar_agrupamiento(self, resultados):
-                """Mostrar resultados de agrupamiento optimizado"""
-                try:
-                    analisis = resultados['analisis_grupos']
+    def mostrar_comparacion(self, resultados):
+        """Mostrar comparación de métodos"""
+        try:
+            metodos = resultados['metodos']
+            mejor_metodo = max(metodos, key=lambda x: x['precision'])
 
-                    # HTML corregido
-                    resumen_html = """
-                    <div style="font-family: Arial; font-size: 14px; padding: 20px;">
-                        <div style="text-align: center; background: linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%); 
-                                    color: white; padding: 20px; border-radius: 10px; margin-bottom: 20px;">
-                            <h2>🔍 Agrupamiento de Muestras</h2>
-                            <p style="font-size: 16px;">Se encontraron patrones similares usando clustering</p>
+            resumen_html = f"""
+            <div style="font-family: Arial; font-size: 14px; padding: 20px;">
+                <div style="text-align: center; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+                            color: white; padding: 20px; border-radius: 10px; margin-bottom: 20px;">
+                    <h2>🔬 Comparación de Métodos</h2>
+                    <p style="font-size: 16px;">Evaluación de diferentes enfoques de análisis</p>
+                    <p><strong>Mejor método:</strong> {mejor_metodo['metodo']} ({mejor_metodo['precision']:.1f}%)</p>
+                </div>
+            """
+
+            for metodo in metodos:
+                es_mejor = metodo == mejor_metodo
+                color = '#4CAF50' if es_mejor else '#2196F3'
+                icon = '🏆' if es_mejor else '🔬'
+
+                resumen_html += f"""
+                <div style="background: {'#e8f5e8' if es_mejor else '#e3f2fd'}; 
+                            border-left: 5px solid {color}; padding: 15px; margin: 15px 0; border-radius: 8px;">
+                    <h3 style="color: {color}; margin-top: 0;">{icon} {metodo['metodo']}</h3>
+                    <p><strong>Precisión:</strong> {metodo['precision']:.1f}%</p>
+                    <p><strong>Ventajas:</strong> {metodo['ventajas']}</p>
+                    {'<p style="color: #4CAF50; font-weight: bold;">✅ Método recomendado</p>' if es_mejor else ''}
+
+                    <div style="background: #f0f0f0; height: 10px; border-radius: 5px; margin-top: 8px;">
+                        <div style="background: {color}; height: 10px; width: {metodo['precision']}%; 
+                                    border-radius: 5px; transition: width 0.3s ease;"></div>
+                    </div>
+                </div>
+                """
+
+            resumen_html += """
+            <div style="background: #fff3e0; padding: 15px; border-radius: 8px; margin-top: 15px;">
+                <h3 style="color: #ef6c00;">📊 Análisis Comparativo</h3>
+                <p><strong>Conclusiones:</strong></p>
+                <ul>
+            """
+
+            # Generar conclusiones automáticas
+            precision_max = max(m['precision'] for m in metodos)
+            precision_min = min(m['precision'] for m in metodos)
+            diferencia = precision_max - precision_min
+
+            if diferencia < 5:
+                resumen_html += "<li>Los métodos muestran rendimiento similar, elegir por facilidad de uso</li>"
+            elif diferencia < 15:
+                resumen_html += "<li>Hay diferencias moderadas en precisión, considerar el método recomendado</li>"
+            else:
+                resumen_html += "<li>Diferencias significativas en rendimiento, usar el método óptimo</li>"
+
+            if precision_max > 90:
+                resumen_html += "<li>Excelente precisión general del sistema de análisis</li>"
+            elif precision_max > 80:
+                resumen_html += "<li>Buena precisión, sistema confiable para toma de decisiones</li>"
+            else:
+                resumen_html += "<li>Precisión moderada, considerar mejorar el conjunto de datos</li>"
+
+            resumen_html += """
+                </ul>
+            </div>
+            </div>
+            """
+
+            self.resumen_content.setText(resumen_html)
+
+            # Crear gráfico de comparación
+            if MATPLOTLIB_AVAILABLE:
+                self.crear_grafico_comparacion_simple(metodos)
+
+        except Exception as e:
+            error_msg = f"❌ Error en mostrar_comparacion: {str(e)}"
+            print(error_msg)
+            self.mostrar_error_en_pantalla("Error en Comparación", error_msg)
+
+    def mostrar_calidad_agua(self, resultados):
+        """Mostrar resultados de análisis de calidad del agua optimizado"""
+        try:
+            stats = resultados['estadisticas']
+            distribucion = resultados['distribucion']
+
+            resumen_html = f"""
+            <div style="font-family: Arial; font-size: 14px; padding: 20px;">
+                <div style="text-align: center; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+                            color: white; padding: 20px; border-radius: 10px; margin-bottom: 20px;">
+                    <h2>🧪 Análisis de Calidad del Agua</h2>
+                    <h3>{resultados['estado_general']}</h3>
+                    <p style="font-size: 16px;">{resultados['mensaje']}</p>
+                </div>
+
+                <div style="background: #e8f5e8; padding: 15px; border-radius: 8px; border-left: 5px solid #4CAF50;">
+                    <h3 style="color: #2e7d32; margin-top: 0;">📊 Estadísticas Generales</h3>
+                    <p><strong>Total de muestras:</strong> {stats['total_muestras']}</p>
+                    <p><strong>Calidad promedio:</strong> {stats['calidad_promedio']:.1f}/100</p>
+                    <p><strong>pH promedio:</strong> {stats['ph_promedio']:.2f}</p>
+                    <p><strong>Oxígeno:</strong> {stats['oxigeno_promedio']:.1f} mg/L</p>
+                    <p><strong>Turbidez:</strong> {stats['turbidez_promedio']:.1f} NTU</p>
+                    <p><strong>Conductividad:</strong> {stats['conductividad_promedio']:.1f} μS/cm</p>
+                </div>
+
+                <div style="background: #fff3e0; padding: 15px; border-radius: 8px; margin-top: 15px;">
+                    <h3 style="color: #ef6c00;">📈 Distribución de Calidad</h3>
+            """
+
+            # Añadir distribución de calidad
+            total_muestras = sum(distribucion.values())
+            for calidad, cantidad in distribucion.items():
+                porcentaje = (cantidad / total_muestras) * 100
+                color_barra = {
+                    'Excelente': '#4CAF50',
+                    'Buena': '#8BC34A',
+                    'Regular': '#FF9800',
+                    'Necesita Tratamiento': '#F44336'
+                }.get(calidad, '#9E9E9E')
+
+                resumen_html += f"""
+                    <div style="margin: 8px 0;">
+                        <strong>{calidad}:</strong> {cantidad} muestras ({porcentaje:.1f}%)
+                        <div style="background: #f0f0f0; height: 12px; border-radius: 6px; margin-top: 3px;">
+                            <div style="background: {color_barra}; height: 12px; width: {porcentaje}%; 
+                                        border-radius: 6px; transition: width 0.3s ease;"></div>
                         </div>
-                    """
+                    </div>
+                """
 
-                    colores_grupos = ['#e8f5e8', '#e3f2fd', '#fff3e0']
-                    colores_bordes = ['#4CAF50', '#2196F3', '#FF9800']
+            resumen_html += """
+                </div>
 
-                    for i, (grupo, info) in enumerate(analisis.items()):
-                        color_fondo = colores_grupos[i % len(colores_grupos)]
-                        color_borde = colores_bordes[i % len(colores_bordes)]
+                <div style="background: #e3f2fd; padding: 15px; border-radius: 8px; margin-top: 15px;">
+                    <h3 style="color: #1565c0;">💡 Recomendaciones</h3>
+            """
 
-                        resumen_html += f"""
-                        <div style="background: {color_fondo}; border-left: 5px solid {color_borde}; 
-                                    padding: 15px; margin: 15px 0; border-radius: 8px;">
-                            <h3 style="color: {color_borde}; margin-top: 0;">📊 {grupo}</h3>
-                            <p><strong>Cantidad de muestras:</strong> {info['cantidad']}</p>
-                            <p><strong>Calidad promedio:</strong> {info['calidad_promedio']:.1f}/100</p>
-                            <p><strong>Características principales:</strong> {', '.join(info['caracteristicas'])}</p>
-                        </div>
-                        """
+            # Generar recomendaciones automáticas
+            recomendaciones = self.generar_recomendaciones_calidad(stats, distribucion)
+            for rec in recomendaciones:
+                resumen_html += f"<p>• {rec}</p>"
 
-                    resumen_html += "</div>"
-                    self.resumen_content.setText(resumen_html)
+            resumen_html += "</div></div>"
 
-                    # Crear gráfico de agrupamiento
-                    if MATPLOTLIB_AVAILABLE:
-                        self.crear_grafico_agrupamiento_simple(resultados)
+            self.resumen_content.setText(resumen_html)
 
-                except Exception as e:
-                    error_msg = f"❌ Error en mostrar_agrupamiento: {str(e)}"
-                    print(error_msg)
-                    self.mostrar_error_en_pantalla("Error en Agrupamiento", error_msg)
+            # Actualizar tab de recomendaciones
+            self.actualizar_recomendaciones_calidad(stats, distribucion)
 
-                    def mostrar_calidad_agua(self, resultados):
-                        """Mostrar resultados de análisis de calidad del agua optimizado"""
-                        try:
-                            stats = resultados['estadisticas']
-                            distribucion = resultados['distribucion']
+            # Crear gráficos optimizados
+            if MATPLOTLIB_AVAILABLE:
+                self.crear_graficos_calidad_optimizado(resultados)
 
-                            # HTML corregido sin espacios en etiquetas
-                            resumen_html = f"""
-                            <div style="font-family: Arial; font-size: 14px; padding: 20px;">
-                                <div style="text-align: center; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
-                                            color: white; padding: 20px; border-radius: 10px; margin-bottom: 20px;">
-                                    <h2>🧪 Análisis de Calidad del Agua</h2>
-                                    <h3>{resultados['estado_general']}</h3>
-                                    <p style="font-size: 16px;">{resultados['mensaje']}</p>
-                                </div>
-
-                                <div style="background: #e8f5e8; padding: 15px; border-radius: 8px; border-left: 5px solid #4CAF50;">
-                                    <h3 style="color: #2e7d32; margin-top: 0;">📊 Estadísticas Generales</h3>
-                                    <p><strong>Total de muestras:</strong> {stats['total_muestras']}</p>
-                                    <p><strong>Calidad promedio:</strong> {stats['calidad_promedio']:.1f}/100</p>
-                                    <p><strong>pH promedio:</strong> {stats['ph_promedio']:.2f}</p>
-                                    <p><strong>Oxígeno:</strong> {stats['oxigeno_promedio']:.1f} mg/L</p>
-                                    <p><strong>Turbidez:</strong> {stats['turbidez_promedio']:.1f} NTU</p>
-                                    <p><strong>Conductividad:</strong> {stats['conductividad_promedio']:.1f} μS/cm</p>
-                                </div>
-
-                                <div style="background: #fff3e0; padding: 15px; border-radius: 8px; margin-top: 15px;">
-                                    <h3 style="color: #ef6c00;">📈 Distribución de Calidad</h3>
-                            """
-
-                            # Añadir distribución de calidad
-                            total_muestras = sum(distribucion.values())
-                            for calidad, cantidad in distribucion.items():
-                                porcentaje = (cantidad / total_muestras) * 100
-                                color_barra = {
-                                    'Excelente': '#4CAF50',
-                                    'Buena': '#8BC34A',
-                                    'Regular': '#FF9800',
-                                    'Necesita Tratamiento': '#F44336'
-                                }.get(calidad, '#9E9E9E')
-
-                                resumen_html += f"""
-                                    <div style="margin: 8px 0;">
-                                        <strong>{calidad}:</strong> {cantidad} muestras ({porcentaje:.1f}%)
-                                        <div style="background: #f0f0f0; height: 12px; border-radius: 6px; margin-top: 3px;">
-                                            <div style="background: {color_barra}; height: 12px; width: {porcentaje}%; 
-                                                        border-radius: 6px; transition: width 0.3s ease;"></div>
-                                        </div>
-                                    </div>
-                                """
-
-                            resumen_html += """
-                                </div>
-
-                                <div style="background: #e3f2fd; padding: 15px; border-radius: 8px; margin-top: 15px;">
-                                    <h3 style="color: #1565c0;">💡 Recomendaciones</h3>
-                            """
-
-                            # Generar recomendaciones automáticas
-                            recomendaciones = self.generar_recomendaciones_calidad(stats, distribucion)
-                            for rec in recomendaciones:
-                                resumen_html += f"<p>• {rec}</p>"
-
-                            resumen_html += "</div></div>"
-
-                            self.resumen_content.setText(resumen_html)
-
-                            # Actualizar tab de recomendaciones
-                            self.actualizar_recomendaciones_calidad(stats, distribucion)
-
-                            # Crear gráficos optimizados
-                            if MATPLOTLIB_AVAILABLE:
-                                self.crear_graficos_calidad_optimizado(resultados)
-
-                        except Exception as e:
-                            error_msg = f"❌ Error en mostrar_calidad_agua: {str(e)}"
-                            print(error_msg)
-                            self.mostrar_error_en_pantalla("Error en Calidad del Agua", error_msg)
+        except Exception as e:
+            error_msg = f"❌ Error en mostrar_calidad_agua: {str(e)}"
+            print(error_msg)
+            self.mostrar_error_en_pantalla("Error en Calidad del Agua", error_msg)
 
     def mostrar_error_en_pantalla(self, titulo, mensaje):
-        """Mostrar errores en la pantalla principal en lugar de solo en consola"""
+        """Mostrar errores en la pantalla principal"""
         error_html = f"""
         <div style="font-family: Arial; font-size: 14px; padding: 20px;">
             <div style="text-align: center; background: linear-gradient(135deg, #ff6b6b 0%, #ee5a52 100%); 
@@ -965,120 +1391,6 @@ class ResultadosVisuales(QWidget):
             ax.set_title('Error en Visualización', fontsize=14, fontweight='bold')
             self.canvas.draw()
 
-            # También mostrar el error en pantalla
-            self.mostrar_error_en_pantalla("Error en Gráficos",
-                                           f"Error al crear gráficos de calidad del agua: {str(e)}")
-
-    def mostrar_comparacion(self, resultados):
-        """Mostrar comparación de métodos - función completa"""
-        try:
-            metodos = resultados['metodos']
-            mejor_metodo = max(metodos, key=lambda x: x['precision'])
-
-            resumen_html = f"""
-               <div style="font-family: Arial; font-size: 14px; padding: 20px;">
-                   <div style="text-align: center; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
-                               color: white; padding: 20px; border-radius: 10px; margin-bottom: 20px;">
-                       <h2>🔬 Comparación de Métodos</h2>
-                       <p style="font-size: 16px;">Evaluación de diferentes enfoques de análisis</p>
-                       <p><strong>Mejor método:</strong> {mejor_metodo['metodo']} ({mejor_metodo['precision']:.1f}%)</p>
-                   </div>
-               """
-
-            for metodo in metodos:
-                es_mejor = metodo == mejor_metodo
-                color = '#4CAF50' if es_mejor else '#2196F3'
-                icon = '🏆' if es_mejor else '🔬'
-
-                resumen_html += f"""
-                   <div style="background: {'#e8f5e8' if es_mejor else '#e3f2fd'}; 
-                               border-left: 5px solid {color}; padding: 15px; margin: 15px 0; border-radius: 8px;">
-                       <h3 style="color: {color}; margin-top: 0;">{icon} {metodo['metodo']}</h3>
-                       <p><strong>Precisión:</strong> {metodo['precision']:.1f}%</p>
-                       <p><strong>Ventajas:</strong> {metodo['ventajas']}</p>
-                       {'<p style="color: #4CAF50; font-weight: bold;">✅ Método recomendado</p>' if es_mejor else ''}
-
-                       <div style="background: #f0f0f0; height: 10px; border-radius: 5px; margin-top: 8px;">
-                           <div style="background: {color}; height: 10px; width: {metodo['precision']}%; 
-                                       border-radius: 5px; transition: width 0.3s ease;"></div>
-                       </div>
-                   </div>
-                   """
-
-            # Agregar análisis comparativo
-            resumen_html += """
-               <div style="background: #fff3e0; padding: 15px; border-radius: 8px; margin-top: 15px;">
-                   <h3 style="color: #ef6c00;">📊 Análisis Comparativo</h3>
-                   <p><strong>Conclusiones:</strong></p>
-                   <ul>
-               """
-
-            # Generar conclusiones automáticas
-            precision_max = max(m['precision'] for m in metodos)
-            precision_min = min(m['precision'] for m in metodos)
-            diferencia = precision_max - precision_min
-
-            if diferencia < 5:
-                resumen_html += "<li>Los métodos muestran rendimiento similar, elegir por facilidad de uso</li>"
-            elif diferencia < 15:
-                resumen_html += "<li>Hay diferencias moderadas en precisión, considerar el método recomendado</li>"
-            else:
-                resumen_html += "<li>Diferencias significativas en rendimiento, usar el método óptimo</li>"
-
-            if precision_max > 90:
-                resumen_html += "<li>Excelente precisión general del sistema de análisis</li>"
-            elif precision_max > 80:
-                resumen_html += "<li>Buena precisión, sistema confiable para toma de decisiones</li>"
-            else:
-                resumen_html += "<li>Precisión moderada, considerar mejorar el conjunto de datos</li>"
-
-            resumen_html += """
-                   </ul>
-               </div>
-               </div>
-               """
-
-            self.resumen_content.setText(resumen_html)
-
-            # Crear gráfico de comparación
-            if MATPLOTLIB_AVAILABLE:
-                self.crear_grafico_comparacion_simple(metodos)
-
-        except Exception as e:
-            error_msg = f"❌ Error en mostrar_comparacion: {str(e)}"
-            print(error_msg)
-            self.mostrar_error_en_pantalla("Error en Comparación", error_msg)
-
-    def crear_grafico_agrupamiento_simple(self, resultados):
-        """Crear gráfico simple de agrupamiento"""
-        try:
-            self.figure.clear()
-            datos = pd.DataFrame(resultados['datos']) if isinstance(resultados['datos'], list) else resultados['datos']
-
-            ax = self.figure.add_subplot(1, 1, 1)
-
-            # Scatter plot por grupos
-            grupos_unicos = datos['Grupo'].unique()
-            colores = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7']
-
-            for i, grupo in enumerate(grupos_unicos):
-                grupo_data = datos[datos['Grupo'] == grupo]
-                ax.scatter(grupo_data['pH'], grupo_data['Oxígeno_Disuelto'],
-                           c=colores[i % len(colores)], label=f'Grupo {grupo + 1}',
-                           alpha=0.7, s=60, edgecolors='black', linewidth=0.5)
-
-            ax.set_xlabel('pH')
-            ax.set_ylabel('Oxígeno Disuelto (mg/L)')
-            ax.set_title('🔍 Agrupamiento de Muestras por pH y Oxígeno', fontweight='bold')
-            ax.legend()
-            ax.grid(True, alpha=0.3)
-
-            self.figure.tight_layout()
-            self.canvas.draw()
-
-        except Exception as e:
-            print(f"Error en gráfico agrupamiento: {e}")
-
     def crear_grafico_importancias_simple(self, importancias):
         """Crear gráfico simple de importancias"""
         try:
@@ -1239,47 +1551,47 @@ class ResultadosVisuales(QWidget):
             recomendaciones = self.generar_recomendaciones_calidad(stats, distribucion)
 
             html_recomendaciones = """
-               <div style="font-family: Arial; font-size: 14px; padding: 20px;">
-                   <div style="text-align: center; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
-                               color: white; padding: 15px; border-radius: 10px; margin-bottom: 20px;">
-                       <h2>💡 Recomendaciones Inteligentes</h2>
-                       <p>Análisis automático y sugerencias de mejora</p>
-                   </div>
+            <div style="font-family: Arial; font-size: 14px; padding: 20px;">
+                <div style="text-align: center; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+                            color: white; padding: 15px; border-radius: 10px; margin-bottom: 20px;">
+                    <h2>💡 Recomendaciones Inteligentes</h2>
+                    <p>Análisis automático y sugerencias de mejora</p>
+                </div>
 
-                   <div style="background: #e8f5e8; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
-                       <h3 style="color: #2e7d32;">🎯 Acciones Recomendadas</h3>
-               """
+                <div style="background: #e8f5e8; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+                    <h3 style="color: #2e7d32;">🎯 Acciones Recomendadas</h3>
+            """
 
             for i, rec in enumerate(recomendaciones):
                 icon_color = '#4CAF50' if '✅' in rec else '#FF9800' if '🟡' in rec else '#F44336'
                 html_recomendaciones += f"""
-                   <div style="background: white; padding: 12px; margin: 8px 0; border-radius: 6px; 
-                               border-left: 4px solid {icon_color}; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-                       <p style="margin: 0; font-weight: 500;">{rec}</p>
-                   </div>
-                   """
+                <div style="background: white; padding: 12px; margin: 8px 0; border-radius: 6px; 
+                            border-left: 4px solid {icon_color}; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                    <p style="margin: 0; font-weight: 500;">{rec}</p>
+                </div>
+                """
 
             html_recomendaciones += """
-                   </div>
+                </div>
 
-                   <div style="background: #e3f2fd; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
-                       <h3 style="color: #1565c0;">📋 Plan de Acción Sugerido</h3>
-                       <ol style="padding-left: 20px;">
-                           <li><strong>Inmediato (0-7 días):</strong> Abordar problemas críticos marcados en rojo</li>
-                           <li><strong>Corto plazo (1-4 semanas):</strong> Implementar mejoras moderadas</li>
-                           <li><strong>Mediano plazo (1-3 meses):</strong> Optimizar sistemas existentes</li>
-                           <li><strong>Largo plazo (3+ meses):</strong> Establecer protocolos de mantenimiento</li>
-                       </ol>
-                   </div>
+                <div style="background: #e3f2fd; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+                    <h3 style="color: #1565c0;">📋 Plan de Acción Sugerido</h3>
+                    <ol style="padding-left: 20px;">
+                        <li><strong>Inmediato (0-7 días):</strong> Abordar problemas críticos marcados en rojo</li>
+                        <li><strong>Corto plazo (1-4 semanas):</strong> Implementar mejoras moderadas</li>
+                        <li><strong>Mediano plazo (1-3 meses):</strong> Optimizar sistemas existentes</li>
+                        <li><strong>Largo plazo (3+ meses):</strong> Establecer protocolos de mantenimiento</li>
+                    </ol>
+                </div>
 
-                   <div style="background: #fff3e0; padding: 15px; border-radius: 8px;">
-                       <h3 style="color: #ef6c00;">🔄 Frecuencia de Monitoreo Recomendada</h3>
-                       <p><strong>Parámetros críticos:</strong> Diario (pH, Oxígeno)</p>
-                       <p><strong>Parámetros importantes:</strong> Semanal (Turbidez, Conductividad)</p>
-                       <p><strong>Análisis completo:</strong> Mensual (Evaluación integral)</p>
-                   </div>
-               </div>
-               """
+                <div style="background: #fff3e0; padding: 15px; border-radius: 8px;">
+                    <h3 style="color: #ef6c00;">🔄 Frecuencia de Monitoreo Recomendada</h3>
+                    <p><strong>Parámetros críticos:</strong> Diario (pH, Oxígeno)</p>
+                    <p><strong>Parámetros importantes:</strong> Semanal (Turbidez, Conductividad)</p>
+                    <p><strong>Análisis completo:</strong> Mensual (Evaluación integral)</p>
+                </div>
+            </div>
+            """
 
             self.recomendaciones_content.setText(html_recomendaciones)
 
@@ -1288,319 +1600,9 @@ class ResultadosVisuales(QWidget):
             print(error_msg)
             self.mostrar_error_en_pantalla("Error en Recomendaciones", error_msg)
 
-    def actualizar_recomendaciones_calidad(self, stats, distribucion):
-        """Actualizar el tab de recomendaciones con análisis detallado"""
-        recomendaciones = self.generar_recomendaciones_calidad(stats, distribucion)
-
-        html_recomendaciones = """
-        <div style="font-family: Arial; font-size: 14px; padding: 20px;">
-            <div style="text-align: center; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
-                        color: white; padding: 15px; border-radius: 10px; margin-bottom: 20px;">
-                <h2>💡 Recomendaciones Inteligentes</h2>
-                <p>Análisis automático y sugerencias de mejora</p>
-            </div>
-
-            <div style="background: #e8f5e8; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
-                <h3 style="color: #2e7d32;">🎯 Acciones Recomendadas</h3>
-        """
-
-        for i, rec in enumerate(recomendaciones):
-            icon_color = '#4CAF50' if '✅' in rec else '#FF9800' if '🟡' in rec else '#F44336'
-            html_recomendaciones += f"""
-            <div style="background: white; padding: 12px; margin: 8px 0; border-radius: 6px; 
-                        border-left: 4px solid {icon_color}; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-                <p style="margin: 0; font-weight: 500;">{rec}</p>
-            </div>
-            """
-
-        html_recomendaciones += """
-            </div>
-
-            <div style="background: #e3f2fd; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
-                <h3 style="color: #1565c0;">📋 Plan de Acción Sugerido</h3>
-                <ol style="padding-left: 20px;">
-                    <li><strong>Inmediato (0-7 días):</strong> Abordar problemas críticos marcados en rojo</li>
-                    <li><strong>Corto plazo (1-4 semanas):</strong> Implementar mejoras moderadas</li>
-                    <li><strong>Mediano plazo (1-3 meses):</strong> Optimizar sistemas existentes</li>
-                    <li><strong>Largo plazo (3+ meses):</strong> Establecer protocolos de mantenimiento</li>
-                </ol>
-            </div>
-
-            <div style="background: #fff3e0; padding: 15px; border-radius: 8px;">
-                <h3 style="color: #ef6c00;">🔄 Frecuencia de Monitoreo Recomendada</h3>
-                <p><strong>Parámetros críticos:</strong> Diario (pH, Oxígeno)</p>
-                <p><strong>Parámetros importantes:</strong> Semanal (Turbidez, Conductividad)</p>
-                <p><strong>Análisis completo:</strong> Mensual (Evaluación integral)</p>
-            </div>
-        </div>
-        """
-
-        self.recomendaciones_content.setText(html_recomendaciones)
-
-    # Función adicional para completar la función mostrar_comparacion
-    def mostrar_comparacion_completa(self, resultados):
-        """Mostrar comparación de métodos - función completa"""
-        try:
-            metodos = resultados['metodos']
-            mejor_metodo = max(metodos, key=lambda x: x['precision'])
-
-            resumen_html = f"""
-            <div style="font-family: Arial; font-size: 14px; padding: 20px;">
-                <div style="text-align: center; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
-                            color: white; padding: 20px; border-radius: 10px; margin-bottom: 20px;">
-                    <h2>🔬 Comparación de Métodos</h2>
-                    <p style="font-size: 16px;">Evaluación de diferentes enfoques de análisis</p>
-                    <p><strong>Mejor método:</strong> {mejor_metodo['metodo']} ({mejor_metodo['precision']:.1f}%)</p>
-                </div>
-            """
-
-            for metodo in metodos:
-                es_mejor = metodo == mejor_metodo
-                color = '#4CAF50' if es_mejor else '#2196F3'
-                icon = '🏆' if es_mejor else '🔬'
-
-                resumen_html += f"""
-                <div style="background: {'#e8f5e8' if es_mejor else '#e3f2fd'}; 
-                            border-left: 5px solid {color}; padding: 15px; margin: 15px 0; border-radius: 8px;">
-                    <h3 style="color: {color}; margin-top: 0;">{icon} {metodo['metodo']}</h3>
-                    <p><strong>Precisión:</strong> {metodo['precision']:.1f}%</p>
-                    <p><strong>Ventajas:</strong> {metodo['ventajas']}</p>
-                    {'<p style="color: #4CAF50; font-weight: bold;">✅ Método recomendado</p>' if es_mejor else ''}
-
-                    <div style="background: #f0f0f0; height: 10px; border-radius: 5px; margin-top: 8px;">
-                        <div style="background: {color}; height: 10px; width: {metodo['precision']}%; 
-                                    border-radius: 5px; transition: width 0.3s ease;"></div>
-                    </div>
-                </div>
-                """
-
-            # Agregar análisis comparativo
-            resumen_html += """
-            <div style="background: #fff3e0; padding: 15px; border-radius: 8px; margin-top: 15px;">
-                <h3 style="color: #ef6c00;">📊 Análisis Comparativo</h3>
-                <p><strong>Conclusiones:</strong></p>
-                <ul>
-            """
-
-            # Generar conclusiones automáticas
-            precision_max = max(m['precision'] for m in metodos)
-            precision_min = min(m['precision'] for m in metodos)
-            diferencia = precision_max - precision_min
-
-            if diferencia < 5:
-                resumen_html += "<li>Los métodos muestran rendimiento similar, elegir por facilidad de uso</li>"
-            elif diferencia < 15:
-                resumen_html += "<li>Hay diferencias moderadas en precisión, considerar el método recomendado</li>"
-            else:
-                resumen_html += "<li>Diferencias significativas en rendimiento, usar el método óptimo</li>"
-
-            if precision_max > 90:
-                resumen_html += "<li>Excelente precisión general del sistema de análisis</li>"
-            elif precision_max > 80:
-                resumen_html += "<li>Buena precisión, sistema confiable para toma de decisiones</li>"
-            else:
-                resumen_html += "<li>Precisión moderada, considerar mejorar el conjunto de datos</li>"
-
-            resumen_html += """
-                </ul>
-            </div>
-            </div>
-            """
-
-            self.resumen_content.setText(resumen_html)
-
-            # Crear gráfico de comparación
-            if MATPLOTLIB_AVAILABLE:
-                self.crear_grafico_comparacion_simple(metodos)
-
-        except Exception as e:
-            error_msg = f"❌ Error en mostrar_comparacion: {str(e)}"
-            print(error_msg)
-            self.resumen_content.setText(error_msg)
-
-    # Función para añadir estilos CSS adicionales específicos para resultados
-    def aplicar_estilos_resultados_adicionales(self):
-        """Aplicar estilos CSS adicionales para mejorar la presentación de resultados"""
-        estilos_adicionales = """
-        /* Estilos específicos para resultados HTML */
-        QLabel[objectName="resumenContent"] {
-            background-color: white;
-            border: 1px solid #e0e0e0;
-            border-radius: 8px;
-            padding: 0px;
-        }
-
-        QLabel[objectName="recomendacionesContent"] {
-            background-color: white;
-            border: 1px solid #e0e0e0;
-            border-radius: 8px;
-            padding: 0px;
-        }
-
-        /* Mejorar scroll areas */
-        QScrollArea[objectName="resumen_scroll"] {
-            background-color: #f8f9fa;
-            border: 2px solid #dee2e6;
-            border-radius: 8px;
-        }
-
-        QScrollArea[objectName="recomendaciones_scroll"] {
-            background-color: #f8f9fa;
-            border: 2px solid #dee2e6;
-            border-radius: 8px;
-        }
-
-        /* Tabs mejorados */
-        QTabWidget::tab-bar {
-            alignment: center;
-        }
-
-        QTabBar::tab {
-            min-width: 120px;
-            padding: 12px 20px;
-        }
-
-        /* Canvas de matplotlib */
-        QWidget[objectName="canvas"] {
-            background-color: white;
-            border: 1px solid #dee2e6;
-            border-radius: 6px;
-        }
-        """
-
-    def mostrar_calidad_agua(self, resultados):
-        """Mostrar resultados de análisis de calidad del agua optimizado"""
-        stats = resultados['estadisticas']
-        distribucion = resultados['distribucion']
-
-        # Resumen HTML optimizado
-
-        def mostrar_agrupamiento(self, resultados):
-            """Mostrar resultados de agrupamiento optimizado"""
-            try:
-                analisis = resultados['analisis_grupos']
-
-                # HTML corregido
-                resumen_html = """
-                <div style="font-family: Arial; font-size: 14px; padding: 20px;">
-                    <div style="text-align: center; background: linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%); 
-                                color: white; padding: 20px; border-radius: 10px; margin-bottom: 20px;">
-                        <h2>🔍 Agrupamiento de Muestras</h2>
-                        <p style="font-size: 16px;">Se encontraron patrones similares usando clustering</p>
-                    </div>
-                """
-
-                colores_grupos = ['#e8f5e8', '#e3f2fd', '#fff3e0']
-                colores_bordes = ['#4CAF50', '#2196F3', '#FF9800']
-
-                for i, (grupo, info) in enumerate(analisis.items()):
-                    color_fondo = colores_grupos[i % len(colores_grupos)]
-                    color_borde = colores_bordes[i % len(colores_bordes)]
-
-                    resumen_html += f"""
-                    <div style="background: {color_fondo}; border-left: 5px solid {color_borde}; 
-                                padding: 15px; margin: 15px 0; border-radius: 8px;">
-                        <h3 style="color: {color_borde}; margin-top: 0;">📊 {grupo}</h3>
-                        <p><strong>Cantidad de muestras:</strong> {info['cantidad']}</p>
-                        <p><strong>Calidad promedio:</strong> {info['calidad_promedio']:.1f}/100</p>
-                        <p><strong>Características principales:</strong> {', '.join(info['caracteristicas'])}</p>
-                    </div>
-                    """
-
-                resumen_html += "</div>"
-                self.resumen_content.setText(resumen_html)
-
-                # Crear gráfico de agrupamiento
-                if MATPLOTLIB_AVAILABLE:
-                    self.crear_grafico_agrupamiento_simple(resultados)
-
-            except Exception as e:
-                error_msg = f"❌ Error en mostrar_agrupamiento: {str(e)}"
-                print(error_msg)
-                self.resumen_content.setText(error_msg)
-
-    def mostrar_calidad_agua(self, resultados):
-        """Mostrar resultados de análisis de calidad del agua optimizado"""
-        try:
-            stats = resultados['estadisticas']
-            distribucion = resultados['distribucion']
-
-            # HTML corregido sin espacios en etiquetas
-            resumen_html = f"""
-            <div style="font-family: Arial; font-size: 14px; padding: 20px;">
-                <div style="text-align: center; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
-                            color: white; padding: 20px; border-radius: 10px; margin-bottom: 20px;">
-                    <h2>🧪 Análisis de Calidad del Agua</h2>
-                    <h3>{resultados['estado_general']}</h3>
-                    <p style="font-size: 16px;">{resultados['mensaje']}</p>
-                </div>
-
-                <div style="background: #e8f5e8; padding: 15px; border-radius: 8px; border-left: 5px solid #4CAF50;">
-                    <h3 style="color: #2e7d32; margin-top: 0;">📊 Estadísticas Generales</h3>
-                    <p><strong>Total de muestras:</strong> {stats['total_muestras']}</p>
-                    <p><strong>Calidad promedio:</strong> {stats['calidad_promedio']:.1f}/100</p>
-                    <p><strong>pH promedio:</strong> {stats['ph_promedio']:.2f}</p>
-                    <p><strong>Oxígeno:</strong> {stats['oxigeno_promedio']:.1f} mg/L</p>
-                    <p><strong>Turbidez:</strong> {stats['turbidez_promedio']:.1f} NTU</p>
-                    <p><strong>Conductividad:</strong> {stats['conductividad_promedio']:.1f} μS/cm</p>
-                </div>
-
-                <div style="background: #fff3e0; padding: 15px; border-radius: 8px; margin-top: 15px;">
-                    <h3 style="color: #ef6c00;">📈 Distribución de Calidad</h3>
-            """
-
-            # Añadir distribución de calidad
-            total_muestras = sum(distribucion.values())
-            for calidad, cantidad in distribucion.items():
-                porcentaje = (cantidad / total_muestras) * 100
-                color_barra = {
-                    'Excelente': '#4CAF50',
-                    'Buena': '#8BC34A',
-                    'Regular': '#FF9800',
-                    'Necesita Tratamiento': '#F44336'
-                }.get(calidad, '#9E9E9E')
-
-                resumen_html += f"""
-                    <div style="margin: 8px 0;">
-                        <strong>{calidad}:</strong> {cantidad} muestras ({porcentaje:.1f}%)
-                        <div style="background: #f0f0f0; height: 12px; border-radius: 6px; margin-top: 3px;">
-                            <div style="background: {color_barra}; height: 12px; width: {porcentaje}%; 
-                                        border-radius: 6px; transition: width 0.3s ease;"></div>
-                        </div>
-                    </div>
-                """
-
-            resumen_html += """
-                </div>
-
-                <div style="background: #e3f2fd; padding: 15px; border-radius: 8px; margin-top: 15px;">
-                    <h3 style="color: #1565c0;">💡 Recomendaciones</h3>
-            """
-
-            # Generar recomendaciones automáticas
-            recomendaciones = self.generar_recomendaciones_calidad(stats, distribucion)
-            for rec in recomendaciones:
-                resumen_html += f"<p>• {rec}</p>"
-
-            resumen_html += "</div></div>"
-
-            self.resumen_content.setText(resumen_html)
-
-            # Actualizar tab de recomendaciones
-            self.actualizar_recomendaciones_calidad(stats, distribucion)
-
-            # Crear gráficos optimizados
-            if MATPLOTLIB_AVAILABLE:
-                self.crear_graficos_calidad_optimizado(resultados)
-
-        except Exception as e:
-            error_msg = f"❌ Error en mostrar_calidad_agua: {str(e)}"
-            print(error_msg)
-            self.resumen_content.setText(error_msg)
-
 
 class SegmentacionML(QWidget):
-    """Versión optimizada de la aplicación principal"""
+    """Versión optimizada de la aplicación principal con clustering jerárquico"""
 
     def __init__(self):
         super().__init__()
@@ -1620,7 +1622,7 @@ class SegmentacionML(QWidget):
         gc.collect()
 
     def setup_ui(self):
-        self.setWindowTitle("💧 Análisis Inteligente de Calidad del Agua - Optimizado")
+        self.setWindowTitle("💧 Análisis de Calidad del Agua - Machine Learning")
         self.setMinimumSize(1200, 800)
 
         main_layout = QVBoxLayout()
@@ -1628,12 +1630,12 @@ class SegmentacionML(QWidget):
         main_layout.setContentsMargins(20, 20, 20, 20)
 
         # Título
-        title = QLabel("💧 Sistema Optimizado de Análisis de Calidad del Agua")
+        title = QLabel("💧 Análisis de Calidad del Agua - Machine Learning")
         title.setObjectName("title")
         title.setAlignment(Qt.AlignCenter)
         main_layout.addWidget(title)
 
-        subtitle = QLabel("Procesamiento paralelo e inteligencia artificial para análisis eficiente")
+        subtitle = QLabel("Inteligencia artificial aplicada al análisis de parámetros de calidad del agua")
         subtitle.setObjectName("subtitle")
         subtitle.setAlignment(Qt.AlignCenter)
         main_layout.addWidget(subtitle)
@@ -1655,13 +1657,13 @@ class SegmentacionML(QWidget):
         # Barra de estado
         status_layout = QHBoxLayout()
 
-        self.status_label = QLabel("✅ Sistema optimizado listo")
+        self.status_label = QLabel("✅ Sistema Machine Learning listo")
         self.status_label.setObjectName("statusLabel")
         status_layout.addWidget(self.status_label)
 
         # Información del sistema
         cpu_count = multiprocessing.cpu_count()
-        system_info = QLabel(f"🖥️ CPUs disponibles: {cpu_count} | Modo: Multiproceso")
+        system_info = QLabel(f"🖥️ CPUs: {cpu_count} | 🤖 Machine Learning | 📊 Análisis Inteligente")
         system_info.setObjectName("systemInfo")
         status_layout.addWidget(system_info)
 
@@ -1675,8 +1677,8 @@ class SegmentacionML(QWidget):
         self.setLayout(main_layout)
 
     def create_control_panel(self):
-        """Crear panel de controles optimizado"""
-        group = QGroupBox("🎛️ Análisis Disponibles")
+        """Crear panel de controles optimizado con tooltips"""
+        group = QGroupBox("🎛️ Análisis Machine Learning Disponibles")
         layout = QVBoxLayout()
         layout.setSpacing(15)
 
@@ -1685,17 +1687,19 @@ class SegmentacionML(QWidget):
         info_frame.setObjectName("infoFrame")
         info_layout = QVBoxLayout()
 
-        info_title = QLabel("⚡ Sistema Optimizado")
+        info_title = QLabel("⚡ Sistema Machine Learning Avanzado")
         info_title.setObjectName("infoTitle")
         info_layout.addWidget(info_title)
 
         info_text = QLabel("""
-        Sistema optimizado con procesamiento paralelo y cache inteligente:
+        Sistema completo de análisis con inteligencia artificial:
 
-        ✅ Multiprocesamiento para análisis pesados
-        ✅ Cache automático de resultados
-        ✅ Gestión optimizada de memoria
-        ✅ Timeouts para prevenir bloqueos
+        ✅ Algoritmos de Machine Learning optimizados
+        ✅ Procesamiento paralelo y cache inteligente  
+        ✅ Visualizaciones interactivas avanzadas
+        ✅ Análisis predictivo de calidad del agua
+        ✅ Optimización automática de hiperparámetros
+        ✅ Comparación de múltiples algoritmos ML
         """)
         info_text.setObjectName("infoText")
         info_text.setWordWrap(True)
@@ -1704,18 +1708,63 @@ class SegmentacionML(QWidget):
         info_frame.setLayout(info_layout)
         layout.addWidget(info_frame)
 
-        # Análisis optimizados
+        # Análisis con tooltips detallados
         analisis = [
-            ("🔬 Análisis Rápido de Calidad", "calidad_agua",
-             "Evaluación optimizada de parámetros del agua"),
+            ("🔬 Análisis de Calidad", "calidad_agua",
+             "Evaluación completa de parámetros del agua",
+             """<b>🔬 Análisis Completo de Calidad del Agua</b><br><br>
+             • Evaluación automática de pH, oxígeno, turbidez y conductividad<br>
+             • Cálculo de scores de calidad por muestra<br>
+             • Clasificación automática en categorías (Excelente, Buena, Regular, Necesita Tratamiento)<br>
+             • Estadísticas descriptivas completas<br>
+             • Distribución visual de resultados<br>
+             • Recomendaciones automáticas de mejora<br><br>
+             <i>⏱️ Tiempo estimado: 5-10 segundos</i>"""),
+
             ("🔍 Clustering Inteligente", "agrupar_muestras",
-             "Agrupamiento acelerado con algoritmos optimizados"),
-            ("🤖 Predicción ML Eficiente", "predecir_calidad",
-             "Modelo predictivo con procesamiento paralelo"),
-            ("⚙️ Optimización Automática", "optimizar_sistema",
-             "Búsqueda optimizada de mejores parámetros"),
-            ("📊 Comparación Rápida", "comparar_metodos",
-             "Evaluación eficiente de múltiples algoritmos")
+             "Agrupamiento jerárquico con dendrogramas y PCA",
+             """<b>🔍 Clustering Jerárquico Inteligente</b><br><br>
+             • Agrupamiento automático usando algoritmo Ward<br>
+             • Dendrograma interactivo para visualizar jerarquías<br>
+             • Optimización automática del número de clusters<br>
+             • Análisis PCA para visualización en 2D<br>
+             • Evaluación con Silhouette Score<br>
+             • Caracterización automática de cada grupo<br>
+             • Múltiples visualizaciones por parámetros<br><br>
+             <i>⏱️ Tiempo estimado: 10-15 segundos</i>"""),
+
+            ("🤖 Predicción ML", "predecir_calidad",
+             "Modelo predictivo con Random Forest",
+             """<b>🤖 Predicción con Machine Learning</b><br><br>
+             • Entrenamiento de modelo Random Forest optimizado<br>
+             • Predicción automática de calidad del agua<br>
+             • Análisis de importancia de características<br>
+             • Validación cruzada para evaluar precisión<br>
+             • Ejemplos de predicción con niveles de confianza<br>
+             • Métricas de rendimiento detalladas<br><br>
+             <i>⏱️ Tiempo estimado: 8-12 segundos</i>"""),
+
+            ("⚙️ Optimización", "optimizar_sistema",
+             "Búsqueda automática de mejores parámetros",
+             """<b>⚙️ Optimización de Hiperparámetros</b><br><br>
+             • Búsqueda automática de configuraciones óptimas<br>
+             • Evaluación de múltiples combinaciones de parámetros<br>
+             • Comparación de rendimiento entre configuraciones<br>
+             • Recomendación de la mejor configuración<br>
+             • Análisis de trade-offs entre precisión y complejidad<br>
+             • Visualización de resultados comparativos<br><br>
+             <i>⏱️ Tiempo estimado: 15-20 segundos</i>"""),
+
+            ("📊 Comparación", "comparar_metodos",
+             "Evaluación de múltiples algoritmos ML",
+             """<b>📊 Comparación de Algoritmos ML</b><br><br>
+             • Evaluación simultánea de múltiples algoritmos<br>
+             • Árbol de Decisión, Random Forest, SVM<br>
+             • Métricas de precisión y rendimiento<br>
+             • Análisis de ventajas y desventajas<br>
+             • Recomendación del mejor algoritmo<br>
+             • Visualización comparativa de resultados<br><br>
+             <i>⏱️ Tiempo estimado: 12-18 segundos</i>""")
         ]
 
         self.analysis_buttons = {}
@@ -1725,7 +1774,7 @@ class SegmentacionML(QWidget):
         buttons_layout = QGridLayout(buttons_widget)
         buttons_layout.setSpacing(10)
 
-        for i, (name, key, description) in enumerate(analisis):
+        for i, (name, key, description, tooltip) in enumerate(analisis):
             btn_frame = QFrame()
             btn_frame.setObjectName("buttonFrame")
             btn_frame.setMinimumHeight(100)
@@ -1735,12 +1784,16 @@ class SegmentacionML(QWidget):
             btn_layout.setSpacing(6)
             btn_layout.setContentsMargins(12, 12, 12, 12)
 
-            # Botón optimizado
+            # Botón optimizado con tooltip
             btn = QPushButton(name)
             btn.setObjectName("analysisBtn")
             btn.setMinimumHeight(40)
             btn.setMaximumHeight(45)
             btn.clicked.connect(lambda checked, k=key: self.run_analysis_optimized(k))
+
+            # Configurar tooltip enriquecido
+            btn.setToolTip(tooltip)
+            btn.setToolTipDuration(0)  # Tooltip permanente hasta mouse out
 
             # Descripción compacta
             desc_label = QLabel(description)
@@ -1769,7 +1822,7 @@ class SegmentacionML(QWidget):
         layout.addWidget(buttons_widget)
         layout.addStretch()
 
-        # Controles de utilidad
+        # Controles de utilidad con tooltips
         utility_frame = QFrame()
         utility_frame.setObjectName("utilityFrame")
         utility_layout = QHBoxLayout(utility_frame)
@@ -1778,14 +1831,32 @@ class SegmentacionML(QWidget):
         clear_cache_btn = QPushButton("🗑️ Limpiar Cache")
         clear_cache_btn.setObjectName("clearBtn")
         clear_cache_btn.clicked.connect(self.clear_cache)
+        clear_cache_btn.setToolTip("""<b>🗑️ Limpiar Cache del Sistema</b><br><br>
+        • Libera memoria utilizada por resultados anteriores<br>
+        • Mejora el rendimiento del sistema<br>
+        • Los próximos análisis tomarán más tiempo<br>
+        • Recomendado si el sistema está lento<br><br>
+        <i>⚠️ Los resultados actuales se mantendrán</i>""")
 
         clear_results_btn = QPushButton("📄 Limpiar Resultados")
         clear_results_btn.setObjectName("clearBtn")
         clear_results_btn.clicked.connect(self.clear_results)
+        clear_results_btn.setToolTip("""<b>📄 Limpiar Resultados Visuales</b><br><br>
+        • Elimina todos los gráficos y tablas mostrados<br>
+        • Limpia el contenido de todas las pestañas<br>
+        • Reinicia la interfaz a estado inicial<br>
+        • No afecta el cache del sistema<br><br>
+        <i>💡 Útil para empezar análisis desde cero</i>""")
 
         memory_btn = QPushButton("🧹 Liberar Memoria")
         memory_btn.setObjectName("memoryBtn")
         memory_btn.clicked.connect(self.force_cleanup)
+        memory_btn.setToolTip("""<b>🧹 Limpieza Completa de Memoria</b><br><br>
+        • Ejecuta garbage collection de Python<br>
+        • Libera toda la memoria no utilizada<br>
+        • Limpia cache y resultados temporales<br>
+        • Optimiza el rendimiento general<br><br>
+        <i>🚀 Recomendado después de análisis intensivos</i>""")
 
         utility_layout.addWidget(clear_cache_btn)
         utility_layout.addWidget(clear_results_btn)
@@ -1846,7 +1917,7 @@ class SegmentacionML(QWidget):
         # Actualizar estado
         analysis_names = {
             "calidad_agua": "🔬 Procesando análisis de calidad...",
-            "agrupar_muestras": "🔍 Ejecutando clustering...",
+            "agrupar_muestras": "🌳 Ejecutando clustering jerárquico...",
             "predecir_calidad": "🤖 Entrenando modelo ML...",
             "optimizar_sistema": "⚙️ Optimizando parámetros...",
             "comparar_metodos": "📊 Comparando algoritmos..."
@@ -1901,21 +1972,28 @@ class SegmentacionML(QWidget):
 
             # Mostrar resultados
             self.resultados_widget.mostrar_resultados(results, analysis_type)
-            self.status_label.setText("✅ Análisis completado con éxito")
+
+            if analysis_type == "agrupar_muestras":
+                self.status_label.setText("✅ Clustering jerárquico completado - Dendrograma en pestaña Gráficos")
+            else:
+                self.status_label.setText("✅ Análisis completado con éxito")
 
             # Notificación de éxito optimizada
             analysis_names = {
                 "calidad_agua": "Análisis de Calidad",
-                "agrupar_muestras": "Clustering de Datos",
+                "agrupar_muestras": "Clustering Jerárquico",
                 "predecir_calidad": "Predicción ML",
                 "optimizar_sistema": "Optimización",
                 "comparar_metodos": "Comparación de Métodos"
             }
 
-            QMessageBox.information(self, "Procesamiento Completado",
-                                    f"✅ {analysis_names.get(analysis_type, 'Análisis')} completado exitosamente.\n\n"
-                                    f"🚀 Procesamiento optimizado ejecutado\n"
-                                    f"📊 Resultados disponibles en las pestañas")
+            message = f"✅ {analysis_names.get(analysis_type, 'Análisis')} completado exitosamente.\n\n"
+            if analysis_type == "agrupar_muestras":
+                message += f"🌳 Dendrograma disponible en pestaña 'Gráficos'\n📊 Análisis PCA incluido\n🎯 Clusters optimizados automáticamente"
+            else:
+                message += f"🚀 Procesamiento optimizado ejecutado\n📊 Resultados disponibles en las pestañas"
+
+            QMessageBox.information(self, "Procesamiento Completado", message)
 
         except Exception as e:
             error_msg = f"❌ Error en finalización: {str(e)}"
@@ -1928,149 +2006,6 @@ class SegmentacionML(QWidget):
                 if hasattr(btn, 'status_indicator'):
                     btn.status_indicator.setVisible(False)
             self.progress_bar.setVisible(False)
-
-            def crear_graficos_calidad_optimizado(self, resultados):
-                """Crear gráficos optimizados para calidad del agua"""
-                try:
-                    self.figure.clear()
-
-                    # Convertir datos si es necesario
-                    if isinstance(resultados['datos'], list):
-                        datos = pd.DataFrame(resultados['datos'])
-                    else:
-                        datos = resultados['datos']
-
-                    distribucion = resultados['distribucion']
-
-                    # Crear subplots
-                    ax1 = self.figure.add_subplot(2, 2, 1)  # Distribución de calidad
-                    ax2 = self.figure.add_subplot(2, 2, 2)  # Parámetros promedio
-                    ax3 = self.figure.add_subplot(2, 2, 3)  # Histograma pH
-                    ax4 = self.figure.add_subplot(2, 2, 4)  # Scatter plot
-
-                    # Gráfico 1: Distribución de calidad (pie chart)
-                    colores = ['#4CAF50', '#8BC34A', '#FF9800', '#F44336']
-                    labels = list(distribucion.keys())
-                    sizes = list(distribucion.values())
-
-                    if sizes and sum(sizes) > 0:
-                        wedges, texts, autotexts = ax1.pie(sizes, labels=labels, autopct='%1.1f%%',
-                                                           colors=colores[:len(labels)], startangle=90)
-                        ax1.set_title('📊 Distribución de Calidad', fontsize=10, fontweight='bold')
-                        # Mejorar legibilidad
-                        for autotext in autotexts:
-                            autotext.set_color('white')
-                            autotext.set_fontweight('bold')
-                    else:
-                        ax1.text(0.5, 0.5, 'Sin datos\npara mostrar', ha='center', va='center')
-                        ax1.set_title('📊 Distribución de Calidad', fontsize=10, fontweight='bold')
-
-                    # Gráfico 2: Parámetros promedio (bar chart)
-                    try:
-                        if hasattr(datos, 'mean'):
-                            parametros = ['pH', 'Oxígeno', 'Turbidez', 'Conductividad']
-                            valores = [
-                                datos['pH'].mean(),
-                                datos['Oxígeno_Disuelto'].mean(),
-                                datos['Turbidez'].mean(),
-                                datos['Conductividad'].mean() / 100  # Escalar para visualización
-                            ]
-                        else:
-                            # Procesar lista de diccionarios
-                            ph_vals = [d.get('pH', 0) for d in datos]
-                            ox_vals = [d.get('Oxígeno_Disuelto', 0) for d in datos]
-                            turb_vals = [d.get('Turbidez', 0) for d in datos]
-                            cond_vals = [d.get('Conductividad', 0) for d in datos]
-
-                            parametros = ['pH', 'Oxígeno', 'Turbidez', 'Conductividad']
-                            valores = [
-                                sum(ph_vals) / len(ph_vals) if ph_vals else 0,
-                                sum(ox_vals) / len(ox_vals) if ox_vals else 0,
-                                sum(turb_vals) / len(turb_vals) if turb_vals else 0,
-                                (sum(cond_vals) / len(cond_vals)) / 100 if cond_vals else 0
-                            ]
-
-                        colores_bar = ['#2196F3', '#4CAF50', '#FF9800', '#9C27B0']
-                        barras = ax2.bar(parametros, valores, color=colores_bar, alpha=0.8, edgecolor='black',
-                                         linewidth=0.5)
-                        ax2.set_title('📈 Parámetros Promedio', fontsize=10, fontweight='bold')
-                        ax2.set_ylabel('Valor')
-                        ax2.tick_params(axis='x', rotation=45)
-
-                        # Añadir valores en las barras
-                        for barra, valor in zip(barras, valores):
-                            if valor > 0:
-                                height = barra.get_height()
-                                ax2.text(barra.get_x() + barra.get_width() / 2., height + height * 0.02,
-                                         f'{valor:.1f}', ha='center', va='bottom', fontweight='bold', fontsize=8)
-
-                    except Exception as e:
-                        ax2.text(0.5, 0.5, f'Error:\n{str(e)[:30]}...', ha='center', va='center')
-                        ax2.set_title('📈 Parámetros Promedio', fontsize=10, fontweight='bold')
-
-                    # Gráfico 3: Histograma de pH
-                    try:
-                        if hasattr(datos, 'hist'):
-                            ph_data = datos['pH'].dropna()
-                        else:
-                            ph_data = [d.get('pH', 7) for d in datos if d.get('pH')]
-
-                        if len(ph_data) > 0:
-                            ax3.hist(ph_data, bins=15, alpha=0.7, color='#3F51B5', edgecolor='black', linewidth=0.5)
-                            ax3.axvline(x=7, color='red', linestyle='--', linewidth=2, label='pH Neutro')
-                            ax3.axvspan(6.5, 8.5, alpha=0.2, color='green', label='Rango Aceptable')
-                            ax3.set_title('📊 Distribución de pH', fontsize=10, fontweight='bold')
-                            ax3.set_xlabel('pH')
-                            ax3.set_ylabel('Frecuencia')
-                            ax3.legend(fontsize=8)
-                        else:
-                            ax3.text(0.5, 0.5, 'Sin datos de pH', ha='center', va='center')
-                            ax3.set_title('📊 Distribución de pH', fontsize=10, fontweight='bold')
-                    except Exception as e:
-                        ax3.text(0.5, 0.5, f'Error pH:\n{str(e)[:20]}', ha='center', va='center')
-                        ax3.set_title('📊 Distribución de pH', fontsize=10, fontweight='bold')
-
-                    # Gráfico 4: Scatter plot Oxígeno vs Turbidez
-                    try:
-                        if hasattr(datos, 'plot'):
-                            ox_data = datos['Oxígeno_Disuelto'].values
-                            turb_data = datos['Turbidez'].values
-                            calidad_scores = datos['Calidad_Score'].values
-                        else:
-                            ox_data = [d.get('Oxígeno_Disuelto', 8) for d in datos]
-                            turb_data = [d.get('Turbidez', 2) for d in datos]
-                            calidad_scores = [d.get('Calidad_Score', 75) for d in datos]
-
-                        if len(ox_data) > 0 and len(turb_data) > 0:
-                            scatter = ax4.scatter(ox_data, turb_data, c=calidad_scores,
-                                                  cmap='RdYlGn', alpha=0.7, s=50, edgecolors='black', linewidth=0.5)
-                            ax4.set_title('💧 Oxígeno vs Turbidez', fontsize=10, fontweight='bold')
-                            ax4.set_xlabel('Oxígeno Disuelto (mg/L)')
-                            ax4.set_ylabel('Turbidez (NTU)')
-
-                            # Añadir colorbar
-                            cbar = self.figure.colorbar(scatter, ax=ax4, shrink=0.8)
-                            cbar.set_label('Calidad Score', rotation=270, labelpad=15, fontsize=8)
-                        else:
-                            ax4.text(0.5, 0.5, 'Sin datos suficientes', ha='center', va='center')
-                            ax4.set_title('💧 Oxígeno vs Turbidez', fontsize=10, fontweight='bold')
-                    except Exception as e:
-                        ax4.text(0.5, 0.5, f'Error scatter:\n{str(e)[:20]}', ha='center', va='center')
-                        ax4.set_title('💧 Oxígeno vs Turbidez', fontsize=10, fontweight='bold')
-
-                    self.figure.suptitle('🔬 Análisis Completo de Calidad del Agua', fontsize=12, fontweight='bold')
-                    self.figure.tight_layout()
-                    self.canvas.draw()
-
-                except Exception as e:
-                    print(f"❌ Error completo en gráficos: {e}")
-                    self.figure.clear()
-                    ax = self.figure.add_subplot(1, 1, 1)
-                    ax.text(0.5, 0.5, f'❌ Error al crear gráficos:\n{str(e)}',
-                            ha='center', va='center', transform=ax.transAxes, fontsize=12,
-                            bbox=dict(boxstyle="round,pad=0.3", facecolor="lightcoral", alpha=0.7))
-                    ax.set_title('Error en Visualización', fontsize=14, fontweight='bold')
-                    self.canvas.draw()
 
     def clear_cache(self):
         """Limpiar cache del sistema"""
@@ -2092,6 +2027,10 @@ class SegmentacionML(QWidget):
         if MATPLOTLIB_AVAILABLE:
             self.resultados_widget.figure.clear()
             self.resultados_widget.canvas.draw()
+
+            # Limpiar también el canvas jerárquico
+            self.resultados_widget.figure_jerarquico.clear()
+            self.resultados_widget.canvas_jerarquico.draw()
 
         self.status_label.setText("📄 Resultados limpiados")
 
@@ -2405,7 +2344,7 @@ if __name__ == "__main__":
     if not SKLEARN_AVAILABLE:
         missing_deps.append("scikit-learn, pandas, numpy")
     if not MATPLOTLIB_AVAILABLE:
-        missing_deps.append("matplotlib")
+        missing_deps.append("matplotlib, scipy")
 
     if missing_deps:
         msg = QMessageBox()
@@ -2413,7 +2352,7 @@ if __name__ == "__main__":
         msg.setWindowTitle("Dependencias Faltantes")
         msg.setText("Faltan las siguientes dependencias:")
         msg.setInformativeText("\n".join(missing_deps))
-        msg.setDetailedText("Instala con:\npip install scikit-learn pandas numpy matplotlib")
+        msg.setDetailedText("Instala con:\npip install scikit-learn pandas numpy matplotlib scipy")
         msg.exec_()
 
     window = SegmentacionML()
