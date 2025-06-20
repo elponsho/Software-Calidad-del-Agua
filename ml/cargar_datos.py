@@ -1,17 +1,11 @@
-import pandas as pd
+from ui.cargar_datos import CargaDatos
 
-def leer_archivo_csv(ruta):
-    try:
-        df = pd.read_csv(ruta)
-        return df
-    except Exception as e:
-        print(f"Error al leer CSV: {e}")
-        return None
+# En tu menú principal:
+def abrir_carga_datos(self):
+    self.carga_window = CargaDatos()
+    self.carga_window.data_loaded_signal.connect(self.on_datos_cargados)
+    self.carga_window.show()
 
-def leer_archivo_excel(ruta):
-    try:
-        df = pd.read_excel(ruta)
-        return df
-    except Exception as e:
-        print(f"Error al leer Excel: {e}")
-        return None
+def on_datos_cargados(self, df):
+    print(f"Datos recibidos: {df.shape}")
+    # Aquí procesas los datos cargados
