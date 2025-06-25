@@ -12,6 +12,9 @@ from PyQt5.QtGui import QFont, QTextCursor, QPixmap, QPalette, QColor
 import traceback
 import gc  # Para garbage collection manual
 
+# Importar sistema de temas
+from darkmode import ThemedWidget, ThemeManager
+
 # Importaciones de matplotlib con manejo de errores
 try:
     import matplotlib
@@ -570,7 +573,7 @@ class ResultadosVisuales(QWidget):
                 self.mostrar_calidad_agua(resultados)
             elif tipo_analisis == "agrupar_muestras":
                 self.mostrar_agrupamiento(resultados)
-                self.mostrar_clustering_jerarquico_en_graficos(resultados)  # Mover a gráficos
+                self.mostrar_clustering_jerarquico_en_graficos(resultados)
             elif tipo_analisis == "predecir_calidad":
                 self.mostrar_prediccion(resultados)
             elif tipo_analisis == "optimizar_sistema":
@@ -699,55 +702,6 @@ class ResultadosVisuales(QWidget):
                     bbox=dict(boxstyle="round,pad=0.3", facecolor="lightcoral", alpha=0.7))
             ax.set_title('Error en Clustering Jerárquico', fontsize=14, fontweight='bold')
             self.canvas.draw()
-            2.
-            text(bar.get_x() + bar.get_width() / 2., height + 0.01,
-                 f'{score:.3f}', ha='center', va='bottom', fontweight='bold', fontsize=8)
-
-            # 3. Visualización de clusters en 2D (PCA)
-            ax3 = self.figure_jerarquico.add_subplot(gs[1, 1])
-
-            # Realizar PCA para visualización 2D
-            from sklearn.decomposition import PCA
-            scaler = StandardScaler()
-            X_scaled = scaler.fit_transform(datos[feature_names])
-
-            pca = PCA(n_components=2)
-            X_pca = pca.fit_transform(X_scaled)
-
-            # Obtener etiquetas del mejor clustering
-            best_labels = clustering_results[best_n_clusters]['labels']
-
-            # Colores para clusters
-            colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7'][:best_n_clusters]
-
-            for i in range(best_n_clusters):
-                cluster_mask = np.array(best_labels) == i
-                ax3.scatter(X_pca[cluster_mask, 0], X_pca[cluster_mask, 1],
-                            c=colors[i], label=f'Cluster {i + 1}', alpha=0.7, s=50,
-                            edgecolors='black', linewidth=0.5)
-
-            ax3.set_title('🎯 Clusters en Espacio PCA', fontweight='bold')
-            ax3.set_xlabel(f'PC1 ({pca.explained_variance_ratio_[0]:.1%} varianza)')
-            ax3.set_ylabel(f'PC2 ({pca.explained_variance_ratio_[1]:.1%} varianza)')
-            ax3.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
-            ax3.grid(True, alpha=0.3)
-
-            self.figure_jerarquico.suptitle(
-                f'🔬 Análisis Completo de Clustering Jerárquico - {best_n_clusters} Clusters Óptimos',
-                fontsize=14, fontweight='bold'
-            )
-
-            self.canvas_jerarquico.draw()
-
-        except Exception as e:
-            print(f"❌ Error en clustering jerárquico: {e}")
-            self.figure_jerarquico.clear()
-            ax = self.figure_jerarquico.add_subplot(1, 1, 1)
-            ax.text(0.5, 0.5, f'❌ Error al crear visualización jerárquica:\n{str(e)}',
-                    ha='center', va='center', transform=ax.transAxes, fontsize=12,
-                    bbox=dict(boxstyle="round,pad=0.3", facecolor="lightcoral", alpha=0.7))
-            ax.set_title('Error en Clustering Jerárquico', fontsize=14, fontweight='bold')
-            self.canvas_jerarquico.draw()
 
     def mostrar_agrupamiento(self, resultados):
         """Mostrar resultados de agrupamiento optimizado con información jerárquica"""
@@ -827,111 +781,10 @@ class ResultadosVisuales(QWidget):
             resumen_html += "</div>"
             self.resumen_content.setText(resumen_html)
 
-            # Crear gráfico de agrupamiento mejorado
-            if MATPLOTLIB_AVAILABLE:
-                self.crear_grafico_agrupamiento_mejorado(resultados)
-
         except Exception as e:
             error_msg = f"❌ Error en mostrar_agrupamiento: {str(e)}"
             print(error_msg)
             self.mostrar_error_en_pantalla("Error en Agrupamiento", error_msg)
-
-    def crear_grafico_agrupamiento_mejorado(self, resultados):
-        """Crear gráfico de agrupamiento normal (no jerárquico) para otros análisis"""
-        try:
-            # Si es clustering jerárquico, usar la función especial
-            if 'linkage_matrix' in resultados:
-                self.mostrar_clustering_jerarquico_en_graficos(resultados)
-                return
-
-            # Para otros tipos de agrupamiento, usar visualización estándar
-            self.figure.clear()
-            datos = pd.DataFrame(resultados['datos']) if isinstance(resultados['datos'], list) else resultados['datos']
-
-            # Crear múltiples subplots
-            gs = self.figure.add_gridspec(2, 2, hspace=0.3, wspace=0.3)
-
-            # 1. Scatter plot por grupos (pH vs Oxígeno)
-            ax1 = self.figure.add_subplot(gs[0, 0])
-            grupos_unicos = datos['Grupo'].unique()
-            colores = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7']
-
-            for i, grupo in enumerate(grupos_unicos):
-                grupo_data = datos[datos['Grupo'] == grupo]
-                ax1.scatter(grupo_data['pH'], grupo_data['Oxígeno_Disuelto'],
-                            c=colores[i % len(colores)], label=f'Cluster {grupo + 1}',
-                            alpha=0.7, s=60, edgecolors='black', linewidth=0.5)
-
-            ax1.set_xlabel('pH')
-            ax1.set_ylabel('Oxígeno Disuelto (mg/L)')
-            ax1.set_title('🎯 Clusters: pH vs Oxígeno', fontweight='bold')
-            ax1.legend()
-            ax1.grid(True, alpha=0.3)
-
-            # 2. Scatter plot Turbidez vs Conductividad
-            ax2 = self.figure.add_subplot(gs[0, 1])
-            for i, grupo in enumerate(grupos_unicos):
-                grupo_data = datos[datos['Grupo'] == grupo]
-                ax2.scatter(grupo_data['Turbidez'], grupo_data['Conductividad'],
-                            c=colores[i % len(colores)], label=f'Cluster {grupo + 1}',
-                            alpha=0.7, s=60, edgecolors='black', linewidth=0.5)
-
-            ax2.set_xlabel('Turbidez (NTU)')
-            ax2.set_ylabel('Conductividad (μS/cm)')
-            ax2.set_title('🎯 Clusters: Turbidez vs Conductividad', fontweight='bold')
-            ax2.legend()
-            ax2.grid(True, alpha=0.3)
-
-            # 3. Distribución de calidad por cluster
-            ax3 = self.figure.add_subplot(gs[1, 0])
-            cluster_quality = []
-            cluster_labels = []
-
-            for grupo in grupos_unicos:
-                grupo_data = datos[datos['Grupo'] == grupo]
-                cluster_quality.append(grupo_data['Calidad_Score'].mean())
-                cluster_labels.append(f'Cluster {grupo + 1}')
-
-            bars = ax3.bar(cluster_labels, cluster_quality,
-                           color=colores[:len(grupos_unicos)], alpha=0.8,
-                           edgecolor='black', linewidth=0.5)
-
-            ax3.set_ylabel('Calidad Promedio')
-            ax3.set_title('📊 Calidad Promedio por Cluster', fontweight='bold')
-            ax3.grid(True, alpha=0.3, axis='y')
-
-            # Añadir valores en las barras
-            for bar, value in zip(bars, cluster_quality):
-                height = bar.get_height()
-                ax3.text(bar.get_x() + bar.get_width() / 2., height + 1,
-                         f'{value:.1f}', ha='center', va='bottom', fontweight='bold')
-
-            # 4. Box plot de pH por cluster
-            ax4 = self.figure.add_subplot(gs[1, 1])
-            ph_data_by_cluster = []
-            cluster_names = []
-
-            for grupo in grupos_unicos:
-                grupo_data = datos[datos['Grupo'] == grupo]
-                ph_data_by_cluster.append(grupo_data['pH'].values)
-                cluster_names.append(f'C{grupo + 1}')
-
-            bp = ax4.boxplot(ph_data_by_cluster, labels=cluster_names, patch_artist=True)
-
-            # Colorear box plots
-            for patch, color in zip(bp['boxes'], colores[:len(grupos_unicos)]):
-                patch.set_facecolor(color)
-                patch.set_alpha(0.7)
-
-            ax4.set_ylabel('pH')
-            ax4.set_title('📦 Distribución de pH por Cluster', fontweight='bold')
-            ax4.grid(True, alpha=0.3, axis='y')
-
-            self.figure.suptitle('🔍 Análisis Completo de Clustering', fontsize=14, fontweight='bold')
-            self.canvas.draw()
-
-        except Exception as e:
-            print(f"Error en gráfico agrupamiento: {e}")
 
     def mostrar_prediccion(self, resultados):
         """Mostrar resultados de predicción optimizado"""
@@ -1097,38 +950,7 @@ class ResultadosVisuales(QWidget):
                 </div>
                 """
 
-            resumen_html += """
-            <div style="background: #fff3e0; padding: 15px; border-radius: 8px; margin-top: 15px;">
-                <h3 style="color: #ef6c00;">📊 Análisis Comparativo</h3>
-                <p><strong>Conclusiones:</strong></p>
-                <ul>
-            """
-
-            # Generar conclusiones automáticas
-            precision_max = max(m['precision'] for m in metodos)
-            precision_min = min(m['precision'] for m in metodos)
-            diferencia = precision_max - precision_min
-
-            if diferencia < 5:
-                resumen_html += "<li>Los métodos muestran rendimiento similar, elegir por facilidad de uso</li>"
-            elif diferencia < 15:
-                resumen_html += "<li>Hay diferencias moderadas en precisión, considerar el método recomendado</li>"
-            else:
-                resumen_html += "<li>Diferencias significativas en rendimiento, usar el método óptimo</li>"
-
-            if precision_max > 90:
-                resumen_html += "<li>Excelente precisión general del sistema de análisis</li>"
-            elif precision_max > 80:
-                resumen_html += "<li>Buena precisión, sistema confiable para toma de decisiones</li>"
-            else:
-                resumen_html += "<li>Precisión moderada, considerar mejorar el conjunto de datos</li>"
-
-            resumen_html += """
-                </ul>
-            </div>
-            </div>
-            """
-
+            resumen_html += "</div>"
             self.resumen_content.setText(resumen_html)
 
             # Crear gráfico de comparación
@@ -1190,24 +1012,8 @@ class ResultadosVisuales(QWidget):
                     </div>
                 """
 
-            resumen_html += """
-                </div>
-
-                <div style="background: #e3f2fd; padding: 15px; border-radius: 8px; margin-top: 15px;">
-                    <h3 style="color: #1565c0;">💡 Recomendaciones</h3>
-            """
-
-            # Generar recomendaciones automáticas
-            recomendaciones = self.generar_recomendaciones_calidad(stats, distribucion)
-            for rec in recomendaciones:
-                resumen_html += f"<p>• {rec}</p>"
-
             resumen_html += "</div></div>"
-
             self.resumen_content.setText(resumen_html)
-
-            # Actualizar tab de recomendaciones
-            self.actualizar_recomendaciones_calidad(stats, distribucion)
 
             # Crear gráficos optimizados
             if MATPLOTLIB_AVAILABLE:
@@ -1233,16 +1039,6 @@ class ResultadosVisuales(QWidget):
                 <h3 style="color: #d63031; margin-top: 0;">🚨 Detalles del Error</h3>
                 <p style="font-family: monospace; background: #f8f9fa; padding: 10px; 
                           border-radius: 4px; word-wrap: break-word;">{mensaje}</p>
-            </div>
-
-            <div style="background: #e3f2fd; padding: 15px; border-radius: 8px; margin-top: 15px;">
-                <h3 style="color: #1565c0;">💡 Posibles Soluciones</h3>
-                <ul>
-                    <li>Verificar que todas las dependencias estén instaladas</li>
-                    <li>Reintentar el análisis</li>
-                    <li>Limpiar el cache del sistema</li>
-                    <li>Liberar memoria si el sistema está sobrecargado</li>
-                </ul>
             </div>
         </div>
         """
@@ -1280,9 +1076,6 @@ class ResultadosVisuales(QWidget):
                 for autotext in autotexts:
                     autotext.set_color('white')
                     autotext.set_fontweight('bold')
-            else:
-                ax1.text(0.5, 0.5, 'Sin datos\npara mostrar', ha='center', va='center')
-                ax1.set_title('📊 Distribución de Calidad', fontsize=10, fontweight='bold')
 
             # Gráfico 2: Parámetros promedio (bar chart)
             try:
@@ -1294,34 +1087,20 @@ class ResultadosVisuales(QWidget):
                         datos['Turbidez'].mean(),
                         datos['Conductividad'].mean() / 100  # Escalar para visualización
                     ]
-                else:
-                    # Procesar lista de diccionarios
-                    ph_vals = [d.get('pH', 0) for d in datos]
-                    ox_vals = [d.get('Oxígeno_Disuelto', 0) for d in datos]
-                    turb_vals = [d.get('Turbidez', 0) for d in datos]
-                    cond_vals = [d.get('Conductividad', 0) for d in datos]
 
-                    parametros = ['pH', 'Oxígeno', 'Turbidez', 'Conductividad']
-                    valores = [
-                        sum(ph_vals) / len(ph_vals) if ph_vals else 0,
-                        sum(ox_vals) / len(ox_vals) if ox_vals else 0,
-                        sum(turb_vals) / len(turb_vals) if turb_vals else 0,
-                        (sum(cond_vals) / len(cond_vals)) / 100 if cond_vals else 0
-                    ]
+                    colores_bar = ['#2196F3', '#4CAF50', '#FF9800', '#9C27B0']
+                    barras = ax2.bar(parametros, valores, color=colores_bar, alpha=0.8, edgecolor='black',
+                                     linewidth=0.5)
+                    ax2.set_title('📈 Parámetros Promedio', fontsize=10, fontweight='bold')
+                    ax2.set_ylabel('Valor')
+                    ax2.tick_params(axis='x', rotation=45)
 
-                colores_bar = ['#2196F3', '#4CAF50', '#FF9800', '#9C27B0']
-                barras = ax2.bar(parametros, valores, color=colores_bar, alpha=0.8, edgecolor='black',
-                                 linewidth=0.5)
-                ax2.set_title('📈 Parámetros Promedio', fontsize=10, fontweight='bold')
-                ax2.set_ylabel('Valor')
-                ax2.tick_params(axis='x', rotation=45)
-
-                # Añadir valores en las barras
-                for barra, valor in zip(barras, valores):
-                    if valor > 0:
-                        height = barra.get_height()
-                        ax2.text(barra.get_x() + barra.get_width() / 2., height + height * 0.02,
-                                 f'{valor:.1f}', ha='center', va='bottom', fontweight='bold', fontsize=8)
+                    # Añadir valores en las barras
+                    for barra, valor in zip(barras, valores):
+                        if valor > 0:
+                            height = barra.get_height()
+                            ax2.text(barra.get_x() + barra.get_width() / 2., height + height * 0.02,
+                                     f'{valor:.1f}', ha='center', va='bottom', fontweight='bold', fontsize=8)
 
             except Exception as e:
                 ax2.text(0.5, 0.5, f'Error:\n{str(e)[:30]}...', ha='center', va='center')
@@ -1331,20 +1110,16 @@ class ResultadosVisuales(QWidget):
             try:
                 if hasattr(datos, 'hist'):
                     ph_data = datos['pH'].dropna()
-                else:
-                    ph_data = [d.get('pH', 7) for d in datos if d.get('pH')]
 
-                if len(ph_data) > 0:
-                    ax3.hist(ph_data, bins=15, alpha=0.7, color='#3F51B5', edgecolor='black', linewidth=0.5)
-                    ax3.axvline(x=7, color='red', linestyle='--', linewidth=2, label='pH Neutro')
-                    ax3.axvspan(6.5, 8.5, alpha=0.2, color='green', label='Rango Aceptable')
-                    ax3.set_title('📊 Distribución de pH', fontsize=10, fontweight='bold')
-                    ax3.set_xlabel('pH')
-                    ax3.set_ylabel('Frecuencia')
-                    ax3.legend(fontsize=8)
-                else:
-                    ax3.text(0.5, 0.5, 'Sin datos de pH', ha='center', va='center')
-                    ax3.set_title('📊 Distribución de pH', fontsize=10, fontweight='bold')
+                    if len(ph_data) > 0:
+                        ax3.hist(ph_data, bins=15, alpha=0.7, color='#3F51B5', edgecolor='black', linewidth=0.5)
+                        ax3.axvline(x=7, color='red', linestyle='--', linewidth=2, label='pH Neutro')
+                        ax3.axvspan(6.5, 8.5, alpha=0.2, color='green', label='Rango Aceptable')
+                        ax3.set_title('📊 Distribución de pH', fontsize=10, fontweight='bold')
+                        ax3.set_xlabel('pH')
+                        ax3.set_ylabel('Frecuencia')
+                        ax3.legend(fontsize=8)
+
             except Exception as e:
                 ax3.text(0.5, 0.5, f'Error pH:\n{str(e)[:20]}', ha='center', va='center')
                 ax3.set_title('📊 Distribución de pH', fontsize=10, fontweight='bold')
@@ -1355,24 +1130,18 @@ class ResultadosVisuales(QWidget):
                     ox_data = datos['Oxígeno_Disuelto'].values
                     turb_data = datos['Turbidez'].values
                     calidad_scores = datos['Calidad_Score'].values
-                else:
-                    ox_data = [d.get('Oxígeno_Disuelto', 8) for d in datos]
-                    turb_data = [d.get('Turbidez', 2) for d in datos]
-                    calidad_scores = [d.get('Calidad_Score', 75) for d in datos]
 
-                if len(ox_data) > 0 and len(turb_data) > 0:
-                    scatter = ax4.scatter(ox_data, turb_data, c=calidad_scores,
-                                          cmap='RdYlGn', alpha=0.7, s=50, edgecolors='black', linewidth=0.5)
-                    ax4.set_title('💧 Oxígeno vs Turbidez', fontsize=10, fontweight='bold')
-                    ax4.set_xlabel('Oxígeno Disuelto (mg/L)')
-                    ax4.set_ylabel('Turbidez (NTU)')
+                    if len(ox_data) > 0 and len(turb_data) > 0:
+                        scatter = ax4.scatter(ox_data, turb_data, c=calidad_scores,
+                                              cmap='RdYlGn', alpha=0.7, s=50, edgecolors='black', linewidth=0.5)
+                        ax4.set_title('💧 Oxígeno vs Turbidez', fontsize=10, fontweight='bold')
+                        ax4.set_xlabel('Oxígeno Disuelto (mg/L)')
+                        ax4.set_ylabel('Turbidez (NTU)')
 
-                    # Añadir colorbar
-                    cbar = self.figure.colorbar(scatter, ax=ax4, shrink=0.8)
-                    cbar.set_label('Calidad Score', rotation=270, labelpad=15, fontsize=8)
-                else:
-                    ax4.text(0.5, 0.5, 'Sin datos suficientes', ha='center', va='center')
-                    ax4.set_title('💧 Oxígeno vs Turbidez', fontsize=10, fontweight='bold')
+                        # Añadir colorbar
+                        cbar = self.figure.colorbar(scatter, ax=ax4, shrink=0.8)
+                        cbar.set_label('Calidad Score', rotation=270, labelpad=15, fontsize=8)
+
             except Exception as e:
                 ax4.text(0.5, 0.5, f'Error scatter:\n{str(e)[:20]}', ha='center', va='center')
                 ax4.set_title('💧 Oxígeno vs Turbidez', fontsize=10, fontweight='bold')
@@ -1480,136 +1249,17 @@ class ResultadosVisuales(QWidget):
         except Exception as e:
             print(f"Error en gráfico comparación: {e}")
 
-    def generar_recomendaciones_calidad(self, stats, distribucion):
-        """Generar recomendaciones automáticas basadas en los datos"""
-        recomendaciones = []
 
-        # Análisis de pH
-        ph_promedio = stats['ph_promedio']
-        if ph_promedio < 6.5:
-            recomendaciones.append("🔴 pH muy bajo: Considerar tratamiento de neutralización para elevar el pH")
-        elif ph_promedio > 8.5:
-            recomendaciones.append("🔴 pH muy alto: Implementar sistema de acidificación controlada")
-        elif 6.5 <= ph_promedio <= 8.5:
-            recomendaciones.append("✅ pH en rango aceptable: Mantener monitoreo regular")
-
-        # Análisis de oxígeno
-        oxigeno_promedio = stats['oxigeno_promedio']
-        if oxigeno_promedio < 5.0:
-            recomendaciones.append("🔴 Oxígeno bajo: Instalar sistemas de aireación o oxigenación")
-        elif oxigeno_promedio < 6.0:
-            recomendaciones.append("🟡 Oxígeno moderadamente bajo: Mejorar circulación del agua")
-        else:
-            recomendaciones.append("✅ Oxígeno adecuado: Niveles óptimos para vida acuática")
-
-        # Análisis de turbidez
-        turbidez_promedio = stats['turbidez_promedio']
-        if turbidez_promedio > 4.0:
-            recomendaciones.append("🔴 Turbidez alta: Implementar filtración y sedimentación")
-        elif turbidez_promedio > 2.0:
-            recomendaciones.append("🟡 Turbidez moderada: Monitorear fuentes de sedimentos")
-        else:
-            recomendaciones.append("✅ Turbidez baja: Agua clara, mantener prácticas actuales")
-
-        # Análisis de conductividad
-        conductividad_promedio = stats['conductividad_promedio']
-        if conductividad_promedio > 1000:
-            recomendaciones.append("🔴 Conductividad alta: Revisar fuentes de contaminación salina")
-        elif conductividad_promedio < 200:
-            recomendaciones.append("🟡 Conductividad baja: Agua muy pura, verificar mineralización")
-        else:
-            recomendaciones.append("✅ Conductividad normal: Niveles minerales apropiados")
-
-        # Análisis de distribución de calidad
-        total_muestras = sum(distribucion.values())
-        pct_excelente = (distribucion.get('Excelente', 0) / total_muestras) * 100
-        pct_necesita_tratamiento = (distribucion.get('Necesita Tratamiento', 0) / total_muestras) * 100
-
-        if pct_excelente >= 80:
-            recomendaciones.append("🌟 Excelente gestión: Mantener protocolos de calidad actuales")
-        elif pct_necesita_tratamiento >= 25:
-            recomendaciones.append("⚠️ Acción urgente: Implementar programa de mejora inmediato")
-        elif pct_necesita_tratamiento >= 10:
-            recomendaciones.append("🔧 Mejoras necesarias: Planificar optimización del sistema")
-
-        # Recomendación de calidad promedio
-        calidad_promedio = stats['calidad_promedio']
-        if calidad_promedio >= 85:
-            recomendaciones.append("🏆 Sistema excelente: Considerar como modelo de referencia")
-        elif calidad_promedio >= 70:
-            recomendaciones.append("👍 Sistema bueno: Pequeñas mejoras para optimización")
-        elif calidad_promedio >= 50:
-            recomendaciones.append("⚙️ Sistema regular: Implementar plan de mejora estructurado")
-        else:
-            recomendaciones.append("🚨 Sistema crítico: Requiere intervención inmediata y completa")
-
-        return recomendaciones
-
-    def actualizar_recomendaciones_calidad(self, stats, distribucion):
-        """Actualizar el tab de recomendaciones con análisis detallado"""
-        try:
-            recomendaciones = self.generar_recomendaciones_calidad(stats, distribucion)
-
-            html_recomendaciones = """
-            <div style="font-family: Arial; font-size: 14px; padding: 20px;">
-                <div style="text-align: center; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
-                            color: white; padding: 15px; border-radius: 10px; margin-bottom: 20px;">
-                    <h2>💡 Recomendaciones Inteligentes</h2>
-                    <p>Análisis automático y sugerencias de mejora</p>
-                </div>
-
-                <div style="background: #e8f5e8; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
-                    <h3 style="color: #2e7d32;">🎯 Acciones Recomendadas</h3>
-            """
-
-            for i, rec in enumerate(recomendaciones):
-                icon_color = '#4CAF50' if '✅' in rec else '#FF9800' if '🟡' in rec else '#F44336'
-                html_recomendaciones += f"""
-                <div style="background: white; padding: 12px; margin: 8px 0; border-radius: 6px; 
-                            border-left: 4px solid {icon_color}; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-                    <p style="margin: 0; font-weight: 500;">{rec}</p>
-                </div>
-                """
-
-            html_recomendaciones += """
-                </div>
-
-                <div style="background: #e3f2fd; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
-                    <h3 style="color: #1565c0;">📋 Plan de Acción Sugerido</h3>
-                    <ol style="padding-left: 20px;">
-                        <li><strong>Inmediato (0-7 días):</strong> Abordar problemas críticos marcados en rojo</li>
-                        <li><strong>Corto plazo (1-4 semanas):</strong> Implementar mejoras moderadas</li>
-                        <li><strong>Mediano plazo (1-3 meses):</strong> Optimizar sistemas existentes</li>
-                        <li><strong>Largo plazo (3+ meses):</strong> Establecer protocolos de mantenimiento</li>
-                    </ol>
-                </div>
-
-                <div style="background: #fff3e0; padding: 15px; border-radius: 8px;">
-                    <h3 style="color: #ef6c00;">🔄 Frecuencia de Monitoreo Recomendada</h3>
-                    <p><strong>Parámetros críticos:</strong> Diario (pH, Oxígeno)</p>
-                    <p><strong>Parámetros importantes:</strong> Semanal (Turbidez, Conductividad)</p>
-                    <p><strong>Análisis completo:</strong> Mensual (Evaluación integral)</p>
-                </div>
-            </div>
-            """
-
-            self.recomendaciones_content.setText(html_recomendaciones)
-
-        except Exception as e:
-            error_msg = f"❌ Error al generar recomendaciones: {str(e)}"
-            print(error_msg)
-            self.mostrar_error_en_pantalla("Error en Recomendaciones", error_msg)
-
-
-class SegmentacionML(QWidget):
-    """Versión optimizada de la aplicación principal con clustering jerárquico"""
+class SegmentacionML(QWidget, ThemedWidget):
+    """Versión optimizada de la aplicación principal con clustering jerárquico y herencia de temas"""
 
     def __init__(self):
-        super().__init__()
+        QWidget.__init__(self)
+        ThemedWidget.__init__(self)
+
         self.worker = None
         self.cache = DataCache()
         self.setup_ui()
-        self.apply_styles()
         self.setup_connections()
 
         # Timer para limpieza de memoria
@@ -1629,11 +1279,25 @@ class SegmentacionML(QWidget):
         main_layout.setSpacing(15)
         main_layout.setContentsMargins(20, 20, 20, 20)
 
+        # Header con botón de tema
+        header_layout = QHBoxLayout()
+
         # Título
         title = QLabel("💧 Análisis de Calidad del Agua - Machine Learning")
         title.setObjectName("title")
         title.setAlignment(Qt.AlignCenter)
-        main_layout.addWidget(title)
+
+        # Botón de tema
+        self.theme_button = QPushButton("🌙")
+        self.theme_button.setObjectName("darkModeButton")
+        self.theme_button.setFixedSize(50, 50)
+        self.theme_button.clicked.connect(self.toggle_theme)
+
+        header_layout.addWidget(title)
+        header_layout.addStretch()
+        header_layout.addWidget(self.theme_button)
+
+        main_layout.addLayout(header_layout)
 
         subtitle = QLabel("Inteligencia artificial aplicada al análisis de parámetros de calidad del agua")
         subtitle.setObjectName("subtitle")
@@ -1822,7 +1486,7 @@ class SegmentacionML(QWidget):
         layout.addWidget(buttons_widget)
         layout.addStretch()
 
-        # Controles de utilidad con tooltips
+        # Controles de utilidad
         utility_frame = QFrame()
         utility_frame.setObjectName("utilityFrame")
         utility_layout = QHBoxLayout(utility_frame)
@@ -1858,6 +1522,24 @@ class SegmentacionML(QWidget):
         • Optimiza el rendimiento general<br><br>
         <i>🚀 Recomendado después de análisis intensivos</i>""")
 
+        # Tooltip para el botón de regresar
+        self.btn_regresar = QPushButton("← Regresar al Menú Principal")
+        self.btn_regresar.setObjectName("backBtn")
+        self.btn_regresar.setToolTip("""<b>← Regresar al Menú Principal</b><br><br>
+        • Vuelve al menú principal de la aplicación<br>
+        • Mantiene todos los análisis y resultados en memoria<br>
+        • Preserva la configuración actual del tema<br>
+        • No cierra la aplicación<br><br>
+        <i>📌 Acceso directo: Ctrl+H</i>""")
+
+        # Tooltip para el botón de tema
+        self.theme_button.setToolTip("""<b>🌙 Cambiar Tema de la Interfaz</b><br><br>
+        • Alterna entre tema claro y oscuro<br>
+        • Cambia automáticamente todos los colores<br>
+        • Preserva la configuración en toda la aplicación<br>
+        • Optimizado para diferentes condiciones de iluminación<br><br>
+        <i>💡 El tema se aplica instantáneamente</i>""")
+
         utility_layout.addWidget(clear_cache_btn)
         utility_layout.addWidget(clear_results_btn)
         utility_layout.addWidget(memory_btn)
@@ -1872,12 +1554,21 @@ class SegmentacionML(QWidget):
         layout.addWidget(separator)
 
         # Botón regresar
-        self.btn_regresar = QPushButton("← Regresar al Menú Principal")
-        self.btn_regresar.setObjectName("backBtn")
         layout.addWidget(self.btn_regresar)
 
         group.setLayout(layout)
         return group
+
+    def toggle_theme(self):
+        """Alternar entre tema claro y oscuro"""
+        theme_manager = ThemeManager()
+        theme_manager.toggle_theme()
+
+        # Actualizar el icono del botón
+        if theme_manager.is_dark_theme():
+            self.theme_button.setText("☀️")
+        else:
+            self.theme_button.setText("🌙")
 
     def setup_connections(self):
         """Configurar conexiones optimizadas"""
@@ -1978,23 +1669,6 @@ class SegmentacionML(QWidget):
             else:
                 self.status_label.setText("✅ Análisis completado con éxito")
 
-            # Notificación de éxito optimizada
-            analysis_names = {
-                "calidad_agua": "Análisis de Calidad",
-                "agrupar_muestras": "Clustering Jerárquico",
-                "predecir_calidad": "Predicción ML",
-                "optimizar_sistema": "Optimización",
-                "comparar_metodos": "Comparación de Métodos"
-            }
-
-            message = f"✅ {analysis_names.get(analysis_type, 'Análisis')} completado exitosamente.\n\n"
-            if analysis_type == "agrupar_muestras":
-                message += f"🌳 Dendrograma disponible en pestaña 'Gráficos'\n📊 Análisis PCA incluido\n🎯 Clusters optimizados automáticamente"
-            else:
-                message += f"🚀 Procesamiento optimizado ejecutado\n📊 Resultados disponibles en las pestañas"
-
-            QMessageBox.information(self, "Procesamiento Completado", message)
-
         except Exception as e:
             error_msg = f"❌ Error en finalización: {str(e)}"
             print(error_msg)
@@ -2028,10 +1702,6 @@ class SegmentacionML(QWidget):
             self.resultados_widget.figure.clear()
             self.resultados_widget.canvas.draw()
 
-            # Limpiar también el canvas jerárquico
-            self.resultados_widget.figure_jerarquico.clear()
-            self.resultados_widget.canvas_jerarquico.draw()
-
         self.status_label.setText("📄 Resultados limpiados")
 
     def force_cleanup(self):
@@ -2045,271 +1715,6 @@ class SegmentacionML(QWidget):
                                 "✅ Cache limpiado\n"
                                 "✅ Garbage collection ejecutado\n"
                                 "✅ Memoria optimizada")
-
-    def apply_styles(self):
-        """Aplicar estilos optimizados"""
-        styles = """
-        QWidget {
-            background-color: #f8f9fa;
-            font-family: 'Segoe UI', 'Arial', sans-serif;
-        }
-
-        #title {
-            font-size: 24px;
-            font-weight: bold;
-            background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-                stop:0 #4a90e2, stop:0.5 #357abd, stop:1 #1e5f99);
-            color: white;
-            padding: 18px;
-            border-radius: 10px;
-            margin-bottom: 8px;
-        }
-
-        #subtitle {
-            font-size: 13px;
-            color: #7f8c8d;
-            font-style: italic;
-            margin-bottom: 15px;
-            padding: 5px;
-        }
-
-        #systemInfo {
-            font-size: 11px;
-            color: #27ae60;
-            font-weight: bold;
-            background-color: #e8f5e8;
-            padding: 8px 12px;
-            border-radius: 6px;
-            border-left: 3px solid #27ae60;
-        }
-
-        QGroupBox {
-            font-weight: bold;
-            border: 2px solid #ddd;
-            border-radius: 8px;
-            margin-top: 15px;
-            padding-top: 20px;
-            background-color: white;
-            font-size: 13px;
-        }
-
-        QGroupBox::title {
-            subcontrol-origin: margin;
-            left: 15px;
-            padding: 0 10px 0 10px;
-            color: #2c3e50;
-            font-size: 14px;
-            font-weight: bold;
-        }
-
-        #infoFrame {
-            background-color: #e8f4fd;
-            border: 2px solid #b3d9ff;
-            border-radius: 6px;
-            padding: 12px;
-            margin: 5px;
-        }
-
-        #infoTitle {
-            font-weight: bold;
-            color: #2980b9;
-            font-size: 13px;
-            margin-bottom: 6px;
-        }
-
-        #infoText {
-            color: #34495e;
-            font-size: 11px;
-            line-height: 1.4;
-        }
-
-        #buttonFrame {
-            background-color: #ffffff;
-            border: 2px solid #e1e8ed;
-            border-radius: 8px;
-            padding: 10px;
-            margin: 3px;
-        }
-
-        #buttonFrame:hover {
-            border-color: #4a90e2;
-            background-color: #f8fcff;
-            box-shadow: 0 2px 8px rgba(74, 144, 226, 0.1);
-        }
-
-        #analysisBtn {
-            background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-                stop:0 #4a90e2, stop:1 #357abd);
-            color: white;
-            border: none;
-            padding: 10px 12px;
-            font-size: 12px;
-            font-weight: bold;
-            border-radius: 6px;
-        }
-
-        #analysisBtn:hover {
-            background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-                stop:0 #5ba0f2, stop:1 #4a90e2);
-        }
-
-        #analysisBtn:disabled {
-            background-color: #bdc3c7;
-            color: #7f8c8d;
-        }
-
-        #descLabel {
-            color: #5a6c7d;
-            font-size: 10px;
-            font-weight: normal;
-            line-height: 1.3;
-        }
-
-        #statusIndicator {
-            color: #27ae60;
-            font-size: 16px;
-            font-weight: bold;
-        }
-
-        #utilityFrame {
-            background-color: #f8f9fa;
-            border-radius: 6px;
-            padding: 8px;
-            margin: 5px 0;
-        }
-
-        #clearBtn, #memoryBtn {
-            background-color: #6c757d;
-            color: white;
-            border: none;
-            padding: 6px 12px;
-            font-weight: bold;
-            border-radius: 4px;
-            font-size: 11px;
-            min-width: 100px;
-        }
-
-        #clearBtn:hover, #memoryBtn:hover {
-            background-color: #5a6268;
-        }
-
-        #memoryBtn {
-            background-color: #28a745;
-        }
-
-        #memoryBtn:hover {
-            background-color: #218838;
-        }
-
-        #backBtn {
-            background-color: #6f7d8c;
-            color: white;
-            border: none;
-            padding: 10px 16px;
-            font-weight: bold;
-            border-radius: 6px;
-            font-size: 12px;
-        }
-
-        #backBtn:hover {
-            background-color: #5a6c7d;
-        }
-
-        #statusLabel {
-            background-color: #ffffff;
-            color: #2c3e50;
-            padding: 10px 16px;
-            border-radius: 6px;
-            border-left: 4px solid #4a90e2;
-            font-weight: bold;
-            font-size: 12px;
-        }
-
-        #progressBar {
-            border: 2px solid #ddd;
-            border-radius: 6px;
-            text-align: center;
-            font-weight: bold;
-            font-size: 11px;
-            height: 22px;
-        }
-
-        #progressBar::chunk {
-            background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-                stop:0 #27ae60, stop:1 #2ecc71);
-            border-radius: 4px;
-        }
-
-        #resultTitle {
-            font-size: 18px;
-            font-weight: bold;
-            color: #2c3e50;
-            padding: 12px;
-            background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-                stop:0 #f8f9fa, stop:1 #e9ecef);
-            border-radius: 6px;
-            margin-bottom: 8px;
-        }
-
-        QTabWidget::pane {
-            border: 2px solid #ddd;
-            background-color: white;
-            border-radius: 6px;
-            padding: 5px;
-        }
-
-        QTabBar::tab {
-            background-color: #ecf0f1;
-            color: #2c3e50;
-            padding: 10px 20px;
-            margin-right: 2px;
-            border-top-left-radius: 6px;
-            border-top-right-radius: 6px;
-            font-weight: bold;
-            font-size: 12px;
-        }
-
-        QTabBar::tab:selected {
-            background-color: #4a90e2;
-            color: white;
-        }
-
-        QTabBar::tab:hover:!selected {
-            background-color: #d5dbdb;
-        }
-
-        #resumenContent, #recomendacionesContent {
-            background-color: white;
-            padding: 12px;
-            border-radius: 6px;
-            font-size: 12px;
-            line-height: 1.4;
-        }
-
-        QScrollArea {
-            border: 1px solid #ddd;
-            border-radius: 6px;
-            background-color: white;
-        }
-
-        QScrollBar:vertical {
-            background-color: #f1f1f1;
-            width: 10px;
-            border-radius: 5px;
-        }
-
-        QScrollBar::handle:vertical {
-            background-color: #c1c1c1;
-            border-radius: 5px;
-            min-height: 20px;
-        }
-
-        QScrollBar::handle:vertical:hover {
-            background-color: #a8a8a8;
-        }
-        """
-
-        self.setStyleSheet(styles)
 
     def closeEvent(self, event):
         """Manejar cierre de aplicación de manera optimizada"""
