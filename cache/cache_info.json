@@ -1,0 +1,43 @@
+{
+  "supervisado_regresion_multiple": {
+    "last_create": "2025-07-07T09:16:54.681287",
+    "created": "2025-07-07T09:16:54.681287",
+    "access_count": 2,
+    "last_access": "2025-07-08T08:45:57.126538"
+  },
+  "supervisado_svm": {
+    "last_create": "2025-07-07T09:17:15.062147",
+    "created": "2025-07-07T09:17:15.062147",
+    "access_count": 1,
+    "last_access": "2025-07-08T08:46:00.959513"
+  },
+  "supervisado_random_forest": {
+    "last_create": "2025-07-07T09:17:22.340141",
+    "created": "2025-07-07T09:17:22.340141",
+    "access_count": 2,
+    "last_access": "2025-07-08T08:46:02.261674"
+  },
+  "supervisado_regresion_lineal": {
+    "last_create": "2025-07-07T09:17:31.538929",
+    "created": "2025-07-07T09:17:31.538929",
+    "access_count": 3,
+    "last_access": "2025-07-08T08:46:05.127195"
+  },
+  "complementario_calidad_agua": {
+    "last_create": "2025-07-07T09:17:49.956414",
+    "created": "2025-07-07T09:17:49.956414",
+    "access_count": 2,
+    "last_access": "2025-07-08T08:46:28.319745"
+  },
+  "complementario_optimizar_sistema": {
+    "last_create": "2025-07-07T09:18:02.311076",
+    "created": "2025-07-07T09:18:02.311076",
+    "access_count": 2,
+    "last_access": "2025-07-08T08:46:31.233680"
+  },
+  "complementario_comparar_metodos": {
+    "last_create": "2025-07-07T09:43:20.376777",
+    "created": "2025-07-07T09:43:20.376777",
+    "access_count": 0
+  }
+}

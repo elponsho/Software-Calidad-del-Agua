@@ -1,17 +1,16 @@
 import sys
 from PyQt5.QtWidgets import QApplication, QMainWindow, QStackedWidget
-from PyQt5.QtCore import QTimer
 
 # Importar las pantallas
 from ui.cargar_datos import CargaDatos
 from ui.menu_principal import MenuPrincipal
 from ui.preprocesamiento import Preprocesamiento
 from ui.analisis_bivariado import AnalisisBivariado
-from ui.segmentacion_ml import SegmentacionML
+from ui.machine_learning.segmentacion_ml import SegmentacionML
 from ui.deep_learning import DeepLearning
 
 # Importar sistema de temas
-from darkmode import ThemeManager, ThemedWidget
+from darkmode.theme_manager import ThemedWidget
 
 # Importar la pantalla de carga
 from ui.pantalla_carga import PantallaCarga
@@ -78,11 +77,19 @@ class VentanaPrincipal(QMainWindow, ThemedWidget):
         # Desde análisis bivariado → menú
         self.pantalla_bivariado.btn_regresar.clicked.connect(lambda: self.stack.setCurrentIndex(1))
 
-        # Desde ML → menú
-        self.pantalla_ml.btn_regresar.clicked.connect(lambda: self.stack.setCurrentIndex(1))
+        # Desde ML → menú (CORREGIDO: usar exit_button en lugar de btn_regresar)
+        if hasattr(self.pantalla_ml, 'exit_button'):
+            self.pantalla_ml.exit_button.clicked.connect(lambda: self.stack.setCurrentIndex(1))
+        else:
+            # Fallback: conectar señal de cierre de ventana si existe
+            try:
+                self.pantalla_ml.ventana_cerrada = lambda: self.stack.setCurrentIndex(1)
+            except:
+                pass
 
         # Desde DL → menú
-        self.pantalla_dl.btn_regresar.clicked.connect(lambda: self.stack.setCurrentIndex(1))
+        if hasattr(self.pantalla_dl, 'btn_regresar'):
+            self.pantalla_dl.btn_regresar.clicked.connect(lambda: self.stack.setCurrentIndex(1))
 
     def mostrar_ventana_principal(self):
         """Mostrar la ventana principal después de la carga"""
@@ -102,12 +109,10 @@ if __name__ == "__main__":
     # Crear la ventana principal
     ventana = VentanaPrincipal()
 
-
     # Conectar la señal de carga completada
     def mostrar_app():
         splash.close()
         ventana.mostrar_ventana_principal()
-
 
     splash.carga_completada.connect(mostrar_app)
 
