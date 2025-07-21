@@ -1,43 +1,69 @@
 {
   "supervisado_regresion_multiple": {
-    "last_create": "2025-07-07T09:16:54.681287",
-    "created": "2025-07-07T09:16:54.681287",
+    "last_create": "2025-07-14T10:00:30.249444",
+    "created": "2025-07-14T10:00:30.249444",
     "access_count": 2,
-    "last_access": "2025-07-08T08:45:57.126538"
+    "last_access": "2025-07-15T09:22:16.394678"
   },
   "supervisado_svm": {
-    "last_create": "2025-07-07T09:17:15.062147",
-    "created": "2025-07-07T09:17:15.062147",
-    "access_count": 1,
-    "last_access": "2025-07-08T08:46:00.959513"
+    "last_create": "2025-07-14T10:00:32.913526",
+    "created": "2025-07-14T10:00:32.913526",
+    "access_count": 2,
+    "last_access": "2025-07-15T09:22:33.243899"
   },
   "supervisado_random_forest": {
-    "last_create": "2025-07-07T09:17:22.340141",
-    "created": "2025-07-07T09:17:22.340141",
-    "access_count": 2,
-    "last_access": "2025-07-08T08:46:02.261674"
+    "last_create": "2025-07-14T10:03:16.806945",
+    "created": "2025-07-14T10:03:16.806945",
+    "access_count": 3,
+    "last_access": "2025-07-15T09:22:34.939046"
   },
   "supervisado_regresion_lineal": {
-    "last_create": "2025-07-07T09:17:31.538929",
-    "created": "2025-07-07T09:17:31.538929",
-    "access_count": 3,
-    "last_access": "2025-07-08T08:46:05.127195"
+    "last_create": "2025-07-14T10:00:34.749896",
+    "created": "2025-07-14T10:00:34.749896",
+    "access_count": 2,
+    "last_access": "2025-07-15T09:22:36.372129"
   },
   "complementario_calidad_agua": {
-    "last_create": "2025-07-07T09:17:49.956414",
-    "created": "2025-07-07T09:17:49.956414",
-    "access_count": 2,
-    "last_access": "2025-07-08T08:46:28.319745"
+    "last_create": "2025-07-17T16:22:16.061094",
+    "created": "2025-07-17T16:22:16.061094",
+    "access_count": 0,
+    "last_access": "2025-07-08T09:12:35.925327"
   },
   "complementario_optimizar_sistema": {
-    "last_create": "2025-07-07T09:18:02.311076",
-    "created": "2025-07-07T09:18:02.311076",
-    "access_count": 2,
+    "last_create": "2025-07-14T10:51:27.510622",
+    "created": "2025-07-14T10:51:27.510622",
+    "access_count": 0,
     "last_access": "2025-07-08T08:46:31.233680"
   },
   "complementario_comparar_metodos": {
-    "last_create": "2025-07-07T09:43:20.376777",
-    "created": "2025-07-07T09:43:20.376777",
+    "last_create": "2025-07-14T10:51:32.055303",
+    "created": "2025-07-14T10:51:32.055303",
+    "access_count": 0
+  },
+  "dl_cnn_6118842016562939695": {
+    "last_create": "2025-07-08T10:39:19.713408",
+    "created": "2025-07-08T10:39:19.713408",
+    "access_count": 0
+  },
+  "dl_rnn_6118842016562939695": {
+    "last_create": "2025-07-08T10:39:27.725040",
+    "created": "2025-07-08T10:39:27.725040",
+    "access_count": 0
+  },
+  "dl_autoencoder_6118842016562939695": {
+    "last_create": "2025-07-08T10:39:35.026168",
+    "created": "2025-07-08T10:39:35.026168",
+    "access_count": 0
+  },
+  "dl_cnn_-5724887413082951017": {
+    "last_create": "2025-07-08T10:41:59.531052",
+    "created": "2025-07-08T10:41:59.531052",
+    "access_count": 1,
+    "last_access": "2025-07-08T10:42:16.481788"
+  },
+  "dl_rnn_-5724887413082951017": {
+    "last_create": "2025-07-08T10:42:10.803462",
+    "created": "2025-07-08T10:42:10.803462",
     "access_count": 0
   }
 }

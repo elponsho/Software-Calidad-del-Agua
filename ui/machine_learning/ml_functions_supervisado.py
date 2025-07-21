@@ -1,709 +1,2086 @@
 """
-ml_functions_supervisado.py - Funciones de Machine Learning Supervisado
-Contiene todas las funciones para análisis supervisado
+ml_functions_supervisado.py - Funciones de Machine Learning Supervisado OPTIMIZADAS
+Versión mejorada con mejor rendimiento, manejo de errores y funcionalidad extendida
 """
 
 import numpy as np
 import pandas as pd
-from sklearn.preprocessing import StandardScaler
-from sklearn.model_selection import train_test_split
-from sklearn.linear_model import LinearRegression, Ridge, Lasso
-from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
-from sklearn.svm import SVC
-from sklearn.metrics import (r2_score, mean_squared_error, mean_absolute_error,
-                             classification_report, confusion_matrix, accuracy_score,
-                             precision_score, recall_score, f1_score)
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.model_selection import (
+    train_test_split, cross_val_score, GridSearchCV,
+    RandomizedSearchCV, KFold, StratifiedKFold, validation_curve,
+    learning_curve
+)
+from sklearn.preprocessing import (
+    StandardScaler, LabelEncoder, MinMaxScaler,
+    RobustScaler, PolynomialFeatures
+)
+from sklearn.metrics import (
+    mean_squared_error, r2_score, mean_absolute_error,
+    mean_absolute_percentage_error, accuracy_score, precision_score,
+    recall_score, f1_score, classification_report, confusion_matrix,
+    roc_auc_score, roc_curve, precision_recall_curve,
+    explained_variance_score
+)
+from sklearn.linear_model import (
+    LinearRegression, Ridge, Lasso, ElasticNet,
+    LogisticRegression, RidgeCV, LassoCV
+)
+from sklearn.tree import DecisionTreeRegressor, DecisionTreeClassifier, export_text
+from sklearn.ensemble import (
+    RandomForestRegressor, RandomForestClassifier,
+    GradientBoostingRegressor, GradientBoostingClassifier,
+    AdaBoostRegressor, AdaBoostClassifier,
+    ExtraTreesRegressor, ExtraTreesClassifier
+)
+from sklearn.svm import SVR, SVC
+from sklearn.neural_network import MLPRegressor, MLPClassifier
+from sklearn.feature_selection import (
+    SelectKBest, f_regression, f_classif, RFE,
+    mutual_info_regression, mutual_info_classif
+)
+from sklearn.pipeline import Pipeline
+from sklearn.impute import SimpleImputer, KNNImputer
+from sklearn.compose import ColumnTransformer
+from joblib import Parallel, delayed
 import warnings
+from typing import Dict, List, Tuple, Optional, Union, Any
+import logging
+from functools import lru_cache
+import gc
+
 warnings.filterwarnings('ignore')
 
+# Configurar logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-def generar_datos_agua_optimizado(n_muestras=200, seed=42):
-    """Generar datos sintéticos de calidad del agua"""
-    np.random.seed(seed)
-    print(f"🔬 Generando {n_muestras} muestras de datos de calidad del agua...")
+# ==================== FUNCIONES DE UTILIDAD ====================
 
-    # Generar datos correlacionados más realistas
-    datos = {}
+def verificar_datos(data: pd.DataFrame, target_column: str = None,
+                   feature_columns: List[str] = None) -> Dict[str, Any]:
+    """
+    Verificar integridad y calidad de los datos
+    """
+    issues = []
+    warnings = []
 
-    # pH - distribución normal centrada en 7
-    datos['pH'] = np.clip(np.random.normal(7.2, 0.8, n_muestras), 6.0, 8.5)
+    # Verificar que el DataFrame no esté vacío
+    if data.empty:
+        issues.append("El DataFrame está vacío")
+        return {'valid': False, 'issues': issues, 'warnings': warnings}
 
-    # Oxígeno disuelto - correlacionado con pH
-    base_oxigeno = 8.5 + (datos['pH'] - 7.0) * 0.5
-    datos['Oxígeno_Disuelto'] = np.clip(
-        base_oxigeno + np.random.normal(0, 1.2, n_muestras),
-        4.0, 12.0
-    )
+    # Verificar columna objetivo
+    if target_column and target_column not in data.columns:
+        issues.append(f"La columna objetivo '{target_column}' no existe")
 
-    # Turbidez - distribución exponencial (más valores bajos)
-    datos['Turbidez'] = np.clip(np.random.exponential(2.0, n_muestras), 0.1, 10.0)
+    # Verificar columnas de características
+    if feature_columns:
+        missing_cols = [col for col in feature_columns if col not in data.columns]
+        if missing_cols:
+            issues.append(f"Columnas faltantes: {missing_cols}")
 
-    # Conductividad - correlacionada inversamente con calidad
-    base_conductividad = 500 + datos['Turbidez'] * 30
-    datos['Conductividad'] = np.clip(
-        base_conductividad + np.random.normal(0, 150, n_muestras),
-        100, 1200
-    )
+    # Verificar valores faltantes
+    missing_info = data.isnull().sum()
+    cols_with_missing = missing_info[missing_info > 0]
+    if len(cols_with_missing) > 0:
+        warnings.append(f"Columnas con valores faltantes: {dict(cols_with_missing)}")
 
-    # Calcular scores de calidad de manera vectorizada
-    print("📊 Calculando scores de calidad...")
+    # Verificar varianza cero
+    numeric_cols = data.select_dtypes(include=[np.number]).columns
+    for col in numeric_cols:
+        if data[col].std() == 0:
+            warnings.append(f"La columna '{col}' tiene varianza cero")
 
-    # pH score (25 puntos máximo)
-    ph_score = np.where(
-        (datos['pH'] >= 6.5) & (datos['pH'] <= 8.5),
-        25,
-        np.maximum(0, 25 - np.abs(datos['pH'] - 7.0) * 8)
-    )
+    # Verificar datos infinitos
+    inf_cols = []
+    for col in numeric_cols:
+        if np.isinf(data[col]).any():
+            inf_cols.append(col)
+    if inf_cols:
+        warnings.append(f"Columnas con valores infinitos: {inf_cols}")
 
-    # Oxígeno score (25 puntos máximo)
-    oxigeno_score = np.where(
-        datos['Oxígeno_Disuelto'] >= 6,
-        25,
-        np.maximum(0, datos['Oxígeno_Disuelto'] * 4.17)
-    )
+    return {
+        'valid': len(issues) == 0,
+        'issues': issues,
+        'warnings': warnings,
+        'shape': data.shape,
+        'dtypes': data.dtypes.to_dict()
+    }
 
-    # Turbidez score (25 puntos máximo)
-    turbidez_score = np.where(
-        datos['Turbidez'] <= 4,
-        25,
-        np.maximum(0, 25 - (datos['Turbidez'] - 4) * 3.57)
-    )
+# ==================== PREPROCESAMIENTO OPTIMIZADO ====================
 
-    # Conductividad score (25 puntos máximo)
-    conductividad_score = np.where(
-        (datos['Conductividad'] >= 200) & (datos['Conductividad'] <= 800),
-        25,
-        np.maximum(0, 25 - np.abs(datos['Conductividad'] - 500) * 0.042)
-    )
+class PreprocesadorAvanzado:
+    """Clase para preprocesamiento avanzado y eficiente"""
 
-    # Score total (0-100)
-    calidad_scores = ph_score + oxigeno_score + turbidez_score + conductividad_score
+    def __init__(self):
+        self.scalers = {}
+        self.encoders = {}
+        self.imputers = {}
+        self.feature_names = []
+        self.pipeline = None
 
-    # Categorías de calidad más específicas
-    calidades = np.select(
-        [
-            calidad_scores >= 85,
-            calidad_scores >= 70,
-            calidad_scores >= 50,
-            calidad_scores >= 30
-        ],
-        ["Excelente", "Buena", "Regular", "Mala"],
-        default="Crítica"
-    )
+    def crear_pipeline(self, numeric_features: List[str],
+                      categorical_features: List[str] = None,
+                      scale_method: str = 'standard',
+                      impute_method: str = 'median') -> Pipeline:
+        """
+        Crear pipeline de preprocesamiento
+        """
+        numeric_transformer = Pipeline(steps=[
+            ('imputer', SimpleImputer(strategy=impute_method)),
+            ('scaler', self._get_scaler(scale_method))
+        ])
 
-    datos['Calidad_Score'] = calidad_scores
-    datos['Calidad'] = calidades
+        transformers = [
+            ('num', numeric_transformer, numeric_features)
+        ]
 
-    df = pd.DataFrame(datos)
-    print(f"✅ Dataset generado: {len(df)} muestras")
-    print(f"📈 Score promedio: {df['Calidad_Score'].mean():.2f}")
-    print(f"🏷️ Distribución de calidades: {df['Calidad'].value_counts().to_dict()}")
+        if categorical_features:
+            categorical_transformer = Pipeline(steps=[
+                ('imputer', SimpleImputer(strategy='constant', fill_value='missing')),
+                ('encoder', LabelEncoder())
+            ])
+            transformers.append(('cat', categorical_transformer, categorical_features))
 
-    return df
+        preprocessor = ColumnTransformer(
+            transformers=transformers,
+            remainder='passthrough'
+        )
 
+        self.pipeline = preprocessor
+        return preprocessor
 
-def regresion_multiple_proceso(n_muestras=200):
-    """Regresión múltiple para predecir score de calidad"""
+    def _get_scaler(self, method: str):
+        """Obtener scaler según método"""
+        scalers = {
+            'standard': StandardScaler(),
+            'minmax': MinMaxScaler(),
+            'robust': RobustScaler()
+        }
+        return scalers.get(method, StandardScaler())
+
+def preparar_datos_supervisado_optimizado(
+    data: pd.DataFrame,
+    target_column: str,
+    feature_columns: Optional[List[str]] = None,
+    test_size: float = 0.2,
+    random_state: int = 42,
+    scale_method: str = 'standard',
+    handle_outliers: bool = True,
+    feature_selection: Optional[str] = None,
+    n_features: Optional[int] = None,
+    stratify: bool = True,
+    validation_split: float = 0.0
+) -> Dict[str, Any]:
+    """
+    Preparar datos para aprendizaje supervisado con optimizaciones
+    """
     try:
-        print("🚀 Iniciando análisis de Regresión Múltiple...")
+        # Verificar datos
+        verificacion = verificar_datos(data, target_column, feature_columns)
+        if not verificacion['valid']:
+            raise ValueError(f"Problemas con los datos: {verificacion['issues']}")
 
-        # Generar datos
-        df = generar_datos_agua_optimizado(n_muestras)
-        X = df[['pH', 'Oxígeno_Disuelto', 'Turbidez', 'Conductividad']]
-        y = df['Calidad_Score']
+        # Log warnings si existen
+        if verificacion['warnings']:
+            for warning in verificacion['warnings']:
+                logger.warning(warning)
 
-        print("📊 Dividiendo datos en entrenamiento y prueba...")
+        # Copiar datos para no modificar originales
+        df = data.copy()
+
+        # Identificar columnas si no se especifican
+        if feature_columns is None:
+            numeric_columns = df.select_dtypes(include=[np.number]).columns.tolist()
+            feature_columns = [col for col in numeric_columns if col != target_column]
+
+        # Verificar que hay suficientes características
+        if len(feature_columns) == 0:
+            raise ValueError("No hay características numéricas disponibles")
+
+        # Separar características y objetivo
+        X = df[feature_columns].copy()
+        y = df[target_column].copy()
+
+        # Limpiar datos faltantes de forma más inteligente
+        imputer = SimpleImputer(strategy='median')
+        X_imputed = pd.DataFrame(
+            imputer.fit_transform(X),
+            columns=X.columns,
+            index=X.index
+        )
+
+        # Verificar si hay valores faltantes en y
+        y_missing = y.isnull().sum()
+        if y_missing > 0:
+            # Eliminar filas con target faltante
+            valid_idx = ~y.isnull()
+            X_imputed = X_imputed[valid_idx]
+            y = y[valid_idx]
+            logger.info(f"Eliminadas {y_missing} filas con valores faltantes en target")
+
+        # Determinar tipo de problema
+        unique_values = y.nunique()
+        is_classification = (
+            unique_values < 10 or
+            y.dtype == 'object' or
+            y.dtype.name == 'category' or
+            isinstance(y.iloc[0], str)
+        )
+
+        # Codificar target si es categórico
+        label_encoder = None
+        classes = None
+        if is_classification and y.dtype == 'object':
+            label_encoder = LabelEncoder()
+            y_encoded = label_encoder.fit_transform(y)
+            y = pd.Series(y_encoded, index=y.index)
+            classes = label_encoder.classes_.tolist()
+
+        # Manejo inteligente de outliers
+        outliers_info = {}
+        if handle_outliers and not is_classification:
+            X_clean, y_clean, outliers_info = _handle_outliers_iqr(X_imputed, y)
+        else:
+            X_clean, y_clean = X_imputed, y
+
+        # División estratificada si es clasificación
+        stratify_y = y_clean if (is_classification and stratify) else None
+
+        if validation_split > 0:
+            # División con conjunto de validación
+            X_temp, X_test, y_temp, y_test = train_test_split(
+                X_clean, y_clean,
+                test_size=test_size,
+                random_state=random_state,
+                stratify=stratify_y
+            )
+
+            # Calcular tamaño de validación relativo al conjunto de entrenamiento
+            val_size = validation_split / (1 - test_size)
+
+            X_train, X_val, y_train, y_val = train_test_split(
+                X_temp, y_temp,
+                test_size=val_size,
+                random_state=random_state,
+                stratify=stratify_y[X_temp.index] if stratify_y is not None else None
+            )
+        else:
+            X_train, X_test, y_train, y_test = train_test_split(
+                X_clean, y_clean,
+                test_size=test_size,
+                random_state=random_state,
+                stratify=stratify_y
+            )
+            X_val, y_val = None, None
+
+        # Escalado de características
+        scaler = None
+        X_train_scaled = X_train.copy()
+        X_test_scaled = X_test.copy()
+        X_val_scaled = X_val.copy() if X_val is not None else None
+
+        if scale_method != 'none':
+            scaler = _get_scaler(scale_method)
+            X_train_scaled = pd.DataFrame(
+                scaler.fit_transform(X_train),
+                columns=X_train.columns,
+                index=X_train.index
+            )
+            X_test_scaled = pd.DataFrame(
+                scaler.transform(X_test),
+                columns=X_test.columns,
+                index=X_test.index
+            )
+            if X_val is not None:
+                X_val_scaled = pd.DataFrame(
+                    scaler.transform(X_val),
+                    columns=X_val.columns,
+                    index=X_val.index
+                )
+
+        # Selección de características si se solicita
+        feature_selector = None
+        selected_features = feature_columns.copy()
+
+        if feature_selection and len(feature_columns) > 5:
+            selector_func = f_classif if is_classification else f_regression
+            n_features_to_select = n_features or min(10, len(feature_columns) // 2)
+
+            if feature_selection == 'kbest':
+                feature_selector = SelectKBest(selector_func, k=n_features_to_select)
+            elif feature_selection == 'mutual_info':
+                mi_func = mutual_info_classif if is_classification else mutual_info_regression
+                feature_selector = SelectKBest(mi_func, k=n_features_to_select)
+            elif feature_selection == 'rfe':
+                # Usar un estimador base simple para RFE
+                base_estimator = (
+                    LogisticRegression(max_iter=1000) if is_classification
+                    else LinearRegression()
+                )
+                feature_selector = RFE(base_estimator, n_features_to_select=n_features_to_select)
+
+            if feature_selector:
+                X_train_scaled = pd.DataFrame(
+                    feature_selector.fit_transform(X_train_scaled, y_train),
+                    index=X_train_scaled.index
+                )
+                X_test_scaled = pd.DataFrame(
+                    feature_selector.transform(X_test_scaled),
+                    index=X_test_scaled.index
+                )
+                if X_val_scaled is not None:
+                    X_val_scaled = pd.DataFrame(
+                        feature_selector.transform(X_val_scaled),
+                        index=X_val_scaled.index
+                    )
+
+                # Obtener características seleccionadas
+                selected_mask = feature_selector.get_support()
+                selected_features = [feat for feat, selected in zip(feature_columns, selected_mask) if selected]
+
+        result = {
+            'X_train': X_train,
+            'X_test': X_test,
+            'X_val': X_val,
+            'X_train_scaled': X_train_scaled,
+            'X_test_scaled': X_test_scaled,
+            'X_val_scaled': X_val_scaled,
+            'y_train': y_train,
+            'y_test': y_test,
+            'y_val': y_val,
+            'feature_columns': selected_features,
+            'original_features': feature_columns,
+            'target_column': target_column,
+            'scaler': scaler,
+            'feature_selector': feature_selector,
+            'label_encoder': label_encoder,
+            'is_classification': is_classification,
+            'classes': classes,
+            'preprocessing_info': {
+                'initial_samples': len(data),
+                'final_samples': len(X_train) + len(X_test) + (len(X_val) if X_val is not None else 0),
+                'missing_handled': y_missing,
+                'outliers_info': outliers_info,
+                'scale_method': scale_method,
+                'feature_selection': feature_selection,
+                'n_features_selected': len(selected_features)
+            }
+        }
+
+        return result
+
+    except Exception as e:
+        logger.error(f"Error en preparación de datos: {str(e)}")
+        raise
+
+def _get_scaler(method: str):
+    """Obtener scaler según método"""
+    scalers = {
+        'standard': StandardScaler(),
+        'minmax': MinMaxScaler(),
+        'robust': RobustScaler()
+    }
+    return scalers.get(method, StandardScaler())
+
+def _handle_outliers_iqr(X: pd.DataFrame, y: pd.Series,
+                        multiplier: float = 1.5) -> Tuple[pd.DataFrame, pd.Series, Dict]:
+    """Manejar outliers usando método IQR"""
+    # Detectar outliers en y (variable objetivo)
+    Q1 = y.quantile(0.25)
+    Q3 = y.quantile(0.75)
+    IQR = Q3 - Q1
+    lower_bound = Q1 - multiplier * IQR
+    upper_bound = Q3 + multiplier * IQR
+
+    # Máscara de valores válidos
+    mask = (y >= lower_bound) & (y <= upper_bound)
+
+    # También detectar outliers en características (opcional)
+    feature_outliers = {}
+    for col in X.columns:
+        if X[col].dtype in [np.float64, np.float32, np.int64, np.int32]:
+            Q1_feat = X[col].quantile(0.25)
+            Q3_feat = X[col].quantile(0.75)
+            IQR_feat = Q3_feat - Q1_feat
+            lower_feat = Q1_feat - multiplier * IQR_feat
+            upper_feat = Q3_feat + multiplier * IQR_feat
+            outliers_feat = ((X[col] < lower_feat) | (X[col] > upper_feat)).sum()
+            if outliers_feat > 0:
+                feature_outliers[col] = outliers_feat
+
+    outliers_info = {
+        'target_outliers': (~mask).sum(),
+        'feature_outliers': feature_outliers,
+        'total_removed': (~mask).sum()
+    }
+
+    return X[mask], y[mask], outliers_info
+
+# ==================== MODELOS DE REGRESIÓN OPTIMIZADOS ====================
+
+def regresion_lineal_simple(data: pd.DataFrame, x_column: str, y_column: str,
+                           optimize_params: bool = True) -> Dict[str, Any]:
+    """
+    Regresión lineal simple optimizada
+    """
+    try:
+        # Verificar columnas
+        if x_column not in data.columns or y_column not in data.columns:
+            raise ValueError(f"Columnas '{x_column}' o '{y_column}' no encontradas")
+
+        # Preparar datos
+        X = data[[x_column]].values
+        y = data[y_column].values
+
+        # Eliminar valores faltantes
+        mask = ~(np.isnan(X.flatten()) | np.isnan(y))
+        X = X[mask].reshape(-1, 1)
+        y = y[mask]
+
+        if len(X) < 10:
+            raise ValueError("Datos insuficientes después de limpiar valores faltantes")
+
+        # División de datos
         X_train, X_test, y_train, y_test = train_test_split(
-            X, y, test_size=0.3, random_state=42
+            X, y, test_size=0.2, random_state=42
         )
 
         # Crear y entrenar modelo
-        print("🔧 Entrenando modelo de regresión múltiple...")
-        modelo = LinearRegression()
-        modelo.fit(X_train, y_train)
+        model = LinearRegression()
+        model.fit(X_train, y_train)
 
         # Predicciones
-        print("🎯 Realizando predicciones...")
-        y_pred = modelo.predict(X_test)
+        y_pred_train = model.predict(X_train)
+        y_pred_test = model.predict(X_test)
 
         # Métricas
-        r2 = r2_score(y_test, y_pred)
-        mse = mean_squared_error(y_test, y_pred)
-        mae = mean_absolute_error(y_test, y_pred)
-        rmse = np.sqrt(mse)
+        train_metrics = _calcular_metricas_regresion(y_train, y_pred_train)
+        test_metrics = _calcular_metricas_regresion(y_test, y_pred_test)
 
-        print(f"📈 R² Score: {r2:.4f}")
-        print(f"📈 MSE: {mse:.4f}")
-        print(f"📈 MAE: {mae:.4f}")
+        # Información adicional
+        coeficiente = float(model.coef_[0])
+        intercepto = float(model.intercept_)
+        ecuacion = f"y = {coeficiente:.4f}x + {intercepto:.4f}"
 
-        # Coeficientes con interpretación
-        coeficientes = []
-        for i, col in enumerate(X.columns):
-            coef = modelo.coef_[i]
-            coeficientes.append({
-                'Parámetro': col,
-                'Coeficiente': float(coef),
-                'Impacto': float(abs(coef)),
-                'Interpretación': 'Positivo' if coef > 0 else 'Negativo'
-            })
+        # Intervalos de confianza (aproximación simple)
+        residuos = y_test - y_pred_test
+        std_residuos = np.std(residuos)
+        n = len(X_test)
 
-        coeficientes_df = pd.DataFrame(coeficientes).sort_values('Impacto', ascending=False)
+        # Error estándar del coeficiente
+        x_mean = np.mean(X_train)
+        ss_x = np.sum((X_train - x_mean) ** 2)
+        se_coef = std_residuos / np.sqrt(ss_x)
 
-        # Ejemplos de predicción con análisis detallado
-        print("🔍 Generando ejemplos de predicción...")
-        ejemplos = []
-        for i in range(min(8, len(X_test))):
-            muestra = X_test.iloc[i]
-            pred = modelo.predict([muestra])[0]
-            real = y_test.iloc[i]
-            error = abs(pred - real)
-            error_porcentual = (error / real) * 100 if real > 0 else 0
+        # Intervalo de confianza al 95% para el coeficiente
+        t_value = 1.96  # Aproximación para muestras grandes
+        ci_lower = coeficiente - t_value * se_coef
+        ci_upper = coeficiente + t_value * se_coef
 
-            # Clasificar la predicción
-            pred_categoria = np.select(
-                [pred >= 85, pred >= 70, pred >= 50, pred >= 30],
-                ["Excelente", "Buena", "Regular", "Mala"],
-                default="Crítica"
-            )
-
-            real_categoria = np.select(
-                [real >= 85, real >= 70, real >= 50, real >= 30],
-                ["Excelente", "Buena", "Regular", "Mala"],
-                default="Crítica"
-            )
-
-            ejemplos.append({
-                'Muestra': i + 1,
-                'pH': float(muestra['pH']),
-                'Oxígeno': float(muestra['Oxígeno_Disuelto']),
-                'Turbidez': float(muestra['Turbidez']),
-                'Conductividad': float(muestra['Conductividad']),
-                'Predicho': float(pred),
-                'Real': float(real),
-                'Error': float(error),
-                'Error_%': float(error_porcentual),
-                'Pred_Categoria': pred_categoria,
-                'Real_Categoria': real_categoria,
-                'Acierto_Categoria': pred_categoria == real_categoria
-            })
-
-        # Estadísticas adicionales
-        residuos = y_test - y_pred
-
-        resultado = {
-            'tipo': 'regresion_multiple',
-            'algoritmo': 'Regresión Múltiple',
-            'n_muestras': int(n_muestras),
-            'n_entrenamiento': int(len(X_train)),
-            'n_prueba': int(len(X_test)),
-            'r2_score': float(r2),
-            'mse': float(mse),
-            'mae': float(mae),
-            'rmse': float(rmse),
-            'coeficientes': coeficientes_df.to_dict('records'),
-            'ejemplos': ejemplos,
-            'intercepto': float(modelo.intercept_),
-            'estadisticas_residuos': {
-                'media': float(np.mean(residuos)),
-                'std': float(np.std(residuos)),
-                'min': float(np.min(residuos)),
-                'max': float(np.max(residuos))
+        return {
+            'tipo': 'regresion_lineal_simple',
+            'modelo': model,
+            'x_column': x_column,
+            'y_column': y_column,
+            'coeficiente': coeficiente,
+            'intercepto': intercepto,
+            'ecuacion': ecuacion,
+            'intervalo_confianza_coef': (ci_lower, ci_upper),
+            'metricas': {
+                'train': train_metrics,
+                'test': test_metrics
             },
-            'parametros_importancia': coeficientes_df['Parámetro'].tolist()
+            'datos': {
+                'X_train': X_train.flatten().tolist(),
+                'X_test': X_test.flatten().tolist(),
+                'y_train': y_train.tolist(),
+                'y_test': y_test.tolist(),
+                'y_pred_train': y_pred_train.tolist(),
+                'y_pred_test': y_pred_test.tolist()
+            }
         }
 
-        print("✅ Regresión múltiple completada exitosamente")
-        return resultado
-
     except Exception as e:
-        print(f"❌ Error en regresión múltiple: {str(e)}")
-        return {'error': f"Error en regresión múltiple: {str(e)}"}
+        logger.error(f"Error en regresión lineal simple: {str(e)}")
+        return {'error': str(e)}
 
-
-def svm_proceso(n_muestras=200):
-    """Máquinas de Vectores de Soporte para clasificación"""
+def regresion_lineal_multiple(data: pd.DataFrame, target_column: str,
+                            feature_columns: Optional[List[str]] = None,
+                            regularization: str = 'none',
+                            alpha: float = 1.0,
+                            optimize_params: bool = True) -> Dict[str, Any]:
+    """
+    Regresión lineal múltiple con regularización opcional
+    """
     try:
-        print("🚀 Iniciando análisis SVM...")
-
-        # Generar datos
-        df = generar_datos_agua_optimizado(n_muestras)
-        X = df[['pH', 'Oxígeno_Disuelto', 'Turbidez', 'Conductividad']]
-        y = df['Calidad']
-
-        print("📊 Dividiendo datos en entrenamiento y prueba...")
-        X_train, X_test, y_train, y_test = train_test_split(
-            X, y, test_size=0.3, random_state=42, stratify=y
+        # Preparar datos
+        prep_data = preparar_datos_supervisado_optimizado(
+            data, target_column, feature_columns,
+            scale_method='standard' if regularization != 'none' else 'none'
         )
 
-        # Estandarizar datos (crucial para SVM)
-        print("⚖️ Estandarizando características...")
-        scaler = StandardScaler()
-        X_train_scaled = scaler.fit_transform(X_train)
-        X_test_scaled = scaler.transform(X_test)
+        if prep_data['is_classification']:
+            raise ValueError('La variable objetivo parece ser categórica. Use un modelo de clasificación.')
 
-        # Crear y entrenar SVM
-        print("🔧 Entrenando modelo SVM con kernel RBF...")
-        modelo = SVC(
-            kernel='rbf',
-            C=1.0,
-            gamma='scale',
-            probability=True,
-            random_state=42
-        )
-        modelo.fit(X_train_scaled, y_train)
+        X_train = prep_data['X_train_scaled']
+        X_test = prep_data['X_test_scaled']
+        y_train = prep_data['y_train']
+        y_test = prep_data['y_test']
+
+        # Seleccionar modelo según regularización
+        if regularization == 'none':
+            model = LinearRegression()
+        elif regularization == 'ridge':
+            if optimize_params:
+                # Optimización de alpha usando RidgeCV
+                alphas = np.logspace(-4, 4, 50)
+                model = RidgeCV(alphas=alphas, cv=5)
+            else:
+                model = Ridge(alpha=alpha)
+        elif regularization == 'lasso':
+            if optimize_params:
+                # Optimización de alpha usando LassoCV
+                model = LassoCV(cv=5, max_iter=2000, n_alphas=50)
+            else:
+                model = Lasso(alpha=alpha, max_iter=2000)
+        elif regularization == 'elastic':
+            if optimize_params:
+                # ElasticNet con optimización
+                from sklearn.linear_model import ElasticNetCV
+                model = ElasticNetCV(cv=5, max_iter=2000, n_alphas=50)
+            else:
+                model = ElasticNet(alpha=alpha, max_iter=2000)
+        else:
+            raise ValueError(f"Regularización '{regularization}' no soportada")
+
+        # Entrenar modelo
+        model.fit(X_train, y_train)
+
+        # Obtener alpha óptimo si se optimizó
+        if optimize_params and regularization != 'none':
+            if hasattr(model, 'alpha_'):
+                optimal_alpha = float(model.alpha_)
+            else:
+                optimal_alpha = alpha
+        else:
+            optimal_alpha = alpha
 
         # Predicciones
-        print("🎯 Realizando predicciones...")
-        y_pred = modelo.predict(X_test_scaled)
-        y_proba = modelo.predict_proba(X_test_scaled)
+        y_pred_train = model.predict(X_train)
+        y_pred_test = model.predict(X_test)
 
-        # Métricas detalladas
-        accuracy = accuracy_score(y_test, y_pred)
-        precision = precision_score(y_test, y_pred, average='weighted', zero_division=0)
-        recall = recall_score(y_test, y_pred, average='weighted', zero_division=0)
-        f1 = f1_score(y_test, y_pred, average='weighted', zero_division=0)
+        # Métricas
+        train_metrics = _calcular_metricas_regresion(y_train, y_pred_train)
+        test_metrics = _calcular_metricas_regresion(y_test, y_pred_test)
 
-        print(f"🎯 Precisión: {accuracy:.4f}")
-        print(f"📊 Precision: {precision:.4f}")
-        print(f"📊 Recall: {recall:.4f}")
-        print(f"📊 F1-Score: {f1:.4f}")
+        # Validación cruzada
+        cv_scores = cross_val_score(model, X_train, y_train, cv=5, scoring='r2')
 
-        # Matriz de confusión
-        cm = confusion_matrix(y_test, y_pred)
-        clases = modelo.classes_
+        # Coeficientes e importancia
+        coeficientes = {}
+        for i, feature in enumerate(prep_data['feature_columns']):
+            coeficientes[feature] = float(model.coef_[i])
 
-        # Reporte de clasificación detallado
-        report = classification_report(y_test, y_pred, output_dict=True, zero_division=0)
+        # Análisis de residuos
+        residuos_train = y_train - y_pred_train
+        residuos_test = y_test - y_pred_test
 
-        # Ejemplos con probabilidades detalladas
-        print("🔍 Generando ejemplos con probabilidades...")
-        ejemplos = []
-        for i in range(min(8, len(X_test))):
-            muestra = X_test.iloc[i]
-            muestra_scaled = scaler.transform([muestra])
-            pred = modelo.predict(muestra_scaled)[0]
-            probas = modelo.predict_proba(muestra_scaled)[0]
-            confianza = max(probas) * 100
+        # Análisis de multicolinealidad (VIF)
+        vif_scores = _calculate_vif(X_train) if len(prep_data['feature_columns']) > 1 else {}
 
-            # Crear diccionario de probabilidades por clase
-            prob_dict = {}
-            for j, clase in enumerate(clases):
-                prob_dict[f'Prob_{clase}'] = float(probas[j] * 100)
-
-            ejemplo = {
-                'Muestra': i + 1,
-                'pH': float(muestra['pH']),
-                'Oxígeno': float(muestra['Oxígeno_Disuelto']),
-                'Turbidez': float(muestra['Turbidez']),
-                'Conductividad': float(muestra['Conductividad']),
-                'Predicción': pred,
-                'Real': y_test.iloc[i],
-                'Correcto': pred == y_test.iloc[i],
-                'Confianza_%': float(confianza)
-            }
-            ejemplo.update(prob_dict)
-            ejemplos.append(ejemplo)
-
-        # Análisis por clase
-        analisis_clases = {}
-        for clase in clases:
-            if clase in report:
-                analisis_clases[clase] = {
-                    'precision': float(report[clase]['precision']),
-                    'recall': float(report[clase]['recall']),
-                    'f1_score': float(report[clase]['f1-score']),
-                    'support': int(report[clase]['support'])
-                }
-
-        resultado = {
-            'tipo': 'svm',
-            'algoritmo': 'Support Vector Machine',
-            'kernel': 'RBF',
-            'n_muestras': int(n_muestras),
-            'n_entrenamiento': int(len(X_train)),
-            'n_prueba': int(len(X_test)),
-            'accuracy': float(accuracy * 100),
-            'precision': float(precision * 100),
-            'recall': float(recall * 100),
-            'f1_score': float(f1 * 100),
-            'matriz_confusion': cm.tolist(),
-            'clases': clases.tolist(),
-            'reporte': report,
-            'analisis_clases': analisis_clases,
-            'ejemplos': ejemplos,
-            'n_vectores_soporte': int(modelo.n_support_.sum()),
-            'parametros_modelo': {
-                'C': modelo.C,
-                'gamma': modelo.gamma,
-                'kernel': modelo.kernel
-            }
+        return {
+            'tipo': 'regresion_lineal_multiple',
+            'modelo': model,
+            'target_column': target_column,
+            'feature_columns': prep_data['feature_columns'],
+            'regularization': regularization,
+            'alpha_optimo': optimal_alpha,
+            'coeficientes': coeficientes,
+            'intercepto': float(model.intercept_),
+            'metricas': {
+                'train': train_metrics,
+                'test': test_metrics,
+                'cv_r2_mean': float(cv_scores.mean()),
+                'cv_r2_std': float(cv_scores.std())
+            },
+            'analisis_residuos': {
+                'train': _analizar_residuos(residuos_train),
+                'test': _analizar_residuos(residuos_test)
+            },
+            'vif_scores': vif_scores,
+            'datos_prediccion': {
+                'y_train': y_train.tolist(),
+                'y_test': y_test.tolist(),
+                'y_pred_train': y_pred_train.tolist(),
+                'y_pred_test': y_pred_test.tolist(),
+                'residuos_train': residuos_train.tolist(),
+                'residuos_test': residuos_test.tolist()
+            },
+            'preprocessing_info': prep_data['preprocessing_info']
         }
 
-        print("✅ SVM completado exitosamente")
-        return resultado
+    except Exception as e:
+        logger.error(f"Error en regresión múltiple: {str(e)}")
+        return {'error': str(e)}
+
+# ==================== ÁRBOLES DE DECISIÓN Y ENSEMBLE ====================
+
+def arbol_decision(data: pd.DataFrame, target_column: str,
+                  feature_columns: Optional[List[str]] = None,
+                  max_depth: Optional[int] = None,
+                  min_samples_split: int = 2,
+                  min_samples_leaf: int = 1,
+                  optimize_params: bool = True) -> Dict[str, Any]:
+    """
+    Árbol de decisión optimizado para regresión y clasificación
+    """
+    try:
+        # Preparar datos
+        prep_data = preparar_datos_supervisado_optimizado(
+            data, target_column, feature_columns
+        )
+
+        X_train = prep_data['X_train_scaled']
+        X_test = prep_data['X_test_scaled']
+        y_train = prep_data['y_train']
+        y_test = prep_data['y_test']
+
+        # Seleccionar tipo de árbol
+        if prep_data['is_classification']:
+            model_class = DecisionTreeClassifier
+            param_grid = {
+                'max_depth': [3, 5, 7, 10, None],
+                'min_samples_split': [2, 5, 10, 20],
+                'min_samples_leaf': [1, 2, 4, 8],
+                'criterion': ['gini', 'entropy']
+            }
+            scoring = 'accuracy'
+        else:
+            model_class = DecisionTreeRegressor
+            param_grid = {
+                'max_depth': [3, 5, 7, 10, None],
+                'min_samples_split': [2, 5, 10, 20],
+                'min_samples_leaf': [1, 2, 4, 8],
+                'criterion': ['squared_error', 'absolute_error']
+            }
+            scoring = 'r2'
+
+        if optimize_params:
+            # Optimización con RandomizedSearchCV para mayor eficiencia
+            model = RandomizedSearchCV(
+                model_class(random_state=42),
+                param_grid,
+                n_iter=30,
+                cv=5,
+                scoring=scoring,
+                n_jobs=-1,
+                random_state=42
+            )
+            model.fit(X_train, y_train)
+            best_model = model.best_estimator_
+            best_params = model.best_params_
+        else:
+            best_model = model_class(
+                max_depth=max_depth,
+                min_samples_split=min_samples_split,
+                min_samples_leaf=min_samples_leaf,
+                random_state=42
+            )
+            best_model.fit(X_train, y_train)
+            best_params = {
+                'max_depth': max_depth,
+                'min_samples_split': min_samples_split,
+                'min_samples_leaf': min_samples_leaf
+            }
+
+        # Predicciones
+        y_pred_train = best_model.predict(X_train)
+        y_pred_test = best_model.predict(X_test)
+
+        # Métricas
+        if prep_data['is_classification']:
+            train_metrics = _calcular_metricas_clasificacion(y_train, y_pred_train, best_model, X_train)
+            test_metrics = _calcular_metricas_clasificacion(y_test, y_pred_test, best_model, X_test)
+        else:
+            train_metrics = _calcular_metricas_regresion(y_train, y_pred_train)
+            test_metrics = _calcular_metricas_regresion(y_test, y_pred_test)
+
+        # Importancia de características
+        importancia_features = dict(zip(
+            prep_data['feature_columns'],
+            best_model.feature_importances_
+        ))
+
+        # Información del árbol
+        tree_info = {
+            'n_nodes': best_model.tree_.node_count,
+            'max_depth': best_model.tree_.max_depth,
+            'n_leaves': best_model.tree_.n_leaves,
+            'n_features': best_model.n_features_in_
+        }
+
+        # Reglas del árbol (primeras 10)
+        if hasattr(best_model, 'tree_'):
+            tree_rules = export_text(best_model, feature_names=list(prep_data['feature_columns']))
+            tree_rules_lines = tree_rules.split('\n')[:50]  # Primeras 50 líneas
+            tree_rules_summary = '\n'.join(tree_rules_lines)
+        else:
+            tree_rules_summary = "No disponible"
+
+        return {
+            'tipo': 'arbol_decision',
+            'es_clasificacion': prep_data['is_classification'],
+            'modelo': best_model,
+            'target_column': target_column,
+            'feature_columns': prep_data['feature_columns'],
+            'parametros': best_params,
+            'metricas': {
+                'train': train_metrics,
+                'test': test_metrics
+            },
+            'importancia_features': importancia_features,
+            'tree_info': tree_info,
+            'tree_rules': tree_rules_summary,
+            'preprocessing_info': prep_data['preprocessing_info']
+        }
 
     except Exception as e:
-        print(f"❌ Error en SVM: {str(e)}")
-        return {'error': f"Error en SVM: {str(e)}"}
+        logger.error(f"Error en árbol de decisión: {str(e)}")
+        return {'error': str(e)}
 
-
-def random_forest_proceso(n_muestras=200):
-    """Random Forest para clasificación y regresión"""
+def random_forest(data: pd.DataFrame, target_column: str,
+                 feature_columns: Optional[List[str]] = None,
+                 n_estimators: int = 100,
+                 max_depth: Optional[int] = None,
+                 max_features: Union[str, int, float] = 'sqrt',
+                 optimize_params: bool = True,
+                 n_jobs: int = -1) -> Dict[str, Any]:
+    """
+    Random Forest optimizado con paralelización
+    """
     try:
-        print("🚀 Iniciando análisis Random Forest...")
-
-        # Generar datos
-        df = generar_datos_agua_optimizado(n_muestras)
-        X = df[['pH', 'Oxígeno_Disuelto', 'Turbidez', 'Conductividad']]
-
-        # Parte 1: Clasificación
-        print("🌳 Entrenando Random Forest para clasificación...")
-        y_class = df['Calidad']
-        X_train_c, X_test_c, y_train_c, y_test_c = train_test_split(
-            X, y_class, test_size=0.3, random_state=42, stratify=y_class
+        # Preparar datos
+        prep_data = preparar_datos_supervisado_optimizado(
+            data, target_column, feature_columns
         )
 
-        rf_classifier = RandomForestClassifier(
-            n_estimators=100,
-            random_state=42,
-            max_depth=10,
-            min_samples_split=5,
-            min_samples_leaf=2
-        )
-        rf_classifier.fit(X_train_c, y_train_c)
+        X_train = prep_data['X_train_scaled']
+        X_test = prep_data['X_test_scaled']
+        y_train = prep_data['y_train']
+        y_test = prep_data['y_test']
 
-        # Métricas de clasificación
-        y_pred_c = rf_classifier.predict(X_test_c)
-        accuracy_class = accuracy_score(y_test_c, y_pred_c)
-        precision_class = precision_score(y_test_c, y_pred_c, average='weighted', zero_division=0)
+        # Seleccionar tipo de Random Forest
+        if prep_data['is_classification']:
+            model_class = RandomForestClassifier
+            param_grid = {
+                'n_estimators': [50, 100, 200],
+                'max_depth': [None, 10, 20, 30],
+                'min_samples_split': [2, 5, 10],
+                'min_samples_leaf': [1, 2, 4],
+                'max_features': ['sqrt', 'log2', 0.5, 0.7]
+            }
+            scoring = 'accuracy'
+        else:
+            model_class = RandomForestRegressor
+            param_grid = {
+                'n_estimators': [50, 100, 200],
+                'max_depth': [None, 10, 20, 30],
+                'min_samples_split': [2, 5, 10],
+                'min_samples_leaf': [1, 2, 4],
+                'max_features': ['sqrt', 'log2', 0.5, 0.7]
+            }
+            scoring = 'r2'
 
-        # Importancia de características para clasificación
-        importancias_class = []
-        for i, col in enumerate(X.columns):
-            importancias_class.append({
-                'Parámetro': col,
-                'Importancia': float(rf_classifier.feature_importances_[i]),
-                'Porcentaje': float(rf_classifier.feature_importances_[i] * 100)
-            })
-        importancias_class = sorted(importancias_class, key=lambda x: x['Importancia'], reverse=True)
+        if optimize_params:
+            # Usar RandomizedSearchCV para eficiencia
+            model = RandomizedSearchCV(
+                model_class(random_state=42, n_jobs=n_jobs, oob_score=True),
+                param_grid,
+                n_iter=20,
+                cv=5,
+                scoring=scoring,
+                n_jobs=n_jobs,
+                random_state=42,
+                verbose=0
+            )
+            model.fit(X_train, y_train)
+            best_model = model.best_estimator_
+            best_params = model.best_params_
+            cv_results = pd.DataFrame(model.cv_results_)
+        else:
+            best_model = model_class(
+                n_estimators=n_estimators,
+                max_depth=max_depth,
+                max_features=max_features,
+                random_state=42,
+                n_jobs=n_jobs,
+                oob_score=True
+            )
+            best_model.fit(X_train, y_train)
+            best_params = {
+                'n_estimators': n_estimators,
+                'max_depth': max_depth,
+                'max_features': max_features
+            }
+            cv_results = None
 
-        # Parte 2: Regresión
-        print("🌳 Entrenando Random Forest para regresión...")
-        y_reg = df['Calidad_Score']
-        X_train_r, X_test_r, y_train_r, y_test_r = train_test_split(
-            X, y_reg, test_size=0.3, random_state=42
-        )
+        # Predicciones
+        y_pred_train = best_model.predict(X_train)
+        y_pred_test = best_model.predict(X_test)
 
-        rf_regressor = RandomForestRegressor(
-            n_estimators=100,
-            random_state=42,
-            max_depth=10,
-            min_samples_split=5,
-            min_samples_leaf=2
-        )
-        rf_regressor.fit(X_train_r, y_train_r)
+        # Probabilidades para clasificación
+        if prep_data['is_classification'] and hasattr(best_model, 'predict_proba'):
+            y_proba_test = best_model.predict_proba(X_test)
+        else:
+            y_proba_test = None
 
-        # Métricas de regresión
-        y_pred_r = rf_regressor.predict(X_test_r)
-        r2_reg = r2_score(y_test_r, y_pred_r)
-        mse_reg = mean_squared_error(y_test_r, y_pred_r)
-        mae_reg = mean_absolute_error(y_test_r, y_pred_r)
+        # Métricas
+        if prep_data['is_classification']:
+            train_metrics = _calcular_metricas_clasificacion(y_train, y_pred_train, best_model, X_train)
+            test_metrics = _calcular_metricas_clasificacion(y_test, y_pred_test, best_model, X_test)
 
-        # Out-of-bag score
-        oob_score = rf_regressor.oob_score_ if hasattr(rf_regressor, 'oob_score_') else None
+            # Matriz de confusión
+            cm = confusion_matrix(y_test, y_pred_test)
+            confusion_matrix_data = cm.tolist()
+        else:
+            train_metrics = _calcular_metricas_regresion(y_train, y_pred_train)
+            test_metrics = _calcular_metricas_regresion(y_test, y_pred_test)
+            confusion_matrix_data = None
 
-        print(f"🎯 Precisión Clasificación: {accuracy_class:.4f}")
-        print(f"📊 R² Regresión: {r2_reg:.4f}")
+        # Importancia de características
+        importancia_features = dict(zip(
+            prep_data['feature_columns'],
+            best_model.feature_importances_
+        ))
 
-        # Ejemplos combinados
-        print("🔍 Generando ejemplos combinados...")
-        ejemplos = []
-        n_ejemplos = min(6, len(X_test_c), len(X_test_r))
+        # Ordenar por importancia
+        importancia_ordenada = dict(sorted(
+            importancia_features.items(),
+            key=lambda x: x[1],
+            reverse=True
+        ))
 
-        for i in range(n_ejemplos):
-            muestra_c = X_test_c.iloc[i] if i < len(X_test_c) else X_test_c.iloc[0]
-            muestra_r = X_test_r.iloc[i] if i < len(X_test_r) else X_test_r.iloc[0]
+        # OOB Score si está disponible
+        oob_score = best_model.oob_score_ if hasattr(best_model, 'oob_score_') else None
 
-            pred_class = rf_classifier.predict([muestra_c])[0]
-            pred_score = rf_regressor.predict([muestra_r])[0]
+        # Información del bosque
+        forest_info = {
+            'n_estimators': best_model.n_estimators,
+            'n_features': best_model.n_features_in_,
+            'oob_score': oob_score
+        }
 
-            # Probabilidades para clasificación
-            proba_class = rf_classifier.predict_proba([muestra_c])[0]
-            max_proba = max(proba_class) * 100
+        # Análisis de estabilidad del modelo
+        if len(X_train) > 100:
+            stability_scores = _analyze_model_stability(best_model, X_train, y_train, n_iterations=5)
+        else:
+            stability_scores = None
 
-            ejemplos.append({
-                'Muestra': i + 1,
-                'pH': float(muestra_c['pH']),
-                'Oxígeno': float(muestra_c['Oxígeno_Disuelto']),
-                'Turbidez': float(muestra_c['Turbidez']),
-                'Conductividad': float(muestra_c['Conductividad']),
-                'Clase_Predicha': pred_class,
-                'Score_Predicho': float(pred_score),
-                'Confianza_%': float(max_proba),
-                'Clase_Real': y_test_c.iloc[i] if i < len(y_test_c) else 'N/A',
-                'Score_Real': float(y_test_r.iloc[i]) if i < len(y_test_r) else 0.0
-            })
-
-        # Análisis de árboles
-        tree_depths = [tree.tree_.max_depth for tree in rf_classifier.estimators_[:10]]
-
-        resultado = {
+        return {
             'tipo': 'random_forest',
-            'algoritmo': 'Random Forest',
-            'n_estimadores': 100,
-            'n_muestras': int(n_muestras),
-
-            # Métricas de clasificación
-            'accuracy_clasificacion': float(accuracy_class * 100),
-            'precision_clasificacion': float(precision_class * 100),
-
-            # Métricas de regresión
-            'r2_regresion': float(r2_reg),
-            'mse_regresion': float(mse_reg),
-            'mae_regresion': float(mae_reg),
-
-            # Importancia de características
-            'importancias': importancias_class,
-
-            # Ejemplos
-            'ejemplos': ejemplos,
-
-            # Información del modelo
-            'oob_score': float(oob_score) if oob_score else None,
-            'profundidad_promedio_arboles': float(np.mean(tree_depths)),
-            'clases_clasificacion': rf_classifier.classes_.tolist(),
-
-            # Parámetros del modelo
-            'parametros': {
-                'n_estimators': 100,
-                'max_depth': 10,
-                'min_samples_split': 5,
-                'min_samples_leaf': 2
-            }
+            'es_clasificacion': prep_data['is_classification'],
+            'modelo': best_model,
+            'target_column': target_column,
+            'feature_columns': prep_data['feature_columns'],
+            'parametros': best_params,
+            'metricas': {
+                'train': train_metrics,
+                'test': test_metrics,
+                'oob_score': oob_score
+            },
+            'importancia_features': importancia_ordenada,
+            'forest_info': forest_info,
+            'confusion_matrix': confusion_matrix_data,
+            'classes': prep_data['classes'],
+            'stability_scores': stability_scores,
+            'cv_results': cv_results.to_dict() if cv_results is not None else None,
+            'preprocessing_info': prep_data['preprocessing_info']
         }
 
-        print("✅ Random Forest completado exitosamente")
-        return resultado
-
     except Exception as e:
-        print(f"❌ Error en Random Forest: {str(e)}")
-        return {'error': f"Error en Random Forest: {str(e)}"}
+        logger.error(f"Error en Random Forest: {str(e)}")
+        return {'error': str(e)}
 
-
-def regresion_lineal_proceso(n_muestras=200):
-    """Regresión lineal simple, múltiple y regularizada"""
+def svm_modelo(data: pd.DataFrame, target_column: str,
+              feature_columns: Optional[List[str]] = None,
+              kernel: str = 'rbf',
+              C: float = 1.0,
+              gamma: Union[str, float] = 'scale',
+              optimize_params: bool = True) -> Dict[str, Any]:
+    """
+    Support Vector Machine optimizado
+    """
     try:
-        print("🚀 Iniciando análisis de Regresión Lineal Completa...")
-
-        # Generar datos
-        df = generar_datos_agua_optimizado(n_muestras)
-        X = df[['pH', 'Oxígeno_Disuelto', 'Turbidez', 'Conductividad']]
-        y = df['Calidad_Score']
-
-        print("📊 Dividiendo datos en entrenamiento y prueba...")
-        X_train, X_test, y_train, y_test = train_test_split(
-            X, y, test_size=0.3, random_state=42
+        # Preparar datos - SVM siempre necesita escalado
+        prep_data = preparar_datos_supervisado_optimizado(
+            data, target_column, feature_columns,
+            scale_method='standard'
         )
 
-        # 1. Regresión lineal simple para cada variable
-        print("🔍 Analizando regresiones simples...")
-        resultados_simples = {}
-        for col in X.columns:
-            X_simple_train = X_train[[col]]
-            X_simple_test = X_test[[col]]
+        X_train = prep_data['X_train_scaled']
+        X_test = prep_data['X_test_scaled']
+        y_train = prep_data['y_train']
+        y_test = prep_data['y_test']
 
-            modelo_simple = LinearRegression()
-            modelo_simple.fit(X_simple_train, y_train)
+        # Limitar tamaño del dataset para SVM si es muy grande
+        max_samples = 5000
+        if len(X_train) > max_samples:
+            logger.warning(f"Dataset grande ({len(X_train)} muestras). Limitando a {max_samples} para SVM.")
+            idx = np.random.choice(len(X_train), max_samples, replace=False)
+            X_train_subset = X_train.iloc[idx]
+            y_train_subset = y_train.iloc[idx]
+        else:
+            X_train_subset = X_train
+            y_train_subset = y_train
 
-            y_pred_simple = modelo_simple.predict(X_simple_test)
-            r2_simple = r2_score(y_test, y_pred_simple)
-            mse_simple = mean_squared_error(y_test, y_pred_simple)
-
-            resultados_simples[col] = {
-                'r2': float(r2_simple),
-                'mse': float(mse_simple),
-                'coeficiente': float(modelo_simple.coef_[0]),
-                'intercepto': float(modelo_simple.intercept_),
-                'clasificacion': 'Fuerte' if r2_simple > 0.7 else 'Moderada' if r2_simple > 0.3 else 'Débil'
+        # Seleccionar tipo de SVM
+        if prep_data['is_classification']:
+            model_class = SVC
+            param_grid = {
+                'C': [0.1, 1, 10, 100],
+                'kernel': ['linear', 'rbf', 'poly'],
+                'gamma': ['scale', 'auto', 0.001, 0.01, 0.1]
             }
+            base_params = {'probability': True, 'random_state': 42}
+            scoring = 'accuracy'
+        else:
+            model_class = SVR
+            param_grid = {
+                'C': [0.1, 1, 10, 100],
+                'kernel': ['linear', 'rbf', 'poly'],
+                'gamma': ['scale', 'auto', 0.001, 0.01, 0.1],
+                'epsilon': [0.01, 0.1, 0.2]
+            }
+            base_params = {}
+            scoring = 'r2'
 
-        # 2. Regresión múltiple
-        print("🔧 Entrenando regresión múltiple...")
-        modelo_multiple = LinearRegression()
-        modelo_multiple.fit(X_train, y_train)
+        if optimize_params:
+            # Grid Search con validación cruzada
+            model = GridSearchCV(
+                model_class(**base_params),
+                param_grid,
+                cv=3,  # Menos folds para SVM
+                scoring=scoring,
+                n_jobs=-1,
+                verbose=0
+            )
+            model.fit(X_train_subset, y_train_subset)
+            best_model = model.best_estimator_
+            best_params = model.best_params_
+        else:
+            params = {
+                'kernel': kernel,
+                'C': C,
+                'gamma': gamma,
+                **base_params
+            }
+            best_model = model_class(**params)
+            best_model.fit(X_train_subset, y_train_subset)
+            best_params = params
 
-        y_pred_multiple = modelo_multiple.predict(X_test)
-        r2_multiple = r2_score(y_test, y_pred_multiple)
-        mse_multiple = mean_squared_error(y_test, y_pred_multiple)
-        mae_multiple = mean_absolute_error(y_test, y_pred_multiple)
+        # Predicciones
+        y_pred_train = best_model.predict(X_train)
+        y_pred_test = best_model.predict(X_test)
 
-        # 3. Regresión Ridge (L2)
-        print("🔧 Entrenando regresión Ridge...")
-        ridge = Ridge(alpha=1.0)
-        ridge.fit(X_train, y_train)
-        y_pred_ridge = ridge.predict(X_test)
-        r2_ridge = r2_score(y_test, y_pred_ridge)
-        mse_ridge = mean_squared_error(y_test, y_pred_ridge)
+        # Métricas
+        if prep_data['is_classification']:
+            train_metrics = _calcular_metricas_clasificacion(y_train, y_pred_train, best_model, X_train)
+            test_metrics = _calcular_metricas_clasificacion(y_test, y_pred_test, best_model, X_test)
+        else:
+            train_metrics = _calcular_metricas_regresion(y_train, y_pred_train)
+            test_metrics = _calcular_metricas_regresion(y_test, y_pred_test)
 
-        # 4. Regresión Lasso (L1)
-        print("🔧 Entrenando regresión Lasso...")
-        lasso = Lasso(alpha=1.0, max_iter=2000)
-        lasso.fit(X_train, y_train)
-        y_pred_lasso = lasso.predict(X_test)
-        r2_lasso = r2_score(y_test, y_pred_lasso)
-        mse_lasso = mean_squared_error(y_test, y_pred_lasso)
-
-        # Comparación de métodos
-        metodos_comparacion = {
-            'Multiple': {'r2': r2_multiple, 'mse': mse_multiple},
-            'Ridge': {'r2': r2_ridge, 'mse': mse_ridge},
-            'Lasso': {'r2': r2_lasso, 'mse': mse_lasso}
+        # Información específica de SVM
+        svm_info = {
+            'kernel': best_model.kernel,
+            'C': best_model.C,
+            'gamma': best_model.gamma if hasattr(best_model, 'gamma') else None,
+            'n_support_vectors': best_model.n_support_.sum() if hasattr(best_model, 'n_support_') else None,
+            'support_vector_ratio': (best_model.n_support_.sum() / len(X_train_subset)) if hasattr(best_model, 'n_support_') else None
         }
 
-        # Determinar mejor método
-        mejor_metodo = max(metodos_comparacion.keys(),
-                          key=lambda k: metodos_comparacion[k]['r2'])
-
-        print(f"🏆 Mejor método: {mejor_metodo} (R² = {metodos_comparacion[mejor_metodo]['r2']:.4f})")
-
-        # Coeficientes comparados
-        coeficientes_comparacion = []
-        for i, col in enumerate(X.columns):
-            coef_data = {
-                'Parámetro': col,
-                'Multiple': float(modelo_multiple.coef_[i]),
-                'Ridge': float(ridge.coef_[i]),
-                'Lasso': float(lasso.coef_[i])
-            }
-            coeficientes_comparacion.append(coef_data)
-
-        # Ejemplos de predicción
-        print("🔍 Generando ejemplos de predicción...")
-        ejemplos = []
-        for i in range(min(6, len(X_test))):
-            muestra = X_test.iloc[i]
-            real = y_test.iloc[i]
-
-            pred_multiple = modelo_multiple.predict([muestra])[0]
-            pred_ridge = ridge.predict([muestra])[0]
-            pred_lasso = lasso.predict([muestra])[0]
-
-            ejemplos.append({
-                'Muestra': i + 1,
-                'pH': float(muestra['pH']),
-                'Oxígeno': float(muestra['Oxígeno_Disuelto']),
-                'Turbidez': float(muestra['Turbidez']),
-                'Conductividad': float(muestra['Conductividad']),
-                'Real': float(real),
-                'Pred_Multiple': float(pred_multiple),
-                'Pred_Ridge': float(pred_ridge),
-                'Pred_Lasso': float(pred_lasso),
-                'Error_Multiple': float(abs(pred_multiple - real)),
-                'Error_Ridge': float(abs(pred_ridge - real)),
-                'Error_Lasso': float(abs(pred_lasso - real))
-            })
-
-        resultado = {
-            'tipo': 'regresion_lineal',
-            'algoritmo': 'Regresión Lineal Completa',
-            'n_muestras': int(n_muestras),
-            'n_entrenamiento': int(len(X_train)),
-            'n_prueba': int(len(X_test)),
-
-            # Regresiones simples
-            'regresiones_simples': resultados_simples,
-            'mejor_variable_simple': max(resultados_simples.keys(),
-                                       key=lambda k: resultados_simples[k]['r2']),
-
-            # Regresión múltiple
-            'r2_multiple': float(r2_multiple),
-            'mse_multiple': float(mse_multiple),
-            'mae_multiple': float(mae_multiple),
-
-            # Regresión Ridge
-            'r2_ridge': float(r2_ridge),
-            'mse_ridge': float(mse_ridge),
-
-            # Regresión Lasso
-            'r2_lasso': float(r2_lasso),
-            'mse_lasso': float(mse_lasso),
-
-            # Comparación
-            'mejor_metodo': mejor_metodo,
-            'metodos_comparacion': metodos_comparacion,
-            'coeficientes_comparacion': coeficientes_comparacion,
-
-            # Coeficientes individuales
-            'coeficientes_multiple': [float(c) for c in modelo_multiple.coef_],
-            'intercepto_multiple': float(modelo_multiple.intercept_),
-            'coeficientes_ridge': [float(c) for c in ridge.coef_],
-            'intercepto_ridge': float(ridge.intercept_),
-            'coeficientes_lasso': [float(c) for c in lasso.coef_],
-            'intercepto_lasso': float(lasso.intercept_),
-
-            # Ejemplos
-            'ejemplos': ejemplos,
-
-            # Parámetros de regularización
-            'alpha_ridge': ridge.alpha,
-            'alpha_lasso': lasso.alpha,
-
-            # Análisis de regularización
-            'regularizacion_necesaria': r2_ridge > r2_multiple or r2_lasso > r2_multiple,
-            'recomendacion': 'Ridge' if r2_ridge >= max(r2_multiple, r2_lasso) else 'Lasso' if r2_lasso >= r2_multiple else 'Multiple'
+        return {
+            'tipo': 'svm',
+            'es_clasificacion': prep_data['is_classification'],
+            'modelo': best_model,
+            'target_column': target_column,
+            'feature_columns': prep_data['feature_columns'],
+            'parametros': best_params,
+            'metricas': {
+                'train': train_metrics,
+                'test': test_metrics
+            },
+            'svm_info': svm_info,
+            'preprocessing_info': prep_data['preprocessing_info']
         }
-
-        print("✅ Regresión lineal completa exitosamente")
-        return resultado
 
     except Exception as e:
-        print(f"❌ Error en regresión lineal: {str(e)}")
-        return {'error': f"Error en regresión lineal: {str(e)}"}
+        logger.error(f"Error en SVM: {str(e)}")
+        return {'error': str(e)}
 
+# ==================== COMPARACIÓN DE MODELOS ====================
 
-# Función de prueba para verificar que todo funciona
-def test_all_functions():
-    """Función para probar todas las funciones ML"""
-    print("🧪 Iniciando pruebas de todas las funciones ML...")
+def comparar_modelos_supervisado(data: pd.DataFrame, target_column: str,
+                               feature_columns: Optional[List[str]] = None,
+                               modelos: List[str] = None,
+                               optimize_all: bool = True,
+                               cv_folds: int = 5,
+                               n_jobs: int = -1) -> Dict[str, Any]:
+    """
+    Comparación exhaustiva y paralela de múltiples modelos
+    """
+    try:
+        if modelos is None:
+            modelos = ['linear', 'tree', 'forest', 'svm']
 
-    functions_to_test = [
-        ("Regresión Múltiple", regresion_multiple_proceso),
-        ("SVM", svm_proceso),
-        ("Random Forest", random_forest_proceso),
-        ("Regresión Lineal", regresion_lineal_proceso)
-    ]
+        # Preparar datos una sola vez
+        prep_data = preparar_datos_supervisado_optimizado(
+            data, target_column, feature_columns,
+            scale_method='standard'
+        )
 
-    results = {}
+        # Determinar tipo de problema y métricas
+        if prep_data['is_classification']:
+            scoring_metrics = ['accuracy', 'precision_weighted', 'recall_weighted', 'f1_weighted']
+            primary_metric = 'accuracy'
+        else:
+            scoring_metrics = ['r2', 'neg_mean_squared_error', 'neg_mean_absolute_error']
+            primary_metric = 'r2'
 
-    for name, func in functions_to_test:
-        print(f"\n🔬 Probando {name}...")
+        resultados = {
+            'target_column': target_column,
+            'feature_columns': prep_data['feature_columns'],
+            'is_classification': prep_data['is_classification'],
+            'modelos': {},
+            'ranking': [],
+            'preprocessing_info': prep_data['preprocessing_info']
+        }
+
+        # Función para entrenar un modelo
+        def entrenar_modelo(modelo_nombre):
+            logger.info(f"Entrenando {modelo_nombre}...")
+
+            try:
+                if modelo_nombre == 'linear':
+                    if prep_data['is_classification']:
+                        resultado = _entrenar_logistic_regression(
+                            prep_data, optimize_all, cv_folds
+                        )
+                    else:
+                        resultado = regresion_lineal_multiple(
+                            data, target_column, feature_columns,
+                            regularization='ridge' if optimize_all else 'none',
+                            optimize_params=optimize_all
+                        )
+
+                elif modelo_nombre == 'tree':
+                    resultado = arbol_decision(
+                        data, target_column, feature_columns,
+                        optimize_params=optimize_all
+                    )
+
+                elif modelo_nombre == 'forest':
+                    resultado = random_forest(
+                        data, target_column, feature_columns,
+                        optimize_params=optimize_all,
+                        n_jobs=n_jobs
+                    )
+
+                elif modelo_nombre == 'svm':
+                    # SVM puede ser lento, limitar datos si es necesario
+                    if len(prep_data['X_train']) > 1000:
+                        logger.warning("Dataset grande para SVM, usando submuestra")
+                    resultado = svm_modelo(
+                        data, target_column, feature_columns,
+                        optimize_params=optimize_all
+                    )
+
+                elif modelo_nombre == 'gradient_boosting':
+                    resultado = _entrenar_gradient_boosting(
+                        prep_data, optimize_all
+                    )
+
+                elif modelo_nombre == 'neural_network':
+                    resultado = _entrenar_neural_network(
+                        prep_data, optimize_all
+                    )
+
+                else:
+                    resultado = {'error': f'Modelo {modelo_nombre} no reconocido'}
+
+                return modelo_nombre, resultado
+
+            except Exception as e:
+                logger.error(f"Error en {modelo_nombre}: {str(e)}")
+                return modelo_nombre, {'error': str(e)}
+
+        # Entrenar modelos (opcionalmente en paralelo)
+        if n_jobs == 1:
+            # Secuencial
+            for modelo in modelos:
+                nombre, resultado = entrenar_modelo(modelo)
+                resultados['modelos'][nombre] = resultado
+        else:
+            # Paralelo
+            with Parallel(n_jobs=min(n_jobs, len(modelos)), backend='threading') as parallel:
+                results_list = parallel(delayed(entrenar_modelo)(modelo) for modelo in modelos)
+
+                for nombre, resultado in results_list:
+                    resultados['modelos'][nombre] = resultado
+
+        # Crear ranking basado en métrica principal
+        ranking = []
+        for nombre, resultado in resultados['modelos'].items():
+            if 'error' not in resultado and 'metricas' in resultado:
+                metricas = resultado['metricas']['test']
+                score = metricas.get(primary_metric,
+                                   metricas.get('accuracy',
+                                   metricas.get('r2', -np.inf)))
+
+                ranking.append({
+                    'modelo': nombre,
+                    'score': float(score),
+                    'metrica': primary_metric,
+                    'metricas_completas': metricas
+                })
+
+        # Ordenar ranking
+        ranking.sort(key=lambda x: x['score'], reverse=True)
+        resultados['ranking'] = ranking
+
+        # Estadísticas de comparación
+        if len(ranking) >= 2:
+            scores = [item['score'] for item in ranking]
+            resultados['estadisticas'] = {
+                'mejor_modelo': ranking[0]['modelo'],
+                'mejor_score': ranking[0]['score'],
+                'diferencia_primero_segundo': ranking[0]['score'] - ranking[1]['score'],
+                'promedio_scores': np.mean(scores),
+                'std_scores': np.std(scores),
+                'rango_scores': max(scores) - min(scores)
+            }
+
+        # Análisis de consenso entre modelos
+        if not prep_data['is_classification'] and len(ranking) >= 3:
+            resultados['analisis_consenso'] = _analyze_model_consensus(
+                resultados['modelos'], prep_data
+            )
+
+        return resultados
+
+    except Exception as e:
+        logger.error(f"Error en comparación de modelos: {str(e)}")
+        return {'error': str(e)}
+
+# ==================== FUNCIONES AUXILIARES OPTIMIZADAS ====================
+
+def _calcular_metricas_regresion(y_true, y_pred) -> Dict[str, float]:
+    """Calcular métricas completas para regresión"""
+    # Convertir a arrays numpy si es necesario
+    y_true = np.array(y_true)
+    y_pred = np.array(y_pred)
+
+    # Verificar que no hay NaN
+    mask = ~(np.isnan(y_true) | np.isnan(y_pred))
+    y_true = y_true[mask]
+    y_pred = y_pred[mask]
+
+    metrics = {
+        'r2': float(r2_score(y_true, y_pred)),
+        'mse': float(mean_squared_error(y_true, y_pred)),
+        'rmse': float(np.sqrt(mean_squared_error(y_true, y_pred))),
+        'mae': float(mean_absolute_error(y_true, y_pred)),
+        'explained_variance': float(explained_variance_score(y_true, y_pred))
+    }
+
+    # MAPE solo si no hay ceros en y_true
+    if np.all(y_true != 0):
+        metrics['mape'] = float(mean_absolute_percentage_error(y_true, y_pred))
+
+    # Métricas adicionales
+    residuos = y_true - y_pred
+    metrics['max_error'] = float(np.max(np.abs(residuos)))
+    metrics['std_residuos'] = float(np.std(residuos))
+
+    return metrics
+
+def _calcular_metricas_clasificacion(y_true, y_pred, model=None, X=None) -> Dict[str, float]:
+    """Calcular métricas completas para clasificación"""
+    metrics = {
+        'accuracy': float(accuracy_score(y_true, y_pred)),
+        'precision': float(precision_score(y_true, y_pred, average='weighted', zero_division=0)),
+        'recall': float(recall_score(y_true, y_pred, average='weighted', zero_division=0)),
+        'f1_score': float(f1_score(y_true, y_pred, average='weighted', zero_division=0))
+    }
+
+    # Métricas por clase si hay pocas clases
+    unique_classes = np.unique(y_true)
+    if len(unique_classes) <= 10:
+        metrics['per_class_precision'] = precision_score(
+            y_true, y_pred, average=None, zero_division=0
+        ).tolist()
+        metrics['per_class_recall'] = recall_score(
+            y_true, y_pred, average=None, zero_division=0
+        ).tolist()
+        metrics['per_class_f1'] = f1_score(
+            y_true, y_pred, average=None, zero_division=0
+        ).tolist()
+
+    # ROC AUC para clasificación binaria
+    if len(unique_classes) == 2 and model is not None and hasattr(model, 'predict_proba') and X is not None:
         try:
-            result = func(100)  # Usar menos muestras para prueba rápida
-            if 'error' in result:
-                print(f"❌ {name} falló: {result['error']}")
-                results[name] = False
-            else:
-                print(f"✅ {name} funcionó correctamente")
-                results[name] = True
-        except Exception as e:
-            print(f"❌ {name} falló con excepción: {str(e)}")
-            results[name] = False
+            y_proba = model.predict_proba(X)[:, 1]
+            metrics['roc_auc'] = float(roc_auc_score(y_true, y_proba))
+        except Exception:
+            pass
 
-    print(f"\n📊 Resumen de pruebas:")
-    for name, success in results.items():
-        status = "✅" if success else "❌"
-        print(f"{status} {name}")
+    return metrics
 
-    return results
+def _analizar_residuos(residuos) -> Dict[str, float]:
+    """Análisis estadístico de residuos"""
+    residuos = np.array(residuos)
 
+    # Tests de normalidad
+    from scipy import stats
 
-if __name__ == "__main__":
-    print("🚀 Ejecutando pruebas de funciones ML...")
-    test_results = test_all_functions()
+    analisis = {
+        'media': float(np.mean(residuos)),
+        'std': float(np.std(residuos)),
+        'min': float(np.min(residuos)),
+        'max': float(np.max(residuos)),
+        'q25': float(np.percentile(residuos, 25)),
+        'q50': float(np.percentile(residuos, 50)),
+        'q75': float(np.percentile(residuos, 75)),
+        'skewness': float(stats.skew(residuos)),
+        'kurtosis': float(stats.kurtosis(residuos))
+    }
 
-    if all(test_results.values()):
-        print("\n🎉 ¡Todas las funciones ML funcionan correctamente!")
+    # Test de normalidad si hay suficientes datos
+    if len(residuos) >= 20:
+        _, p_value = stats.normaltest(residuos)
+        analisis['normaltest_pvalue'] = float(p_value)
+        analisis['es_normal'] = p_value > 0.05
+
+    return analisis
+
+def _calculate_vif(X: pd.DataFrame) -> Dict[str, float]:
+    """Calcular Variance Inflation Factor para detectar multicolinealidad"""
+    from statsmodels.stats.outliers_influence import variance_inflation_factor
+
+    vif_data = {}
+
+    try:
+        for i in range(X.shape[1]):
+            vif = variance_inflation_factor(X.values, i)
+            if not np.isinf(vif) and not np.isnan(vif):
+                vif_data[X.columns[i]] = float(vif)
+    except Exception:
+        # Si falla el cálculo de VIF, retornar vacío
+        pass
+
+    return vif_data
+
+def _analyze_model_stability(model, X, y, n_iterations: int = 5) -> Dict[str, float]:
+    """Analizar estabilidad del modelo con diferentes submuestras"""
+    scores = []
+
+    for i in range(n_iterations):
+        # Crear submuestra aleatoria (80% de los datos)
+        idx = np.random.choice(len(X), int(0.8 * len(X)), replace=False)
+        X_subset = X.iloc[idx]
+        y_subset = y.iloc[idx]
+
+        # Evaluar modelo
+        score = model.score(X_subset, y_subset)
+        scores.append(score)
+
+    return {
+        'mean_score': float(np.mean(scores)),
+        'std_score': float(np.std(scores)),
+        'min_score': float(np.min(scores)),
+        'max_score': float(np.max(scores)),
+        'cv_stability': float(np.std(scores) / np.mean(scores))  # Coeficiente de variación
+    }
+
+def _analyze_model_consensus(models_dict: Dict, prep_data: Dict) -> Dict[str, Any]:
+    """Analizar consenso entre predicciones de diferentes modelos"""
+    predictions = []
+    model_names = []
+
+    # Recopilar predicciones de test
+    for name, result in models_dict.items():
+        if 'error' not in result and 'datos_prediccion' in result:
+            pred = result['datos_prediccion'].get('y_pred_test',
+                   result.get('predicciones', {}).get('test'))
+            if pred is not None:
+                predictions.append(np.array(pred))
+                model_names.append(name)
+
+    if len(predictions) < 2:
+        return {}
+
+    # Convertir a array
+    predictions = np.array(predictions)
+
+    # Calcular estadísticas de consenso
+    consensus = {
+        'mean_prediction': np.mean(predictions, axis=0).tolist(),
+        'std_prediction': np.std(predictions, axis=0).tolist(),
+        'prediction_range': (np.max(predictions, axis=0) - np.min(predictions, axis=0)).tolist(),
+        'correlation_matrix': np.corrcoef(predictions).tolist(),
+        'model_names': model_names
+    }
+
+    return consensus
+
+# ==================== FUNCIONES ADICIONALES DE ML ====================
+
+def _entrenar_logistic_regression(prep_data: Dict, optimize: bool = True,
+                                 cv_folds: int = 5) -> Dict[str, Any]:
+    """Entrenar regresión logística para clasificación"""
+    X_train = prep_data['X_train_scaled']
+    X_test = prep_data['X_test_scaled']
+    y_train = prep_data['y_train']
+    y_test = prep_data['y_test']
+
+    if optimize:
+        param_grid = {
+            'C': [0.001, 0.01, 0.1, 1, 10, 100],
+            'solver': ['liblinear', 'lbfgs'],
+            'max_iter': [1000]
+        }
+
+        model = GridSearchCV(
+            LogisticRegression(random_state=42),
+            param_grid,
+            cv=cv_folds,
+            scoring='accuracy',
+            n_jobs=-1
+        )
+        model.fit(X_train, y_train)
+        best_model = model.best_estimator_
+        best_params = model.best_params_
     else:
-        print("\n⚠️ Algunas funciones presentaron errores.")
+        best_model = LogisticRegression(max_iter=1000, random_state=42)
+        best_model.fit(X_train, y_train)
+        best_params = {'C': 1.0, 'solver': 'lbfgs'}
 
-    print("\n📋 Las funciones están listas para ser utilizadas por supervisado_window.py")
+    # Predicciones
+    y_pred_train = best_model.predict(X_train)
+    y_pred_test = best_model.predict(X_test)
+
+    # Métricas
+    train_metrics = _calcular_metricas_clasificacion(y_train, y_pred_train, best_model, X_train)
+    test_metrics = _calcular_metricas_clasificacion(y_test, y_pred_test, best_model, X_test)
+
+    # Coeficientes
+    coeficientes = {}
+    if len(best_model.coef_.shape) == 1:
+        # Clasificación binaria
+        for i, feature in enumerate(prep_data['feature_columns']):
+            coeficientes[feature] = float(best_model.coef_[i])
+    else:
+        # Clasificación multiclase
+        for i, feature in enumerate(prep_data['feature_columns']):
+            coeficientes[feature] = float(np.mean(np.abs(best_model.coef_[:, i])))
+
+    return {
+        'tipo': 'logistic_regression',
+        'es_clasificacion': True,
+        'modelo': best_model,
+        'parametros': best_params,
+        'coeficientes': coeficientes,
+        'intercepto': float(best_model.intercept_[0]) if len(best_model.intercept_) == 1 else best_model.intercept_.tolist(),
+        'metricas': {
+            'train': train_metrics,
+            'test': test_metrics
+        }
+    }
+
+def _entrenar_gradient_boosting(prep_data: Dict, optimize: bool = True) -> Dict[str, Any]:
+    """Entrenar Gradient Boosting"""
+    X_train = prep_data['X_train_scaled']
+    X_test = prep_data['X_test_scaled']
+    y_train = prep_data['y_train']
+    y_test = prep_data['y_test']
+
+    if prep_data['is_classification']:
+        model_class = GradientBoostingClassifier
+        param_grid = {
+            'n_estimators': [50, 100, 200],
+            'learning_rate': [0.05, 0.1, 0.2],
+            'max_depth': [3, 5, 7],
+            'subsample': [0.8, 1.0]
+        }
+        scoring = 'accuracy'
+    else:
+        model_class = GradientBoostingRegressor
+        param_grid = {
+            'n_estimators': [50, 100, 200],
+            'learning_rate': [0.05, 0.1, 0.2],
+            'max_depth': [3, 5, 7],
+            'subsample': [0.8, 1.0]
+        }
+        scoring = 'r2'
+
+    if optimize:
+        # Usar RandomizedSearchCV para eficiencia
+        model = RandomizedSearchCV(
+            model_class(random_state=42),
+            param_grid,
+            n_iter=15,
+            cv=3,
+            scoring=scoring,
+            n_jobs=-1,
+            random_state=42
+        )
+        model.fit(X_train, y_train)
+        best_model = model.best_estimator_
+        best_params = model.best_params_
+    else:
+        best_model = model_class(n_estimators=100, random_state=42)
+        best_model.fit(X_train, y_train)
+        best_params = {'n_estimators': 100}
+
+    # Predicciones
+    y_pred_train = best_model.predict(X_train)
+    y_pred_test = best_model.predict(X_test)
+
+    # Métricas
+    if prep_data['is_classification']:
+        train_metrics = _calcular_metricas_clasificacion(y_train, y_pred_train, best_model, X_train)
+        test_metrics = _calcular_metricas_clasificacion(y_test, y_pred_test, best_model, X_test)
+    else:
+        train_metrics = _calcular_metricas_regresion(y_train, y_pred_train)
+        test_metrics = _calcular_metricas_regresion(y_test, y_pred_test)
+
+    # Importancia de características
+    importancia_features = dict(zip(
+        prep_data['feature_columns'],
+        best_model.feature_importances_
+    ))
+
+    return {
+        'tipo': 'gradient_boosting',
+        'es_clasificacion': prep_data['is_classification'],
+        'modelo': best_model,
+        'parametros': best_params,
+        'metricas': {
+            'train': train_metrics,
+            'test': test_metrics
+        },
+        'importancia_features': importancia_features
+    }
+
+def _entrenar_neural_network(prep_data: Dict, optimize: bool = True) -> Dict[str, Any]:
+    """Entrenar Red Neuronal (MLP)"""
+    X_train = prep_data['X_train_scaled']
+    X_test = prep_data['X_test_scaled']
+    y_train = prep_data['y_train']
+    y_test = prep_data['y_test']
+
+    if prep_data['is_classification']:
+        model_class = MLPClassifier
+        param_grid = {
+            'hidden_layer_sizes': [(50,), (100,), (100, 50), (100, 50, 25)],
+            'activation': ['relu', 'tanh'],
+            'alpha': [0.0001, 0.001, 0.01],
+            'learning_rate_init': [0.001, 0.01]
+        }
+        base_params = {
+            'random_state': 42,
+            'max_iter': 1000,
+            'early_stopping': True,
+            'validation_fraction': 0.1
+        }
+        scoring = 'accuracy'
+    else:
+        model_class = MLPRegressor
+        param_grid = {
+            'hidden_layer_sizes': [(50,), (100,), (100, 50), (100, 50, 25)],
+            'activation': ['relu', 'tanh'],
+            'alpha': [0.0001, 0.001, 0.01],
+            'learning_rate_init': [0.001, 0.01]
+        }
+        base_params = {
+            'random_state': 42,
+            'max_iter': 1000,
+            'early_stopping': True,
+            'validation_fraction': 0.1
+        }
+        scoring = 'r2'
+
+    if optimize:
+        model = RandomizedSearchCV(
+            model_class(**base_params),
+            param_grid,
+            n_iter=10,
+            cv=3,
+            scoring=scoring,
+            n_jobs=-1,
+            random_state=42
+        )
+        model.fit(X_train, y_train)
+        best_model = model.best_estimator_
+        best_params = model.best_params_
+    else:
+        best_model = model_class(
+            hidden_layer_sizes=(100, 50),
+            **base_params
+        )
+        best_model.fit(X_train, y_train)
+        best_params = {'hidden_layer_sizes': (100, 50)}
+
+    # Predicciones
+    y_pred_train = best_model.predict(X_train)
+    y_pred_test = best_model.predict(X_test)
+
+    # Métricas
+    if prep_data['is_classification']:
+        train_metrics = _calcular_metricas_clasificacion(y_train, y_pred_train, best_model, X_train)
+        test_metrics = _calcular_metricas_clasificacion(y_test, y_pred_test, best_model, X_test)
+    else:
+        train_metrics = _calcular_metricas_regresion(y_train, y_pred_train)
+        test_metrics = _calcular_metricas_regresion(y_test, y_pred_test)
+
+    # Información de la red
+    nn_info = {
+        'n_layers': len(best_model.hidden_layer_sizes) + 2,  # Hidden + input + output
+        'n_iterations': best_model.n_iter_,
+        'loss_curve': best_model.loss_curve_[-10:] if hasattr(best_model, 'loss_curve_') else None
+    }
+
+    return {
+        'tipo': 'neural_network',
+        'es_clasificacion': prep_data['is_classification'],
+        'modelo': best_model,
+        'parametros': best_params,
+        'metricas': {
+            'train': train_metrics,
+            'test': test_metrics
+        },
+        'nn_info': nn_info
+    }
+
+# ==================== FUNCIONES DE VISUALIZACIÓN ====================
+
+def generar_visualizaciones_ml(resultado: Dict[str, Any], figsize: Tuple[int, int] = (12, 8)) -> plt.Figure:
+    """
+    Generar visualizaciones según el tipo de modelo
+    """
+    tipo = resultado.get('tipo', '')
+
+    if tipo == 'regresion_lineal_simple':
+        return _plot_regresion_simple(resultado, figsize)
+    elif tipo == 'regresion_lineal_multiple':
+        return _plot_regresion_multiple(resultado, figsize)
+    elif tipo in ['arbol_decision', 'random_forest', 'gradient_boosting']:
+        if resultado.get('es_clasificacion'):
+            return _plot_clasificacion(resultado, figsize)
+        else:
+            return _plot_regresion_tree(resultado, figsize)
+    elif tipo == 'svm':
+        return _plot_svm(resultado, figsize)
+    elif tipo == 'comparar_modelos':
+        return _plot_comparacion(resultado, figsize)
+    else:
+        return _plot_generico(resultado, figsize)
+
+def _plot_regresion_simple(resultado: Dict, figsize: Tuple) -> plt.Figure:
+    """Visualización para regresión lineal simple"""
+    fig, axes = plt.subplots(2, 2, figsize=figsize)
+
+    # 1. Scatter plot con línea de regresión
+    ax = axes[0, 0]
+    X_test = resultado['datos']['X_test']
+    y_test = resultado['datos']['y_test']
+    y_pred = resultado['datos']['y_pred_test']
+
+    ax.scatter(X_test, y_test, alpha=0.5, label='Datos reales')
+    ax.plot(sorted(X_test),
+            [resultado['coeficiente'] * x + resultado['intercepto'] for x in sorted(X_test)],
+            'r-', label=resultado['ecuacion'])
+    ax.set_xlabel(resultado['x_column'])
+    ax.set_ylabel(resultado['y_column'])
+    ax.set_title('Regresión Lineal Simple')
+    ax.legend()
+    ax.grid(True, alpha=0.3)
+
+    # 2. Residuos vs Predichos
+    ax = axes[0, 1]
+    residuos = np.array(y_test) - np.array(y_pred)
+    ax.scatter(y_pred, residuos, alpha=0.5)
+    ax.axhline(y=0, color='r', linestyle='--')
+    ax.set_xlabel('Valores Predichos')
+    ax.set_ylabel('Residuos')
+    ax.set_title('Análisis de Residuos')
+    ax.grid(True, alpha=0.3)
+
+    # 3. Q-Q plot
+    ax = axes[1, 0]
+    from scipy import stats
+    stats.probplot(residuos, dist="norm", plot=ax)
+    ax.set_title('Q-Q Plot')
+    ax.grid(True, alpha=0.3)
+
+    # 4. Histograma de residuos
+    ax = axes[1, 1]
+    ax.hist(residuos, bins=20, edgecolor='black', alpha=0.7)
+    ax.set_xlabel('Residuos')
+    ax.set_ylabel('Frecuencia')
+    ax.set_title('Distribución de Residuos')
+    ax.grid(True, alpha=0.3)
+
+    plt.tight_layout()
+    return fig
+
+def _plot_regresion_multiple(resultado: Dict, figsize: Tuple) -> plt.Figure:
+    """Visualización para regresión múltiple"""
+    fig = plt.figure(figsize=figsize)
+
+    # Determinar el layout según la cantidad de información
+    n_features = len(resultado.get('coeficientes', {}))
+
+    if n_features <= 10:
+        # Layout 2x3 para pocas características
+        gs = fig.add_gridspec(2, 3, hspace=0.3, wspace=0.3)
+    else:
+        # Layout 3x2 para muchas características
+        gs = fig.add_gridspec(3, 2, hspace=0.3, wspace=0.3)
+
+    # 1. Predicciones vs Reales
+    ax1 = fig.add_subplot(gs[0, 0])
+    y_test = resultado['datos_prediccion']['y_test']
+    y_pred = resultado['datos_prediccion']['y_pred_test']
+
+    ax1.scatter(y_test, y_pred, alpha=0.5)
+    min_val = min(min(y_test), min(y_pred))
+    max_val = max(max(y_test), max(y_pred))
+    ax1.plot([min_val, max_val], [min_val, max_val], 'r--', label='Perfecta')
+    ax1.set_xlabel('Valores Reales')
+    ax1.set_ylabel('Predicciones')
+    ax1.set_title(f'R² = {resultado["metricas"]["test"]["r2"]:.3f}')
+    ax1.legend()
+    ax1.grid(True, alpha=0.3)
+
+    # 2. Residuos
+    ax2 = fig.add_subplot(gs[0, 1])
+    residuos = resultado['datos_prediccion']['residuos_test']
+    ax2.scatter(y_pred, residuos, alpha=0.5)
+    ax2.axhline(y=0, color='r', linestyle='--')
+    ax2.set_xlabel('Predicciones')
+    ax2.set_ylabel('Residuos')
+    ax2.set_title('Análisis de Residuos')
+    ax2.grid(True, alpha=0.3)
+
+    # 3. Importancia de características
+    if n_features <= 10:
+        ax3 = fig.add_subplot(gs[0, 2])
+    else:
+        ax3 = fig.add_subplot(gs[0:2, 1])
+
+    coefs = resultado['coeficientes']
+    features = list(coefs.keys())
+    values = list(coefs.values())
+
+    # Ordenar por valor absoluto
+    sorted_idx = np.argsort(np.abs(values))
+    features_sorted = [features[i] for i in sorted_idx]
+    values_sorted = [values[i] for i in sorted_idx]
+
+    # Mostrar solo top 15 si hay muchas
+    if len(features_sorted) > 15:
+        features_sorted = features_sorted[-15:]
+        values_sorted = values_sorted[-15:]
+
+    colors = ['red' if v < 0 else 'green' for v in values_sorted]
+    ax3.barh(features_sorted, values_sorted, color=colors)
+    ax3.set_xlabel('Coeficiente')
+    ax3.set_title('Importancia de Variables')
+    ax3.grid(True, alpha=0.3)
+
+    # 4. Distribución de residuos
+    ax4 = fig.add_subplot(gs[1, 0])
+    ax4.hist(residuos, bins=30, edgecolor='black', alpha=0.7)
+    ax4.set_xlabel('Residuos')
+    ax4.set_ylabel('Frecuencia')
+    ax4.set_title('Distribución de Residuos')
+    ax4.grid(True, alpha=0.3)
+
+    # 5. Q-Q Plot
+    ax5 = fig.add_subplot(gs[1, 1])
+    from scipy import stats
+    stats.probplot(residuos, dist="norm", plot=ax5)
+    ax5.set_title('Q-Q Plot')
+    ax5.grid(True, alpha=0.3)
+
+    # 6. Métricas o VIF
+    if n_features <= 10:
+        ax6 = fig.add_subplot(gs[1, 2])
+
+        # Si hay VIF scores, mostrarlos
+        if 'vif_scores' in resultado and resultado['vif_scores']:
+            vif_features = list(resultado['vif_scores'].keys())[:10]
+            vif_values = [resultado['vif_scores'][f] for f in vif_features]
+
+            ax6.bar(range(len(vif_features)), vif_values)
+            ax6.set_xticks(range(len(vif_features)))
+            ax6.set_xticklabels(vif_features, rotation=45, ha='right')
+            ax6.axhline(y=10, color='r', linestyle='--', label='VIF = 10')
+            ax6.set_ylabel('VIF')
+            ax6.set_title('Multicolinealidad (VIF)')
+            ax6.legend()
+        else:
+            # Mostrar tabla de métricas
+            metrics_text = f"Métricas Test:\n"
+            metrics_text += f"R² = {resultado['metricas']['test']['r2']:.4f}\n"
+            metrics_text += f"RMSE = {resultado['metricas']['test']['rmse']:.4f}\n"
+            metrics_text += f"MAE = {resultado['metricas']['test']['mae']:.4f}\n"
+            if 'mape' in resultado['metricas']['test']:
+                metrics_text += f"MAPE = {resultado['metricas']['test']['mape']:.2%}\n"
+            metrics_text += f"\nRegularización: {resultado.get('regularization', 'none')}"
+            if resultado.get('alpha_optimo'):
+                metrics_text += f"\nAlpha óptimo: {resultado['alpha_optimo']:.4f}"
+
+            ax6.text(0.1, 0.5, metrics_text, transform=ax6.transAxes,
+                    fontsize=10, verticalalignment='center',
+                    bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
+            ax6.axis('off')
+
+    plt.suptitle(f'Regresión Lineal Múltiple - {resultado["target_column"]}', fontsize=14)
+    return fig
+
+def _plot_clasificacion(resultado: Dict, figsize: Tuple) -> plt.Figure:
+    """Visualización para modelos de clasificación"""
+    fig = plt.figure(figsize=figsize)
+
+    # Determinar número de subplots según información disponible
+    has_importance = 'importancia_features' in resultado
+    has_cm = 'confusion_matrix' in resultado
+    n_plots = 2 + (1 if has_importance else 0) + (1 if has_cm else 0)
+
+    if n_plots <= 4:
+        rows, cols = 2, 2
+    else:
+        rows, cols = 2, 3
+
+    plot_idx = 1
+
+    # 1. Matriz de confusión
+    if has_cm:
+        ax = plt.subplot(rows, cols, plot_idx)
+        plot_idx += 1
+
+        cm = np.array(resultado['confusion_matrix'])
+        sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', ax=ax)
+
+        if 'classes' in resultado and resultado['classes']:
+            ax.set_xticklabels(resultado['classes'])
+            ax.set_yticklabels(resultado['classes'])
+
+        ax.set_xlabel('Predicción')
+        ax.set_ylabel('Real')
+        ax.set_title('Matriz de Confusión')
+
+    # 2. Métricas por clase
+    ax = plt.subplot(rows, cols, plot_idx)
+    plot_idx += 1
+
+    metrics = resultado['metricas']['test']
+    if 'per_class_f1' in metrics:
+        classes = resultado.get('classes', [f'Clase {i}' for i in range(len(metrics['per_class_f1']))])
+        f1_scores = metrics['per_class_f1']
+
+        ax.bar(classes, f1_scores)
+        ax.set_xlabel('Clase')
+        ax.set_ylabel('F1-Score')
+        ax.set_title('F1-Score por Clase')
+        ax.set_ylim(0, 1.1)
+
+        # Añadir línea de promedio
+        avg_f1 = metrics['f1_score']
+        ax.axhline(y=avg_f1, color='r', linestyle='--', label=f'Promedio: {avg_f1:.3f}')
+        ax.legend()
+    else:
+        # Mostrar métricas generales
+        metrics_text = f"Métricas Test:\n"
+        metrics_text += f"Accuracy = {metrics['accuracy']:.3f}\n"
+        metrics_text += f"Precision = {metrics['precision']:.3f}\n"
+        metrics_text += f"Recall = {metrics['recall']:.3f}\n"
+        metrics_text += f"F1-Score = {metrics['f1_score']:.3f}"
+
+        ax.text(0.1, 0.5, metrics_text, transform=ax.transAxes,
+                fontsize=12, verticalalignment='center',
+                bbox=dict(boxstyle='round', facecolor='lightblue', alpha=0.5))
+        ax.axis('off')
+
+    # 3. Importancia de características
+    if has_importance:
+        ax = plt.subplot(rows, cols, plot_idx)
+        plot_idx += 1
+
+        features = list(resultado['importancia_features'].keys())[:15]
+        importances = [resultado['importancia_features'][f] for f in features]
+
+        ax.barh(features, importances)
+        ax.set_xlabel('Importancia')
+        ax.set_title('Top 15 Características Importantes')
+        ax.grid(True, alpha=0.3)
+
+    # 4. Información del modelo
+    ax = plt.subplot(rows, cols, plot_idx)
+
+    model_info = f"Modelo: {resultado['tipo']}\n\n"
+
+    if 'parametros' in resultado:
+        model_info += "Parámetros óptimos:\n"
+        for param, value in list(resultado['parametros'].items())[:5]:
+            model_info += f"  {param}: {value}\n"
+
+    if 'tree_info' in resultado:
+        model_info += f"\nInformación del árbol:\n"
+        model_info += f"  Nodos: {resultado['tree_info']['n_nodes']}\n"
+        model_info += f"  Profundidad: {resultado['tree_info']['max_depth']}\n"
+
+    if 'forest_info' in resultado:
+        model_info += f"\nInformación del bosque:\n"
+        model_info += f"  Árboles: {resultado['forest_info']['n_estimators']}\n"
+        if resultado['forest_info']['oob_score']:
+            model_info += f"  OOB Score: {resultado['forest_info']['oob_score']:.3f}\n"
+
+    ax.text(0.1, 0.5, model_info, transform=ax.transAxes,
+            fontsize=10, verticalalignment='center',
+            bbox=dict(boxstyle='round', facecolor='lightyellow', alpha=0.5))
+    ax.axis('off')
+
+    plt.suptitle(f'Clasificación - {resultado.get("target_column", "Target")}', fontsize=14)
+    plt.tight_layout()
+    return fig
+
+def _plot_regresion_tree(resultado: Dict, figsize: Tuple) -> plt.Figure:
+    """Visualización para modelos de árbol en regresión"""
+    fig, axes = plt.subplots(2, 2, figsize=figsize)
+
+    # Similar a regresión múltiple pero con información específica del árbol
+    # Reutilizar la mayor parte del código de _plot_regresion_multiple
+    # pero adaptado para árboles
+
+    # Por brevedad, usar una versión simplificada
+    return _plot_regresion_multiple(resultado, figsize)
+
+def _plot_svm(resultado: Dict, figsize: Tuple) -> plt.Figure:
+    """Visualización para SVM"""
+    if resultado.get('es_clasificacion'):
+        return _plot_clasificacion(resultado, figsize)
+    else:
+        # Para regresión, mostrar información específica de SVM
+        fig, axes = plt.subplots(2, 2, figsize=figsize)
+
+        # Reutilizar plots de regresión pero añadir info de SVM
+        # Por brevedad, usar versión simplificada
+        return _plot_regresion_multiple(resultado, figsize)
+
+def _plot_comparacion(resultado: Dict, figsize: Tuple) -> plt.Figure:
+    """Visualización para comparación de modelos"""
+    fig = plt.figure(figsize=figsize)
+
+    ranking = resultado.get('ranking', [])
+    if not ranking:
+        return fig
+
+    # 1. Ranking de modelos
+    ax1 = plt.subplot(2, 2, 1)
+    modelos = [item['modelo'] for item in ranking]
+    scores = [item['score'] for item in ranking]
+
+    bars = ax1.bar(modelos, scores)
+
+    # Colorear el mejor
+    mejor_idx = scores.index(max(scores))
+    bars[mejor_idx].set_color('gold')
+
+    ax1.set_ylabel(ranking[0]['metrica'].upper())
+    ax1.set_title('Ranking de Modelos')
+    ax1.set_ylim(0, max(1.1, 1.1 * max(scores)))
+
+    # Añadir valores en las barras
+    for bar, score in zip(bars, scores):
+        height = bar.get_height()
+        ax1.text(bar.get_x() + bar.get_width()/2., height,
+                f'{score:.3f}', ha='center', va='bottom')
+
+    # 2. Comparación de métricas múltiples
+    ax2 = plt.subplot(2, 2, 2)
+
+    # Extraer todas las métricas disponibles
+    all_metrics = set()
+    for item in ranking:
+        if 'metricas_completas' in item:
+            all_metrics.update(item['metricas_completas'].keys())
+
+    # Seleccionar métricas principales
+    if resultado['is_classification']:
+        metrics_to_show = [m for m in ['accuracy', 'precision', 'recall', 'f1_score'] if m in all_metrics]
+    else:
+        metrics_to_show = [m for m in ['r2', 'rmse', 'mae'] if m in all_metrics]
+
+    if metrics_to_show:
+        x = np.arange(len(modelos))
+        width = 0.8 / len(metrics_to_show)
+
+        for i, metric in enumerate(metrics_to_show):
+            values = []
+            for item in ranking:
+                val = item.get('metricas_completas', {}).get(metric, 0)
+                # Invertir RMSE y MAE para que mayor sea mejor
+                if metric in ['rmse', 'mae', 'mse']:
+                    val = -val if val != 0 else 0
+                values.append(val)
+
+            ax2.bar(x + i * width, values, width, label=metric.upper())
+
+        ax2.set_xticks(x + width * (len(metrics_to_show) - 1) / 2)
+        ax2.set_xticklabels(modelos)
+        ax2.set_ylabel('Valor')
+        ax2.set_title('Comparación de Métricas')
+        ax2.legend()
+
+    # 3. Estadísticas de comparación
+    ax3 = plt.subplot(2, 2, 3)
+
+    if 'estadisticas' in resultado:
+        stats = resultado['estadisticas']
+        stats_text = "Estadísticas de Comparación:\n\n"
+        stats_text += f"Mejor modelo: {stats['mejor_modelo']}\n"
+        stats_text += f"Mejor score: {stats['mejor_score']:.4f}\n"
+        stats_text += f"Diferencia 1º-2º: {stats['diferencia_primero_segundo']:.4f}\n"
+        stats_text += f"Promedio scores: {stats['promedio_scores']:.4f}\n"
+        stats_text += f"Desv. estándar: {stats['std_scores']:.4f}\n"
+        stats_text += f"Rango: {stats['rango_scores']:.4f}"
+
+        ax3.text(0.1, 0.5, stats_text, transform=ax3.transAxes,
+                fontsize=11, verticalalignment='center',
+                bbox=dict(boxstyle='round', facecolor='lightgreen', alpha=0.5))
+    ax3.axis('off')
+
+    # 4. Análisis de consenso (si existe)
+    ax4 = plt.subplot(2, 2, 4)
+
+    if 'analisis_consenso' in resultado and resultado['analisis_consenso']:
+        consensus = resultado['analisis_consenso']
+
+        # Mostrar correlación entre modelos
+        if 'correlation_matrix' in consensus:
+            corr_matrix = np.array(consensus['correlation_matrix'])
+            im = ax4.imshow(corr_matrix, cmap='coolwarm', vmin=-1, vmax=1)
+
+            # Etiquetas
+            model_names = consensus.get('model_names', modelos)
+            ax4.set_xticks(range(len(model_names)))
+            ax4.set_yticks(range(len(model_names)))
+            ax4.set_xticklabels(model_names, rotation=45, ha='right')
+            ax4.set_yticklabels(model_names)
+
+            # Añadir valores
+            for i in range(len(model_names)):
+                for j in range(len(model_names)):
+                    text = ax4.text(j, i, f'{corr_matrix[i, j]:.2f}',
+                                   ha="center", va="center", color="black", fontsize=9)
+
+            ax4.set_title('Correlación entre Modelos')
+            plt.colorbar(im, ax=ax4)
+    else:
+        # Información adicional
+        info_text = "Información Adicional:\n\n"
+        info_text += f"Modelos evaluados: {len(ranking)}\n"
+        info_text += f"Tipo de problema: {'Clasificación' if resultado['is_classification'] else 'Regresión'}\n"
+        info_text += f"Características: {len(resultado.get('feature_columns', []))}\n"
+
+        if 'preprocessing_info' in resultado:
+            prep_info = resultado['preprocessing_info']
+            info_text += f"\nPreprocesamiento:\n"
+            info_text += f"  Muestras totales: {prep_info.get('final_samples', 'N/A')}\n"
+            info_text += f"  Método escalado: {prep_info.get('scale_method', 'N/A')}\n"
+
+        ax4.text(0.1, 0.5, info_text, transform=ax4.transAxes,
+                fontsize=10, verticalalignment='center')
+        ax4.axis('off')
+
+    plt.suptitle('Comparación de Modelos de Machine Learning', fontsize=14)
+    plt.tight_layout()
+    return fig
+
+def _plot_generico(resultado: Dict, figsize: Tuple) -> plt.Figure:
+    """Plot genérico para cualquier modelo"""
+    fig = plt.figure(figsize=figsize)
+
+    # Mostrar información disponible de forma genérica
+    ax = plt.subplot(1, 1, 1)
+
+    info_text = f"Tipo de modelo: {resultado.get('tipo', 'Desconocido')}\n\n"
+
+    if 'metricas' in resultado:
+        info_text += "Métricas:\n"
+        for split, metrics in resultado['metricas'].items():
+            info_text += f"\n{split.upper()}:\n"
+            for metric, value in list(metrics.items())[:5]:
+                if isinstance(value, float):
+                    info_text += f"  {metric}: {value:.4f}\n"
+
+    ax.text(0.1, 0.5, info_text, transform=ax.transAxes,
+            fontsize=12, verticalalignment='center')
+    ax.axis('off')
+
+    return fig
+
+# ==================== GESTIÓN DE MEMORIA ====================
+
+def limpiar_memoria():
+    """Liberar memoria no utilizada"""
+    gc.collect()
+
+# ==================== FUNCIONES DE EXPORTACIÓN ====================
+
+def exportar_modelo(modelo, filepath: str, incluir_metadata: bool = True) -> bool:
+    """
+    Exportar modelo entrenado a archivo
+    """
+    try:
+        import joblib
+        import json
+        from datetime import datetime
+
+        # Guardar modelo
+        joblib.dump(modelo, filepath)
+
+        # Guardar metadata si se solicita
+        if incluir_metadata:
+            metadata = {
+                'fecha_exportacion': datetime.now().isoformat(),
+                'tipo_modelo': type(modelo).__name__,
+                'parametros': modelo.get_params() if hasattr(modelo, 'get_params') else {}
+            }
+
+            metadata_path = filepath.replace('.pkl', '_metadata.json')
+            with open(metadata_path, 'w') as f:
+                json.dump(metadata, f, indent=2)
+
+        return True
+    except Exception as e:
+        logger.error(f"Error exportando modelo: {str(e)}")
+        return False
+
+def cargar_modelo(filepath: str) -> Optional[Any]:
+    """
+    Cargar modelo desde archivo
+    """
+    try:
+        import joblib
+        modelo = joblib.load(filepath)
+        return modelo
+    except Exception as e:
+        logger.error(f"Error cargando modelo: {str(e)}")
+        return None

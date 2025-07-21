@@ -283,18 +283,7 @@ class ThemedWidget:
                 color: #9e9e9e;
             }
 
-            /* Primary Button */
-            #primaryButton {
-                background-color: #2196f3;
-                color: white;
-                border: none;
-                border-radius: 10px;
-                padding: 15px 30px;
-                font-size: 16px;
-                font-weight: 700;
-                min-width: 180px;
-            }
-
+            
             #primaryButton:hover {
                 background-color: #1976d2;
                 color: white;
@@ -305,17 +294,7 @@ class ThemedWidget:
                 color: #9e9e9e;
             }
 
-            /* Secondary Button */
-            #secondaryButton {
-                background-color: #6c757d;
-                color: white;
-                border: none;
-                border-radius: 10px;
-                padding: 15px 25px;
-                font-size: 14px;
-                font-weight: 600;
-                min-width: 150px;
-            }
+            
 
             #secondaryButton:hover {
                 background-color: #5a6268;
@@ -327,17 +306,6 @@ class ThemedWidget:
                 color: #9e9e9e;
             }
 
-            /* Danger Button */
-            #dangerButton {
-                background-color: #f44336;
-                color: white;
-                border: none;
-                border-radius: 10px;
-                padding: 15px 25px;
-                font-size: 14px;
-                font-weight: 600;
-                min-width: 120px;
-            }
 
             #dangerButton:hover {
                 background-color: #d32f2f;
@@ -926,17 +894,7 @@ class ThemedWidget:
                 color: #808080;
             }
 
-            /* Primary Button */
-            #primaryButton {
-                background-color: #4a9eff;
-                color: #1e1e1e;
-                border: none;
-                border-radius: 10px;
-                padding: 15px 30px;
-                font-size: 16px;
-                font-weight: 700;
-                min-width: 180px;
-            }
+            
 
             #primaryButton:hover {
                 background-color: #357abd;
@@ -948,17 +906,7 @@ class ThemedWidget:
                 color: #808080;
             }
 
-            /* Secondary Button */
-            #secondaryButton {
-                background-color: #8a8a8a;
-                color: #1e1e1e;
-                border: none;
-                border-radius: 10px;
-                padding: 15px 25px;
-                font-size: 14px;
-                font-weight: 600;
-                min-width: 150px;
-            }
+            
 
             #secondaryButton:hover {
                 background-color: #757575;
@@ -970,17 +918,7 @@ class ThemedWidget:
                 color: #808080;
             }
 
-            /* Danger Button */
-            #dangerButton {
-                background-color: #f66;
-                color: #1e1e1e;
-                border: none;
-                border-radius: 10px;
-                padding: 15px 25px;
-                font-size: 14px;
-                font-weight: 600;
-                min-width: 120px;
-            }
+        
 
             #dangerButton:hover {
                 background-color: #e53e3e;
