@@ -1,25 +1,27 @@
 """
-ml_functions_no_supervisado.py - Funciones de Machine Learning No Supervisado MEJORADAS
+ml_functions_no_supervisado.py - Funciones de Machine Learning No Supervisado CORREGIDAS
 Implementación completa y optimizada para clustering, PCA y análisis exploratorio
 Incluye: Clustering Jerárquico, K-Means, DBSCAN, PCA avanzado, análisis exploratorio
-Versión mejorada con visualizaciones avanzadas y análisis estadísticos completos
+Versión corregida con firmas de funciones compatibles
 """
 
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
-from sklearn.preprocessing import StandardScaler, RobustScaler, MinMaxScaler
+from sklearn.preprocessing import StandardScaler, RobustScaler, MinMaxScaler, QuantileTransformer
 from sklearn.decomposition import PCA, KernelPCA, FastICA
 from sklearn.cluster import KMeans, DBSCAN, AgglomerativeClustering, SpectralClustering
 from sklearn.mixture import GaussianMixture
 from sklearn.ensemble import IsolationForest
 from sklearn.metrics import silhouette_score, davies_bouldin_score, calinski_harabasz_score, adjusted_rand_score
 from sklearn.neighbors import NearestNeighbors
+from sklearn.impute import KNNImputer, SimpleImputer
 from scipy.cluster.hierarchy import linkage, fcluster, dendrogram, cut_tree
 from scipy.spatial.distance import pdist, squareform
 from scipy import stats
 from sklearn.manifold import TSNE, MDS
+from sklearn.feature_selection import VarianceThreshold
 import warnings
 warnings.filterwarnings('ignore')
 
@@ -51,8 +53,8 @@ def generar_datos_agua_realistas(n_muestras=200, seed=42, incluir_outliers=True)
 
     # Generar datos con correlaciones realistas
     datos = {
-        'Estacion_ID': estacion_ids,
-        'Fecha': pd.date_range('2023-01-01', periods=n_muestras, freq='D'),
+        'Points': range(1, n_muestras + 1),
+        'Sampling_date': pd.date_range('2023-01-01', periods=n_muestras, freq='D'),
     }
 
     # Variables con estructura dependiente de estación
@@ -72,49 +74,123 @@ def generar_datos_agua_realistas(n_muestras=200, seed=42, incluir_outliers=True)
         conductividad_values.append(conduct)
 
     datos['pH'] = np.clip(ph_values, 5.5, 9.0)
-    datos['Temperatura'] = np.clip(temperatura_values, 10, 35)
-    datos['Conductividad'] = np.clip(conductividad_values, 50, 1500)
+    datos['WT'] = np.clip(temperatura_values, 10, 35)  # Water Temperature
+    datos['CTD'] = np.clip(conductividad_values, 50, 1500)  # Conductivity
 
     # Variables correlacionadas
-    datos['Oxigeno_Disuelto'] = np.clip(
-        10 - 0.2 * (datos['Temperatura'] - 20) + np.random.normal(0, 1, n_muestras),
+    datos['DO'] = np.clip(
+        10 - 0.2 * (datos['WT'] - 20) + np.random.normal(0, 1, n_muestras),
         2, 15
     )
 
-    datos['Turbiedad'] = np.clip(
+    datos['TBD'] = np.clip(
         np.random.exponential(2.0, n_muestras) * (1 + 0.1 * np.abs(datos['pH'] - 7)),
         0.1, 50
     )
 
-    datos['DBO5'] = np.clip(
-        np.random.exponential(3, n_muestras) * (1 + datos['Turbiedad'] / 20),
+    datos['BOD5'] = np.clip(
+        np.random.exponential(3, n_muestras) * (1 + datos['TBD'] / 20),
         0.5, 25
     )
 
-    datos['Coliformes_Totales'] = np.clip(
-        np.random.exponential(100, n_muestras) * (1 + datos['DBO5'] / 10),
+    datos['COD'] = np.clip(
+        datos['BOD5'] * np.random.uniform(1.5, 3.0, n_muestras),
+        1, 100
+    )
+
+    datos['FC'] = np.clip(
+        np.random.exponential(100, n_muestras) * (1 + datos['BOD5'] / 10),
         1, 10000
     )
 
-    datos['Nitratos'] = np.clip(
-        np.random.exponential(5, n_muestras) + 0.01 * datos['Conductividad'],
+    datos['TC'] = np.clip(
+        datos['FC'] * np.random.uniform(2, 5, n_muestras),
+        10, 50000
+    )
+
+    datos['NO3'] = np.clip(
+        np.random.exponential(5, n_muestras) + 0.01 * datos['CTD'],
         0.1, 50
     )
 
-    datos['Fosfatos'] = np.clip(
-        np.random.exponential(0.5, n_muestras) * (1 + datos['DBO5'] / 15),
+    datos['NO2'] = np.clip(
+        np.random.exponential(0.5, n_muestras),
+        0.01, 3
+    )
+
+    datos['N_NH3'] = np.clip(
+        np.random.exponential(1, n_muestras),
+        0.01, 10
+    )
+
+    datos['TP'] = np.clip(
+        np.random.exponential(0.5, n_muestras) * (1 + datos['BOD5'] / 15),
         0.01, 5
+    )
+
+    datos['TN'] = np.clip(
+        datos['NO3'] + datos['NO2'] + datos['N_NH3'] + np.random.exponential(2, n_muestras),
+        0.5, 20
+    )
+
+    datos['TKN'] = np.clip(
+        datos['N_NH3'] + np.random.exponential(1, n_muestras),
+        0.1, 15
+    )
+
+    datos['TSS'] = np.clip(
+        np.random.exponential(10, n_muestras) * (1 + datos['TBD'] / 10),
+        1, 200
+    )
+
+    datos['TS'] = np.clip(
+        datos['TSS'] + np.random.exponential(100, n_muestras),
+        50, 2000
+    )
+
+    datos['Q'] = np.clip(
+        np.random.exponential(50, n_muestras),
+        1, 500
+    )
+
+    datos['ALC'] = np.clip(
+        np.random.normal(150, 50, n_muestras),
+        50, 500
+    )
+
+    datos['H'] = np.clip(
+        np.random.exponential(20, n_muestras),
+        5, 200
+    )
+
+    datos['ET'] = np.clip(
+        np.random.normal(25, 5, n_muestras),
+        15, 40
     )
 
     # Crear DataFrame
     df = pd.DataFrame(datos)
 
-    # Calcular índice de calidad compuesto
-    df['Indice_Calidad'] = calcular_indice_calidad_simple(df)
+    # Calcular índices de calidad
+    df['WQI_IDEAM_6V'] = calcular_indice_calidad_simple(df)
+    df['WQI_IDEAM_7V'] = calcular_indice_calidad_simple(df) * np.random.uniform(0.9, 1.1, n_muestras)
+    df['WQI_NSF_9V'] = calcular_indice_calidad_simple(df) * np.random.uniform(0.8, 1.2, n_muestras)
 
-    # Clasificar calidad
-    df['Categoria_Calidad'] = pd.cut(
-        df['Indice_Calidad'],
+    # Clasificaciones
+    df['Classification_6V'] = pd.cut(
+        df['WQI_IDEAM_6V'],
+        bins=[0, 40, 60, 80, 100],
+        labels=['Deficiente', 'Regular', 'Buena', 'Excelente']
+    )
+
+    df['Classification_7V'] = pd.cut(
+        df['WQI_IDEAM_7V'],
+        bins=[0, 40, 60, 80, 100],
+        labels=['Deficiente', 'Regular', 'Buena', 'Excelente']
+    )
+
+    df['Classification_9V'] = pd.cut(
+        df['WQI_NSF_9V'],
         bins=[0, 40, 60, 80, 100],
         labels=['Deficiente', 'Regular', 'Buena', 'Excelente']
     )
@@ -127,7 +203,7 @@ def generar_datos_agua_realistas(n_muestras=200, seed=42, incluir_outliers=True)
         for idx in outlier_indices:
             # Alterar aleatoriamente algunos parámetros
             factor = np.random.uniform(2, 5)
-            param = np.random.choice(['Turbiedad', 'DBO5', 'Coliformes_Totales'])
+            param = np.random.choice(['TBD', 'BOD5', 'FC'])
             df.loc[idx, param] *= factor
 
     return df
@@ -136,50 +212,90 @@ def calcular_indice_calidad_simple(df):
     """Calcular un índice de calidad simplificado"""
     # Normalizar parámetros (0-100)
     ph_score = 100 * np.exp(-0.5 * ((df['pH'] - 7.0) / 1.5) ** 2)
-
-    do_score = np.minimum(100, (df['Oxigeno_Disuelto'] / 10.0) * 100)
-
-    turb_score = np.maximum(0, 100 - (df['Turbiedad'] / 10) * 100)
-
-    dbo_score = np.maximum(0, 100 - (df['DBO5'] / 10) * 100)
+    do_score = np.minimum(100, (df['DO'] / 10.0) * 100)
+    turb_score = np.maximum(0, 100 - (df['TBD'] / 10) * 100)
+    dbo_score = np.maximum(0, 100 - (df['BOD5'] / 10) * 100)
 
     # Promedio ponderado
     indice = (0.25 * ph_score + 0.35 * do_score + 0.2 * turb_score + 0.2 * dbo_score)
-
     return np.clip(indice, 0, 100)
 
-# ==================== CLUSTERING JERÁRQUICO AVANZADO ====================
+# ==================== FUNCIONES AUXILIARES DE PREPROCESAMIENTO ====================
+
+def aplicar_escalado(X, metodo='standard'):
+    """Aplicar escalado a los datos"""
+    if metodo == 'standard':
+        scaler = StandardScaler()
+    elif metodo == 'robust':
+        scaler = RobustScaler()
+    elif metodo == 'minmax':
+        scaler = MinMaxScaler()
+    elif metodo == 'quantile':
+        scaler = QuantileTransformer()
+    else:
+        return X, None
+
+    X_scaled = scaler.fit_transform(X)
+    return X_scaled, scaler
+
+def manejar_valores_faltantes(X, estrategia='median'):
+    """Manejar valores faltantes"""
+    if estrategia == 'mean':
+        imputer = SimpleImputer(strategy='mean')
+    elif estrategia == 'median':
+        imputer = SimpleImputer(strategy='median')
+    elif estrategia == 'mode':
+        imputer = SimpleImputer(strategy='most_frequent')
+    elif estrategia == 'knn':
+        imputer = KNNImputer(n_neighbors=5)
+    else:
+        return X, None
+
+    X_imputed = imputer.fit_transform(X)
+    return X_imputed, imputer
+
+def detectar_outliers(X, metodo='isolation_forest', contamination=0.1):
+    """Detectar outliers usando diferentes métodos"""
+    if metodo == 'isolation_forest':
+        detector = IsolationForest(contamination=contamination, random_state=42)
+        outliers = detector.fit_predict(X)
+        return outliers == -1
+    elif metodo == 'zscore':
+        z_scores = np.abs(stats.zscore(X, axis=0))
+        return np.any(z_scores > 3, axis=1)
+    elif metodo == 'iqr':
+        Q1 = np.percentile(X, 25, axis=0)
+        Q3 = np.percentile(X, 75, axis=0)
+        IQR = Q3 - Q1
+        lower_bound = Q1 - 1.5 * IQR
+        upper_bound = Q3 + 1.5 * IQR
+        return np.any((X < lower_bound) | (X > upper_bound), axis=1)
+    else:
+        return np.zeros(len(X), dtype=bool)
+
+# ==================== CLUSTERING JERÁRQUICO CORREGIDO ====================
 
 def clustering_jerarquico_completo(data, variables=None, metodos=['ward', 'complete', 'average'],
                                  metricas=['euclidean', 'manhattan', 'cosine'],
-                                 max_clusters=10, escalado='standard'):
+                                 max_clusters=10, escalado='standard', n_jobs=-1, verbose=True):
     """
     Análisis exhaustivo de clustering jerárquico con múltiples métodos y métricas
     """
+    if verbose:
+        print("🔍 Iniciando clustering jerárquico completo...")
+
     if variables is None:
         variables = data.select_dtypes(include=[np.number]).columns.tolist()
 
     # Preparar datos
     X = data[variables].dropna()
 
-    # Escalado de datos
-    if escalado == 'standard':
-        scaler = StandardScaler()
-    elif escalado == 'robust':
-        scaler = RobustScaler()
-    elif escalado == 'minmax':
-        scaler = MinMaxScaler()
-    else:
-        scaler = None
+    if verbose:
+        print(f"📊 Datos preparados: {X.shape[0]} muestras, {X.shape[1]} variables")
 
-    if scaler:
-        X_scaled = pd.DataFrame(
-            scaler.fit_transform(X),
-            columns=X.columns,
-            index=X.index
-        )
-    else:
-        X_scaled = X.copy()
+    # Escalado de datos
+    X_scaled, scaler = aplicar_escalado(X, escalado)
+    X_scaled = pd.DataFrame(X_scaled, columns=X.columns, index=X.index)
 
     resultados_completos = {}
 
@@ -191,6 +307,9 @@ def clustering_jerarquico_completo(data, variables=None, metodos=['ward', 'compl
                 continue
 
             try:
+                if verbose:
+                    print(f"   Probando {metodo} con métrica {metrica}...")
+
                 # Calcular matriz de distancias
                 if metodo == 'ward':
                     # Ward usa datos directos
@@ -235,7 +354,8 @@ def clustering_jerarquico_completo(data, variables=None, metodos=['ward', 'compl
                         labels_por_k[k] = labels
 
                     except Exception as e:
-                        print(f"Error evaluando k={k} para {metodo}-{metrica}: {e}")
+                        if verbose:
+                            print(f"Error evaluando k={k} para {metodo}-{metrica}: {e}")
                         continue
 
                 # Encontrar número óptimo de clusters
@@ -261,7 +381,8 @@ def clustering_jerarquico_completo(data, variables=None, metodos=['ward', 'compl
                     }
 
             except Exception as e:
-                print(f"Error con {metodo}-{metrica}: {e}")
+                if verbose:
+                    print(f"Error con {metodo}-{metrica}: {e}")
                 continue
 
     # Determinar la mejor configuración general
@@ -269,6 +390,9 @@ def clustering_jerarquico_completo(data, variables=None, metodos=['ward', 'compl
     if resultados_completos:
         mejor_config = max(resultados_completos.keys(),
                           key=lambda k: resultados_completos[k]['mejor_silhouette'])
+
+    if verbose:
+        print(f"✅ Clustering jerárquico completado. Mejor configuración: {mejor_config}")
 
     return {
         'tipo': 'clustering_jerarquico_completo',
@@ -278,8 +402,461 @@ def clustering_jerarquico_completo(data, variables=None, metodos=['ward', 'compl
         'mejor_configuracion': mejor_config,
         'datos_escalados': X_scaled.values.tolist(),
         'indices_muestras': X.index.tolist(),
-        'resumen_evaluacion': generar_resumen_clustering(resultados_completos)
+        'resumen_evaluacion': generar_resumen_clustering(resultados_completos),
+        'recomendaciones': generar_recomendaciones_clustering(resultados_completos)
     }
+
+# ==================== K-MEANS OPTIMIZADO CORREGIDO ====================
+
+def kmeans_optimizado_completo(data, variables=None, k_range=None,
+                             criterios_optimo=['silhouette', 'elbow', 'gap'],
+                             escalado='standard', random_state=42, n_jobs=-1, verbose=True):
+    """
+    K-Means optimizado con múltiples criterios para determinar K óptimo
+    """
+    if verbose:
+        print("🔍 Iniciando K-Means optimizado...")
+
+    if variables is None:
+        variables = data.select_dtypes(include=[np.number]).columns.tolist()
+
+    X = data[variables].dropna()
+
+    if verbose:
+        print(f"📊 Datos preparados: {X.shape[0]} muestras, {X.shape[1]} variables")
+
+    # Escalado
+    X_scaled, scaler = aplicar_escalado(X, escalado)
+
+    if k_range is None:
+        k_range = range(2, min(15, len(X) // 10))
+
+    resultados_kmeans = {}
+    inercias = []
+    silhouette_scores = []
+
+    # Evaluar diferentes valores de K
+    for k in k_range:
+        if verbose:
+            print(f"   Evaluando K={k}...")
+
+        try:
+            kmeans = KMeans(
+                n_clusters=k,
+                init='k-means++',
+                n_init=20,
+                max_iter=500,
+                random_state=random_state
+            )
+            labels = kmeans.fit_predict(X_scaled)
+
+            # Métricas de evaluación
+            silhouette = silhouette_score(X_scaled, labels)
+            davies_bouldin = davies_bouldin_score(X_scaled, labels)
+            calinski_harabasz = calinski_harabasz_score(X_scaled, labels)
+
+            # Análisis detallado de clusters
+            cluster_analysis = analizar_clusters_kmeans(X, labels, variables, scaler, kmeans)
+
+            resultado_k = {
+                'k': k,
+                'labels': labels.tolist(),
+                'centroides': kmeans.cluster_centers_.tolist(),
+                'inercia': float(kmeans.inertia_),
+                'silhouette_score': float(silhouette),
+                'davies_bouldin_score': float(davies_bouldin),
+                'calinski_harabasz_score': float(calinski_harabasz),
+                'n_iteraciones': int(kmeans.n_iter_),
+                'cluster_analysis': cluster_analysis
+            }
+
+            resultados_kmeans[k] = resultado_k
+            inercias.append(resultado_k['inercia'])
+            silhouette_scores.append(resultado_k['silhouette_score'])
+
+        except Exception as e:
+            if verbose:
+                print(f"Error con K={k}: {e}")
+            continue
+
+    # Determinar K óptimo usando diferentes criterios
+    k_optimos = {}
+
+    # 1. Método del codo
+    if len(inercias) >= 3:
+        k_optimo_codo = determinar_k_codo(list(k_range), inercias)
+        k_optimos['elbow'] = k_optimo_codo
+
+    # 2. Silhouette score máximo
+    if silhouette_scores:
+        k_optimo_silhouette = list(k_range)[np.argmax(silhouette_scores)]
+        k_optimos['silhouette'] = k_optimo_silhouette
+
+    # 3. Gap statistic (simplificado)
+    if len(resultados_kmeans) >= 3:
+        k_optimo_gap = calcular_gap_statistic(X_scaled, k_range, n_refs=10)
+        k_optimos['gap'] = k_optimo_gap
+
+    # 4. Criterio de estabilidad
+    k_optimo_estabilidad = evaluar_estabilidad_kmeans(X_scaled, k_range)
+    k_optimos['estabilidad'] = k_optimo_estabilidad
+
+    k_final = determinar_k_final(k_optimos)
+
+    if verbose:
+        print(f"✅ K-Means completado. K recomendado: {k_final}")
+
+    return {
+        'tipo': 'kmeans_optimizado',
+        'variables_utilizadas': variables,
+        'k_range': list(k_range),
+        'resultados_por_k': resultados_kmeans,
+        'inercias': inercias,
+        'silhouette_scores': silhouette_scores,
+        'k_optimos': k_optimos,
+        'recomendacion_k': k_final,
+        'datos_escalados': X_scaled.tolist(),
+        'scaler_params': {
+            'mean': scaler.mean_.tolist() if hasattr(scaler, 'mean_') else [],
+            'scale': scaler.scale_.tolist() if hasattr(scaler, 'scale_') else []
+        },
+        'recomendaciones': generar_recomendaciones_kmeans(k_optimos, resultados_kmeans, k_final)
+    }
+
+# ==================== DBSCAN OPTIMIZADO CORREGIDO ====================
+
+def dbscan_optimizado(data, variables=None, optimizar_parametros=True,
+                     escalado='standard', n_jobs=-1, verbose=True, contamination=0.1):
+    """
+    DBSCAN optimizado con búsqueda automática de parámetros óptimos
+    """
+    if verbose:
+        print("🔍 Iniciando DBSCAN optimizado...")
+
+    if variables is None:
+        variables = data.select_dtypes(include=[np.number]).columns.tolist()
+
+    X = data[variables].dropna()
+
+    if verbose:
+        print(f"📊 Datos preparados: {X.shape[0]} muestras, {X.shape[1]} variables")
+
+    # Escalado de datos
+    X_scaled, scaler = aplicar_escalado(X, escalado)
+
+    # Determinar rangos automáticamente
+    eps_range = determinar_rango_eps(X_scaled)
+    min_samples_range = range(3, min(20, len(X) // 20))
+
+    mejores_resultados = []
+
+    if optimizar_parametros:
+        if verbose:
+            print("   Optimizando parámetros automáticamente...")
+
+        # Búsqueda en grid de parámetros
+        for eps in eps_range:
+            for min_samples in min_samples_range:
+                try:
+                    dbscan = DBSCAN(eps=eps, min_samples=min_samples, metric='euclidean', n_jobs=n_jobs)
+                    labels = dbscan.fit_predict(X_scaled)
+
+                    # Evaluar calidad del clustering
+                    n_clusters = len(set(labels)) - (1 if -1 in labels else 0)
+                    n_noise = list(labels).count(-1)
+                    noise_ratio = n_noise / len(labels)
+
+                    # Filtros de calidad
+                    if n_clusters < 2 or noise_ratio > 0.5:
+                        continue
+
+                    # Calcular métricas (solo para puntos no-ruido)
+                    labels_sin_ruido = labels[labels != -1]
+                    X_sin_ruido = X_scaled[labels != -1]
+
+                    if len(np.unique(labels_sin_ruido)) > 1:
+                        silhouette = silhouette_score(X_sin_ruido, labels_sin_ruido)
+                        davies_bouldin = davies_bouldin_score(X_sin_ruido, labels_sin_ruido)
+
+                        # Análisis de clusters
+                        cluster_analysis = analizar_clusters_dbscan(X, labels, variables)
+
+                        resultado = {
+                            'eps': eps,
+                            'min_samples': min_samples,
+                            'n_clusters': n_clusters,
+                            'n_noise': n_noise,
+                            'noise_ratio': noise_ratio,
+                            'silhouette_score': silhouette,
+                            'davies_bouldin_score': davies_bouldin,
+                            'labels': labels.tolist(),
+                            'cluster_analysis': cluster_analysis,
+                            'score_compuesto': silhouette * (1 - noise_ratio)  # Penalizar mucho ruido
+                        }
+
+                        mejores_resultados.append(resultado)
+
+                except Exception as e:
+                    continue
+    else:
+        # Usar parámetros por defecto
+        eps_default = eps_range[len(eps_range)//2]
+        min_samples_default = 5
+
+        try:
+            dbscan = DBSCAN(eps=eps_default, min_samples=min_samples_default, n_jobs=n_jobs)
+            labels = dbscan.fit_predict(X_scaled)
+
+            n_clusters = len(set(labels)) - (1 if -1 in labels else 0)
+            n_noise = list(labels).count(-1)
+            noise_ratio = n_noise / len(labels)
+
+            if n_clusters >= 2:
+                labels_sin_ruido = labels[labels != -1]
+                X_sin_ruido = X_scaled[labels != -1]
+
+                if len(np.unique(labels_sin_ruido)) > 1:
+                    silhouette = silhouette_score(X_sin_ruido, labels_sin_ruido)
+                    cluster_analysis = analizar_clusters_dbscan(X, labels, variables)
+
+                    resultado = {
+                        'eps': eps_default,
+                        'min_samples': min_samples_default,
+                        'n_clusters': n_clusters,
+                        'n_noise': n_noise,
+                        'noise_ratio': noise_ratio,
+                        'silhouette_score': silhouette,
+                        'labels': labels.tolist(),
+                        'cluster_analysis': cluster_analysis,
+                        'score_compuesto': silhouette * (1 - noise_ratio)
+                    }
+                    mejores_resultados.append(resultado)
+        except:
+            pass
+
+    if not mejores_resultados:
+        return {
+            'tipo': 'dbscan_optimizado',
+            'error': 'No se encontraron configuraciones válidas',
+            'variables_utilizadas': variables
+        }
+
+    # Ordenar por score compuesto
+    mejores_resultados.sort(key=lambda x: x['score_compuesto'], reverse=True)
+    mejor_resultado = mejores_resultados[0]
+
+    # Análisis adicional del mejor resultado
+    labels_final = np.array(mejor_resultado['labels'])
+
+    # Análisis de densidad
+    analisis_densidad = analizar_densidad_clusters(X_scaled, labels_final, mejor_resultado['eps'])
+
+    # Análisis de outliers
+    analisis_outliers = analizar_outliers_dbscan(X, labels_final, variables)
+
+    if verbose:
+        print(f"✅ DBSCAN completado. {mejor_resultado['n_clusters']} clusters, {mejor_resultado['n_noise']} outliers")
+
+    return {
+        'tipo': 'dbscan_optimizado',
+        'variables_utilizadas': variables,
+        'metrica': 'euclidean',
+        'mejor_configuracion': mejor_resultado,
+        'todas_configuraciones': mejores_resultados[:10],  # Top 10
+        'analisis_densidad': analisis_densidad,
+        'analisis_outliers': analisis_outliers,
+        'parametros_probados': {
+            'eps_range': list(eps_range),
+            'min_samples_range': list(min_samples_range)
+        },
+        'recomendaciones': generar_recomendaciones_dbscan(mejor_resultado)
+    }
+
+# ==================== PCA AVANZADO CORREGIDO ====================
+
+def pca_completo_avanzado(data, variables=None, metodos=['linear'],
+                         explicar_varianza_objetivo=0.95, escalado='standard',
+                         random_state=42, verbose=True, max_components=None,
+                         kernel_type='rbf', gamma=1.0):
+    """
+    Análisis de componentes principales avanzado con múltiples métodos
+    """
+    if verbose:
+        print("🔍 Iniciando PCA avanzado...")
+
+    if variables is None:
+        variables = data.select_dtypes(include=[np.number]).columns.tolist()
+
+    X = data[variables].dropna()
+
+    if verbose:
+        print(f"📊 Datos preparados: {X.shape[0]} muestras, {X.shape[1]} variables")
+
+    # Escalado de datos
+    X_scaled, scaler = aplicar_escalado(X, escalado)
+
+    if max_components is None:
+        max_components = min(len(variables), len(X) - 1)
+
+    resultados_pca = {}
+
+    # PCA Lineal estándar
+    if 'linear' in metodos:
+        if verbose:
+            print("   Ejecutando PCA lineal...")
+
+        pca_linear = PCA(n_components=max_components, random_state=random_state)
+        X_pca_linear = pca_linear.fit_transform(X_scaled)
+
+        # Análisis detallado
+        analisis_linear = analizar_pca_detallado(pca_linear, variables, explicar_varianza_objetivo)
+
+        resultados_pca['linear'] = {
+            'modelo': pca_linear,
+            'transformacion': X_pca_linear.tolist(),
+            'analisis': analisis_linear,
+            'componentes_recomendados': analisis_linear['n_componentes_objetivo']
+        }
+
+        # Análisis de correlación entre componentes originales y transformados
+        correlaciones = analizar_correlaciones_pca(X.values, X_pca_linear, variables)
+        resultados_pca['linear']['correlaciones'] = correlaciones
+
+        # Análisis de contribución de variables
+        contribuciones = analizar_contribuciones_variables(pca_linear, variables)
+        resultados_pca['linear']['contribuciones'] = contribuciones
+
+    # Kernel PCA
+    if 'kernel' in metodos and len(X) <= 1000:  # Limitado por costo computacional
+        if verbose:
+            print("   Ejecutando Kernel PCA...")
+
+        kernels = [kernel_type] if kernel_type else ['rbf', 'poly', 'sigmoid']
+
+        for kernel in kernels:
+            try:
+                if kernel == 'poly':
+                    kpca = KernelPCA(n_components=min(10, max_components), kernel=kernel,
+                                   degree=3, random_state=random_state)
+                elif kernel == 'rbf':
+                    kpca = KernelPCA(n_components=min(10, max_components), kernel=kernel,
+                                   gamma=gamma, random_state=random_state)
+                else:
+                    kpca = KernelPCA(n_components=min(10, max_components), kernel=kernel,
+                                   random_state=random_state)
+
+                X_kpca = kpca.fit_transform(X_scaled)
+
+                # Evaluación de calidad (reconstrucción aproximada)
+                calidad = evaluar_calidad_kernel_pca(X_scaled, X_kpca, kpca)
+
+                resultados_pca[f'kernel_{kernel}'] = {
+                    'modelo': kpca,
+                    'transformacion': X_kpca.tolist(),
+                    'calidad_reconstruccion': calidad,
+                    'kernel': kernel
+                }
+
+            except Exception as e:
+                if verbose:
+                    print(f"Error con kernel PCA {kernel}: {e}")
+                continue
+
+    if verbose:
+        print("✅ PCA completado")
+
+    return {
+        'tipo': 'pca_completo_avanzado',
+        'variables_utilizadas': variables,
+        'n_muestras': len(X),
+        'metodos_aplicados': list(resultados_pca.keys()),
+        'resultados_por_metodo': resultados_pca,
+        'recomendaciones': generar_recomendaciones_pca(resultados_pca),
+        'datos_originales_escalados': X_scaled.tolist()
+    }
+
+# ==================== ANÁLISIS EXPLORATORIO CORREGIDO ====================
+
+def analisis_exploratorio_completo(data, variables=None, escalado='standard',
+                                  handle_outliers=True, verbose=True,
+                                  outlier_method='isolation_forest', random_state=42):
+    """
+    Análisis exploratorio exhaustivo de los datos
+    """
+    if verbose:
+        print("🔍 Iniciando análisis exploratorio completo...")
+
+    if variables is None:
+        variables = data.select_dtypes(include=[np.number]).columns.tolist()
+
+    X = data[variables].dropna()
+
+    if verbose:
+        print(f"📊 Datos preparados: {X.shape[0]} muestras, {X.shape[1]} variables")
+
+    # 1. Estadísticas descriptivas avanzadas
+    if verbose:
+        print("   Calculando estadísticas descriptivas...")
+    estadisticas = calcular_estadisticas_avanzadas(X, variables)
+
+    # 2. Análisis de correlaciones
+    if verbose:
+        print("   Analizando correlaciones...")
+    correlaciones = analizar_correlaciones_avanzado(X, variables)
+
+    # 3. Detección de outliers múltiples métodos
+    if verbose:
+        print("   Detectando outliers...")
+    outliers = detectar_outliers_multiples_metodos(X, variables, outlier_method)
+
+    # 4. Análisis de distribuciones
+    if verbose:
+        print("   Analizando distribuciones...")
+    distribuciones = analizar_distribuciones_avanzado(X, variables)
+
+    # 5. Análisis de componentes principales básico
+    if verbose:
+        print("   Ejecutando PCA exploratorio...")
+    X_scaled, _ = aplicar_escalado(X, escalado)
+    pca_basico = PCA(n_components=min(5, len(variables)), random_state=random_state)
+    pca_basico.fit(X_scaled)
+
+    # 6. Clustering exploratorio rápido
+    if verbose:
+        print("   Ejecutando clustering exploratorio...")
+    clustering_exploratorio = clustering_exploratorio_rapido(X, variables, escalado)
+
+    # 7. Análisis de calidad de datos
+    if verbose:
+        print("   Evaluando calidad de datos...")
+    calidad_datos = evaluar_calidad_datos(data, variables)
+
+    # 8. Recomendaciones automáticas
+    recomendaciones = generar_recomendaciones_exploratorio(
+        estadisticas, correlaciones, outliers, distribuciones, calidad_datos
+    )
+
+    if verbose:
+        print("✅ Análisis exploratorio completado")
+
+    return {
+        'tipo': 'analisis_exploratorio_completo',
+        'variables_analizadas': variables,
+        'n_muestras': len(X),
+        'estadisticas_descriptivas': estadisticas,
+        'correlaciones': correlaciones,
+        'outliers': outliers,
+        'distribuciones': distribuciones,
+        'pca_exploratorio': {
+            'varianza_explicada': pca_basico.explained_variance_ratio_.tolist(),
+            'varianza_acumulada': np.cumsum(pca_basico.explained_variance_ratio_).tolist()
+        },
+        'clustering_exploratorio': clustering_exploratorio,
+        'calidad_datos': calidad_datos,
+        'recomendaciones': recomendaciones
+    }
+
+# ==================== FUNCIONES DE ANÁLISIS AUXILIARES ====================
 
 def analizar_clusters_detallado(X, labels, variables):
     """Análisis detallado de las características de cada cluster"""
@@ -366,119 +943,6 @@ def generar_datos_dendrograma(linkage_matrix, max_nodes=50):
         'linkage_data': linkage_sample.tolist(),
         'n_original': len(linkage_matrix),
         'n_sample': len(linkage_sample)
-    }
-
-# ==================== K-MEANS OPTIMIZADO ====================
-
-def kmeans_optimizado_completo(data, variables=None, k_range=None, metodos_init=['k-means++', 'random'],
-                             n_inicializaciones=20, criterios_optimo=['silhouette', 'elbow', 'gap']):
-    """
-    K-Means optimizado con múltiples criterios para determinar K óptimo
-    """
-    if variables is None:
-        variables = data.select_dtypes(include=[np.number]).columns.tolist()
-
-    X = data[variables].dropna()
-
-    # Escalado estándar
-    scaler = StandardScaler()
-    X_scaled = scaler.fit_transform(X)
-
-    if k_range is None:
-        k_range = range(2, min(15, len(X) // 10))
-
-    resultados_kmeans = {}
-    inercias = []
-    silhouette_scores = []
-
-    # Evaluar diferentes valores de K
-    for k in k_range:
-        mejor_resultado_k = None
-        mejor_silhouette_k = -1
-
-        # Probar diferentes métodos de inicialización
-        for metodo_init in metodos_init:
-            try:
-                kmeans = KMeans(
-                    n_clusters=k,
-                    init=metodo_init,
-                    n_init=n_inicializaciones,
-                    max_iter=500,
-                    random_state=42
-                )
-                labels = kmeans.fit_predict(X_scaled)
-
-                # Métricas de evaluación
-                silhouette = silhouette_score(X_scaled, labels)
-                davies_bouldin = davies_bouldin_score(X_scaled, labels)
-                calinski_harabasz = calinski_harabasz_score(X_scaled, labels)
-
-                # Análisis detallado de clusters
-                cluster_analysis = analizar_clusters_kmeans(X, labels, variables, scaler, kmeans)
-
-                resultado_k = {
-                    'k': k,
-                    'metodo_init': metodo_init,
-                    'labels': labels.tolist(),
-                    'centroides': kmeans.cluster_centers_.tolist(),
-                    'inercia': float(kmeans.inertia_),
-                    'silhouette_score': float(silhouette),
-                    'davies_bouldin_score': float(davies_bouldin),
-                    'calinski_harabasz_score': float(calinski_harabasz),
-                    'n_iteraciones': int(kmeans.n_iter_),
-                    'cluster_analysis': cluster_analysis
-                }
-
-                # Guardar el mejor resultado para este K
-                if silhouette > mejor_silhouette_k:
-                    mejor_silhouette_k = silhouette
-                    mejor_resultado_k = resultado_k
-
-            except Exception as e:
-                print(f"Error con K={k}, init={metodo_init}: {e}")
-                continue
-
-        if mejor_resultado_k:
-            resultados_kmeans[k] = mejor_resultado_k
-            inercias.append(mejor_resultado_k['inercia'])
-            silhouette_scores.append(mejor_resultado_k['silhouette_score'])
-
-    # Determinar K óptimo usando diferentes criterios
-    k_optimos = {}
-
-    # 1. Método del codo
-    if len(inercias) >= 3:
-        k_optimo_codo = determinar_k_codo(list(k_range), inercias)
-        k_optimos['elbow'] = k_optimo_codo
-
-    # 2. Silhouette score máximo
-    if silhouette_scores:
-        k_optimo_silhouette = list(k_range)[np.argmax(silhouette_scores)]
-        k_optimos['silhouette'] = k_optimo_silhouette
-
-    # 3. Gap statistic (simplificado)
-    if len(resultados_kmeans) >= 3:
-        k_optimo_gap = calcular_gap_statistic(X_scaled, k_range, n_refs=10)
-        k_optimos['gap'] = k_optimo_gap
-
-    # 4. Criterio de estabilidad
-    k_optimo_estabilidad = evaluar_estabilidad_kmeans(X_scaled, k_range)
-    k_optimos['estabilidad'] = k_optimo_estabilidad
-
-    return {
-        'tipo': 'kmeans_optimizado',
-        'variables_utilizadas': variables,
-        'k_range': list(k_range),
-        'resultados_por_k': resultados_kmeans,
-        'inercias': inercias,
-        'silhouette_scores': silhouette_scores,
-        'k_optimos': k_optimos,
-        'recomendacion_k': determinar_k_final(k_optimos),
-        'datos_escalados': X_scaled.tolist(),
-        'scaler_params': {
-            'mean': scaler.mean_.tolist(),
-            'scale': scaler.scale_.tolist()
-        }
     }
 
 def analizar_clusters_kmeans(X_original, labels, variables, scaler, kmeans_model):
@@ -626,110 +1090,6 @@ def determinar_k_final(k_optimos):
 
     return 3
 
-# ==================== DBSCAN OPTIMIZADO ====================
-
-def dbscan_optimizado(data, variables=None, eps_range=None, min_samples_range=None,
-                     metrica='euclidean', optimizar_parametros=True):
-    """
-    DBSCAN optimizado con búsqueda automática de parámetros óptimos
-    """
-    if variables is None:
-        variables = data.select_dtypes(include=[np.number]).columns.tolist()
-
-    X = data[variables].dropna()
-
-    # Escalado de datos
-    scaler = StandardScaler()
-    X_scaled = scaler.fit_transform(X)
-
-    # Determinar rangos automáticamente si no se proporcionan
-    if eps_range is None:
-        eps_range = determinar_rango_eps(X_scaled)
-
-    if min_samples_range is None:
-        min_samples_range = range(3, min(20, len(X) // 20))
-
-    mejores_resultados = []
-
-    # Búsqueda en grid de parámetros
-    for eps in eps_range:
-        for min_samples in min_samples_range:
-            try:
-                dbscan = DBSCAN(eps=eps, min_samples=min_samples, metric=metrica)
-                labels = dbscan.fit_predict(X_scaled)
-
-                # Evaluar calidad del clustering
-                n_clusters = len(set(labels)) - (1 if -1 in labels else 0)
-                n_noise = list(labels).count(-1)
-                noise_ratio = n_noise / len(labels)
-
-                # Filtros de calidad
-                if n_clusters < 2 or noise_ratio > 0.5:
-                    continue
-
-                # Calcular métricas (solo para puntos no-ruido)
-                labels_sin_ruido = labels[labels != -1]
-                X_sin_ruido = X_scaled[labels != -1]
-
-                if len(np.unique(labels_sin_ruido)) > 1:
-                    silhouette = silhouette_score(X_sin_ruido, labels_sin_ruido)
-                    davies_bouldin = davies_bouldin_score(X_sin_ruido, labels_sin_ruido)
-
-                    # Análisis de clusters
-                    cluster_analysis = analizar_clusters_dbscan(X, labels, variables)
-
-                    resultado = {
-                        'eps': eps,
-                        'min_samples': min_samples,
-                        'n_clusters': n_clusters,
-                        'n_noise': n_noise,
-                        'noise_ratio': noise_ratio,
-                        'silhouette_score': silhouette,
-                        'davies_bouldin_score': davies_bouldin,
-                        'labels': labels.tolist(),
-                        'cluster_analysis': cluster_analysis,
-                        'score_compuesto': silhouette * (1 - noise_ratio)  # Penalizar mucho ruido
-                    }
-
-                    mejores_resultados.append(resultado)
-
-            except Exception as e:
-                continue
-
-    if not mejores_resultados:
-        return {
-            'tipo': 'dbscan_optimizado',
-            'error': 'No se encontraron configuraciones válidas',
-            'variables_utilizadas': variables
-        }
-
-    # Ordenar por score compuesto
-    mejores_resultados.sort(key=lambda x: x['score_compuesto'], reverse=True)
-    mejor_resultado = mejores_resultados[0]
-
-    # Análisis adicional del mejor resultado
-    labels_final = np.array(mejor_resultado['labels'])
-
-    # Análisis de densidad
-    analisis_densidad = analizar_densidad_clusters(X_scaled, labels_final, mejor_resultado['eps'])
-
-    # Análisis de outliers
-    analisis_outliers = analizar_outliers_dbscan(X, labels_final, variables)
-
-    return {
-        'tipo': 'dbscan_optimizado',
-        'variables_utilizadas': variables,
-        'metrica': metrica,
-        'mejor_configuracion': mejor_resultado,
-        'todas_configuraciones': mejores_resultados[:10],  # Top 10
-        'analisis_densidad': analisis_densidad,
-        'analisis_outliers': analisis_outliers,
-        'parametros_probados': {
-            'eps_range': list(eps_range),
-            'min_samples_range': list(min_samples_range)
-        }
-    }
-
 def determinar_rango_eps(X_scaled):
     """Determinar rango de eps usando el método de k-distancias"""
     # Calcular k-distancias para k=4 (regla general)
@@ -844,91 +1204,6 @@ def analizar_outliers_dbscan(X_original, labels, variables):
 
     return outlier_analysis
 
-# ==================== PCA AVANZADO ====================
-
-def pca_completo_avanzado(data, variables=None, n_components=None, metodos=['linear', 'kernel'],
-                         explicar_varianza_objetivo=0.95):
-    """
-    Análisis de componentes principales avanzado con múltiples métodos
-    """
-    if variables is None:
-        variables = data.select_dtypes(include=[np.number]).columns.tolist()
-
-    X = data[variables].dropna()
-
-    # Escalado de datos
-    scaler = StandardScaler()
-    X_scaled = scaler.fit_transform(X)
-
-    if n_components is None:
-        n_components = min(len(variables), len(X) - 1)
-
-    resultados_pca = {}
-
-    # PCA Lineal estándar
-    if 'linear' in metodos:
-        pca_linear = PCA(n_components=n_components)
-        X_pca_linear = pca_linear.fit_transform(X_scaled)
-
-        # Análisis detallado
-        analisis_linear = analizar_pca_detallado(pca_linear, variables, explicar_varianza_objetivo)
-
-        resultados_pca['linear'] = {
-            'modelo': pca_linear,
-            'transformacion': X_pca_linear.tolist(),
-            'analisis': analisis_linear,
-            'componentes_recomendados': analisis_linear['n_componentes_objetivo']
-        }
-
-    # Kernel PCA
-    if 'kernel' in metodos and len(X) <= 1000:  # Limitado por costo computacional
-        kernels = ['rbf', 'poly', 'sigmoid']
-
-        for kernel in kernels:
-            try:
-                if kernel == 'poly':
-                    kpca = KernelPCA(n_components=min(10, n_components), kernel=kernel, degree=3)
-                else:
-                    kpca = KernelPCA(n_components=min(10, n_components), kernel=kernel)
-
-                X_kpca = kpca.fit_transform(X_scaled)
-
-                # Evaluación de calidad (reconstrucción aproximada)
-                calidad = evaluar_calidad_kernel_pca(X_scaled, X_kpca, kpca)
-
-                resultados_pca[f'kernel_{kernel}'] = {
-                    'modelo': kpca,
-                    'transformacion': X_kpca.tolist(),
-                    'calidad_reconstruccion': calidad,
-                    'kernel': kernel
-                }
-
-            except Exception as e:
-                print(f"Error con kernel PCA {kernel}: {e}")
-                continue
-
-    # Análisis de correlación entre componentes originales y transformados
-    if 'linear' in resultados_pca:
-        correlaciones = analizar_correlaciones_pca(X, X_pca_linear, variables)
-        resultados_pca['linear']['correlaciones'] = correlaciones
-
-    # Análisis de contribución de variables
-    if 'linear' in resultados_pca:
-        contribuciones = analizar_contribuciones_variables(
-            resultados_pca['linear']['modelo'], variables
-        )
-        resultados_pca['linear']['contribuciones'] = contribuciones
-
-    return {
-        'tipo': 'pca_completo_avanzado',
-        'variables_utilizadas': variables,
-        'n_muestras': len(X),
-        'metodos_aplicados': list(resultados_pca.keys()),
-        'resultados_por_metodo': resultados_pca,
-        'recomendaciones': generar_recomendaciones_pca(resultados_pca),
-        'datos_originales_escalados': X_scaled.tolist()
-    }
-
 def analizar_pca_detallado(pca_model, variables, varianza_objetivo):
     """Análisis detallado del modelo PCA"""
     varianza_explicada = pca_model.explained_variance_ratio_
@@ -1033,93 +1308,6 @@ def analizar_contribuciones_variables(pca_model, variables):
 
     return contribuciones
 
-def generar_recomendaciones_pca(resultados_pca):
-    """Generar recomendaciones basadas en los resultados de PCA"""
-    recomendaciones = []
-
-    if 'linear' in resultados_pca:
-        linear_result = resultados_pca['linear']
-        n_recomendado = linear_result['componentes_recomendados']
-        varianza_total = linear_result['analisis']['varianza_acumulada'][n_recomendado - 1]
-
-        recomendaciones.append(
-            f"Se recomienda usar {n_recomendado} componentes principales "
-            f"(explican {varianza_total:.1%} de la varianza)"
-        )
-
-        # Identificar variables más importantes
-        primer_pc = linear_result['analisis']['componentes_info'][0]
-        var_importante = primer_pc['top_variables'][0]['variable']
-
-        recomendaciones.append(
-            f"La variable '{var_importante}' tiene mayor peso en el primer componente principal"
-        )
-
-        # Recomendación sobre dimensionalidad
-        reduccion = 1 - n_recomendado / len(linear_result['analisis']['varianza_explicada'])
-        if reduccion > 0.5:
-            recomendaciones.append(
-                f"PCA permite reducir la dimensionalidad en {reduccion:.1%} "
-                "manteniendo la mayor parte de la información"
-            )
-
-    return recomendaciones
-
-# ==================== ANÁLISIS EXPLORATORIO COMPLETO ====================
-
-def analisis_exploratorio_completo(data, variables=None, incluir_visualizaciones=True):
-    """
-    Análisis exploratorio exhaustivo de los datos
-    """
-    if variables is None:
-        variables = data.select_dtypes(include=[np.number]).columns.tolist()
-
-    X = data[variables].dropna()
-
-    # 1. Estadísticas descriptivas avanzadas
-    estadisticas = calcular_estadisticas_avanzadas(X, variables)
-
-    # 2. Análisis de correlaciones
-    correlaciones = analizar_correlaciones_avanzado(X, variables)
-
-    # 3. Detección de outliers múltiples métodos
-    outliers = detectar_outliers_multiples_metodos(X, variables)
-
-    # 4. Análisis de distribuciones
-    distribuciones = analizar_distribuciones_avanzado(X, variables)
-
-    # 5. Análisis de componentes principales básico
-    pca_basico = PCA(n_components=min(5, len(variables)))
-    pca_basico.fit(StandardScaler().fit_transform(X))
-
-    # 6. Clustering exploratorio rápido
-    clustering_exploratorio = clustering_exploratorio_rapido(X, variables)
-
-    # 7. Análisis de calidad de datos
-    calidad_datos = evaluar_calidad_datos(data, variables)
-
-    # 8. Recomendaciones automáticas
-    recomendaciones = generar_recomendaciones_exploratorio(
-        estadisticas, correlaciones, outliers, distribuciones, calidad_datos
-    )
-
-    return {
-        'tipo': 'analisis_exploratorio_completo',
-        'variables_analizadas': variables,
-        'n_muestras': len(X),
-        'estadisticas_descriptivas': estadisticas,
-        'correlaciones': correlaciones,
-        'outliers': outliers,
-        'distribuciones': distribuciones,
-        'pca_exploratorio': {
-            'varianza_explicada': pca_basico.explained_variance_ratio_.tolist(),
-            'varianza_acumulada': np.cumsum(pca_basico.explained_variance_ratio_).tolist()
-        },
-        'clustering_exploratorio': clustering_exploratorio,
-        'calidad_datos': calidad_datos,
-        'recomendaciones': recomendaciones
-    }
-
 def calcular_estadisticas_avanzadas(X, variables):
     """Calcular estadísticas descriptivas avanzadas"""
     stats_avanzadas = {}
@@ -1203,7 +1391,7 @@ def analizar_correlaciones_avanzado(X, variables):
         'multicolinealidad': 'Alta' if condicion > 1000 else 'Media' if condicion > 100 else 'Baja'
     }
 
-def detectar_outliers_multiples_metodos(X, variables):
+def detectar_outliers_multiples_metodos(X, variables, metodo_principal='isolation_forest'):
     """Detección de outliers usando múltiples métodos"""
     outliers_por_metodo = {}
 
@@ -1322,11 +1510,10 @@ def analizar_distribuciones_avanzado(X, variables):
 
     return distribuciones
 
-def clustering_exploratorio_rapido(X, variables):
+def clustering_exploratorio_rapido(X, variables, escalado='standard'):
     """Clustering exploratorio rápido para identificar patrones"""
     # Escalado
-    scaler = StandardScaler()
-    X_scaled = scaler.fit_transform(X)
+    X_scaled, scaler = aplicar_escalado(X, escalado)
 
     # K-Means rápido con k=3,4,5
     resultados_rapidos = {}
@@ -1400,6 +1587,8 @@ def evaluar_calidad_datos(data_original, variables):
         'calificacion': 'Excelente' if quality_score > 95 else 'Buena' if quality_score > 85 else 'Regular' if quality_score > 70 else 'Deficiente'
     }
 
+# ==================== FUNCIONES DE RECOMENDACIONES ====================
+
 def generar_recomendaciones_exploratorio(estadisticas, correlaciones, outliers, distribuciones, calidad):
     """Generar recomendaciones basadas en el análisis exploratorio"""
     recomendaciones = []
@@ -1442,7 +1631,107 @@ def generar_recomendaciones_exploratorio(estadisticas, correlaciones, outliers, 
 
     return recomendaciones
 
-# ==================== RESUMEN Y UTILIDADES ====================
+def generar_recomendaciones_pca(resultados_pca):
+    """Generar recomendaciones basadas en los resultados de PCA"""
+    recomendaciones = []
+
+    if 'linear' in resultados_pca:
+        linear_result = resultados_pca['linear']
+        n_recomendado = linear_result['componentes_recomendados']
+        varianza_total = linear_result['analisis']['varianza_acumulada'][n_recomendado - 1]
+
+        recomendaciones.append(
+            f"Se recomienda usar {n_recomendado} componentes principales "
+            f"(explican {varianza_total:.1%} de la varianza)"
+        )
+
+        # Identificar variables más importantes
+        primer_pc = linear_result['analisis']['componentes_info'][0]
+        var_importante = primer_pc['top_variables'][0]['variable']
+
+        recomendaciones.append(
+            f"La variable '{var_importante}' tiene mayor peso en el primer componente principal"
+        )
+
+        # Recomendación sobre dimensionalidad
+        reduccion = 1 - n_recomendado / len(linear_result['analisis']['varianza_explicada'])
+        if reduccion > 0.5:
+            recomendaciones.append(
+                f"PCA permite reducir la dimensionalidad en {reduccion:.1%} "
+                "manteniendo la mayor parte de la información"
+            )
+
+    return recomendaciones
+
+def generar_recomendaciones_clustering(resultados_completos):
+    """Generar recomendaciones para clustering jerárquico"""
+    recomendaciones = []
+
+    if not resultados_completos:
+        recomendaciones.append("No se pudieron generar clusters válidos. Revise la selección de variables.")
+        return recomendaciones
+
+    mejor_config = max(resultados_completos.keys(),
+                      key=lambda k: resultados_completos[k]['mejor_silhouette'])
+    mejor_resultado = resultados_completos[mejor_config]
+
+    recomendaciones.append(f"Mejor configuración: {mejor_config} con {mejor_resultado['mejor_k']} clusters")
+
+    if mejor_resultado['mejor_silhouette'] > 0.7:
+        recomendaciones.append("Clustering de excelente calidad detectado")
+    elif mejor_resultado['mejor_silhouette'] > 0.5:
+        recomendaciones.append("Clustering de buena calidad detectado")
+    else:
+        recomendaciones.append("Clustering de calidad moderada. Considere ajustar parámetros")
+
+    return recomendaciones
+
+def generar_recomendaciones_kmeans(k_optimos, resultados_kmeans, k_final):
+    """Generar recomendaciones para K-Means"""
+    recomendaciones = []
+
+    recomendaciones.append(f"K óptimo recomendado: {k_final}")
+
+    if k_final in resultados_kmeans:
+        resultado = resultados_kmeans[k_final]
+        if resultado['silhouette_score'] > 0.7:
+            recomendaciones.append("Clustering de excelente calidad")
+        elif resultado['silhouette_score'] > 0.5:
+            recomendaciones.append("Clustering de buena calidad")
+        else:
+            recomendaciones.append("Clustering de calidad moderada")
+
+    # Consenso entre métodos
+    valores_k = list(k_optimos.values())
+    if len(set(valores_k)) == 1:
+        recomendaciones.append("Todos los métodos coinciden en el K óptimo")
+    else:
+        recomendaciones.append("Los métodos sugieren diferentes valores de K. Evalúe el contexto del problema")
+
+    return recomendaciones
+
+def generar_recomendaciones_dbscan(mejor_resultado):
+    """Generar recomendaciones para DBSCAN"""
+    recomendaciones = []
+
+    n_clusters = mejor_resultado['n_clusters']
+    noise_ratio = mejor_resultado['noise_ratio']
+
+    recomendaciones.append(f"DBSCAN detectó {n_clusters} clusters con {noise_ratio:.1%} de outliers")
+
+    if noise_ratio < 0.05:
+        recomendaciones.append("Muy pocos outliers detectados. Los datos son homogéneos")
+    elif noise_ratio < 0.15:
+        recomendaciones.append("Cantidad normal de outliers detectados")
+    else:
+        recomendaciones.append("Alto porcentaje de outliers. Revise la calidad de los datos")
+
+    if mejor_resultado['silhouette_score'] > 0.6:
+        recomendaciones.append("Clusters bien definidos y separados")
+    else:
+        recomendaciones.append("Clusters con separación moderada")
+
+    return recomendaciones
 
 def generar_resumen_clustering(resultados_completos):
     """Generar resumen comparativo de métodos de clustering"""
@@ -1478,18 +1767,17 @@ def generar_resumen_clustering(resultados_completos):
 
 def demo_ml_no_supervisado_completo():
     """
-    Demostración completa del sistema ML no supervisado mejorado
+    Demostración completa del sistema ML no supervisado corregido
     """
     print("🚀 Generando datos de demostración...")
     datos = generar_datos_agua_realistas(n_muestras=300, incluir_outliers=True)
 
     print("📊 Datos generados exitosamente")
     print(f"   Shape: {datos.shape}")
-    print(f"   Estaciones: {datos['Estacion_ID'].nunique()}")
+    print(f"   Columnas: {list(datos.columns)}")
 
-    # Variables para análisis
-    variables_analisis = ['pH', 'Temperatura', 'Oxigeno_Disuelto', 'Turbiedad',
-                         'Conductividad', 'DBO5', 'Nitratos', 'Fosfatos']
+    # Variables para análisis (usando las columnas del CSV real)
+    variables_analisis = ['pH', 'WT', 'DO', 'TBD', 'CTD', 'BOD5', 'COD', 'FC', 'TC', 'NO3', 'NO2', 'N_NH3', 'TP']
 
     # Ejemplo 1: Análisis exploratorio completo
     print("\n🔍 Ejemplo 1: Análisis Exploratorio Completo")
@@ -1502,7 +1790,7 @@ def demo_ml_no_supervisado_completo():
     print("\n🔍 Ejemplo 2: Clustering Jerárquico Completo")
     jerarquico = clustering_jerarquico_completo(datos, variables_analisis,
                                                metodos=['ward', 'complete'],
-                                               metricas=['euclidean', 'manhattan'])
+                                               metricas=['euclidean'])
     if jerarquico['mejor_configuracion']:
         mejor_config = jerarquico['mejor_configuracion']
         mejor_resultado = jerarquico['resultados_por_configuracion'][mejor_config]
@@ -1532,8 +1820,7 @@ def demo_ml_no_supervisado_completo():
 
     # Ejemplo 5: PCA avanzado
     print("\n🔍 Ejemplo 5: PCA Avanzado")
-    pca_avanzado = pca_completo_avanzado(datos, variables_analisis,
-                                        metodos=['linear', 'kernel'])
+    pca_avanzado = pca_completo_avanzado(datos, variables_analisis, metodos=['linear'])
     if 'linear' in pca_avanzado['resultados_por_metodo']:
         pca_linear = pca_avanzado['resultados_por_metodo']['linear']
         n_comp = pca_linear['componentes_recomendados']
