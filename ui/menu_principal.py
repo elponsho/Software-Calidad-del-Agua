@@ -33,6 +33,7 @@ class MenuPrincipal(QWidget, ThemedWidget):
     abrir_carga_datos = pyqtSignal()
     abrir_machine_learning = pyqtSignal()
     abrir_deep_learning = pyqtSignal()
+    abrir_wqi = pyqtSignal()  # Señal para WQI
 
     def __init__(self):
         QWidget.__init__(self)
@@ -129,9 +130,19 @@ class MenuPrincipal(QWidget, ThemedWidget):
             self.abrir_deep_learning.emit
         )
 
+        # Card 4: Ecuación WQI
+        self.btn_wqi = self.create_card(
+            "💧",
+            "Índice de Calidad del Agua (WQI)",
+            "Cálculo del índice WQI mediante\nponderación de parámetros fisicoquímicos\ny bacteriológicos del agua.",
+            self.abrir_wqi.emit
+        )
+
+        # Ajustar el layout para 2x2
         cards_layout.addWidget(self.btn_prepro, 0, 0)
         cards_layout.addWidget(self.btn_ml, 0, 1)
-        cards_layout.addWidget(self.btn_dl, 0, 2)
+        cards_layout.addWidget(self.btn_dl, 1, 0)
+        cards_layout.addWidget(self.btn_wqi, 1, 1)
 
         layout.addLayout(cards_layout)
 
