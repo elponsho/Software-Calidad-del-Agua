@@ -1161,11 +1161,6 @@ class CargaDatos(QWidget, ThemedWidget):
             info_text += f"📋 {len(self.df):,} × {len(self.df.columns)} (filas × columnas)"
             self.file_info_label.setText(info_text)
 
-    # En Cargar_datos.py
-    from ui.machine_learning.data_manager import get_data_manager  # Asegúrate de que esta importación exista al inicio
-
-    # ... (tu clase CargaDatos y otros métodos) ...
-
     def usar_datos(self):
         """Emitir señal con los datos cargados y notificar al DataManager."""
         if self.df is not None:

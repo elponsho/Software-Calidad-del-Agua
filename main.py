@@ -25,7 +25,7 @@ except ImportError:
     SegmentacionML = None
 
 try:
-    from ui.deep_learning import DeepLearning
+    from ui.deep_learning import DeepLearningLightweight as DeepLearning
 except ImportError:
     print("Advertencia: No se pudo importar DeepLearning")
     DeepLearning = None
@@ -134,6 +134,9 @@ class VentanaPrincipal(QMainWindow, ThemedWidget):
         # Configurar las conexiones de navegación
         self.setup_navigation()
 
+        # Debug de navegación (opcional - remover en producción)
+        self.debug_navigation_setup()
+
         # Aplicar tema inicial
         try:
             self.apply_theme()
@@ -157,114 +160,211 @@ class VentanaPrincipal(QMainWindow, ThemedWidget):
                     if self.pantalla_bivariado and hasattr(self.pantalla_bivariado, 'cargar_dataframe'):
                         self.pantalla_bivariado.cargar_dataframe(self.pantalla_carga.df)
 
+                    # 🔥 NUEVO: También pasar datos a Deep Learning
+                    if self.pantalla_dl and hasattr(self.pantalla_dl, 'cargar_dataframe'):
+                        print("🔄 Transfiriendo datos a Deep Learning...")
+                        self.pantalla_dl.cargar_dataframe(self.pantalla_carga.df)
+                        print("✅ Datos transferidos a Deep Learning")
+
                 self.stack.setCurrentIndex(self.screen_indices['menu'])
             except Exception as e:
-                print(f"Error al ir al menú: {e}")
+                print(f"❌ Error al ir al menú: {e}")
                 self.stack.setCurrentIndex(self.screen_indices['menu'])
 
         # Conectar botón de carga
         if hasattr(self.pantalla_carga, 'btn_cargar'):
             try:
                 self.pantalla_carga.btn_cargar.clicked.connect(ir_a_menu)
+                print("✅ Conectado btn_cargar de carga de datos")
             except Exception as e:
-                print(f"Error conectando btn_cargar: {e}")
+                print(f"❌ Error conectando btn_cargar: {e}")
 
-        # Conexiones desde el menú principal
-        if hasattr(self.pantalla_menu, 'abrir_carga_datos'):
-            self.pantalla_menu.abrir_carga_datos.connect(
-                lambda: self.stack.setCurrentIndex(self.screen_indices['carga'])
-            )
+        # 🔥 ARREGLO: Conexiones desde el menú principal usando las señales correctas
+        try:
+            # Conexión a carga de datos
+            if hasattr(self.pantalla_menu, 'abrir_carga_datos'):
+                self.pantalla_menu.abrir_carga_datos.connect(
+                    lambda: self.stack.setCurrentIndex(self.screen_indices['carga'])
+                )
+                print("✅ Conectado abrir_carga_datos")
 
-        # Conexión a preprocesamiento
-        if self.pantalla_prepro and 'prepro' in self.screen_indices:
-            if hasattr(self.pantalla_menu, 'btn_prepro'):
-                try:
-                    self.pantalla_menu.btn_prepro.clicked.connect(
+            # Conexión a preprocesamiento - USANDO LA SEÑAL CORRECTA
+            if self.pantalla_prepro and 'prepro' in self.screen_indices:
+                if hasattr(self.pantalla_menu, 'abrir_carga_datos'):  # Esta señal va a preprocesamiento
+                    self.pantalla_menu.abrir_carga_datos.connect(
                         lambda: self.stack.setCurrentIndex(self.screen_indices['prepro'])
                     )
-                except Exception as e:
-                    print(f"Error conectando btn_prepro: {e}")
+                    print("✅ Conectado a preprocesamiento")
 
-        # Conexión a ML
-        if self.pantalla_ml and 'ml' in self.screen_indices:
-            if hasattr(self.pantalla_menu, 'abrir_machine_learning'):
-                self.pantalla_menu.abrir_machine_learning.connect(
-                    lambda: self.stack.setCurrentIndex(self.screen_indices['ml'])
-                )
+            # Conexión a ML
+            if self.pantalla_ml and 'ml' in self.screen_indices:
+                if hasattr(self.pantalla_menu, 'abrir_machine_learning'):
+                    self.pantalla_menu.abrir_machine_learning.connect(
+                        lambda: self.stack.setCurrentIndex(self.screen_indices['ml'])
+                    )
+                    print("✅ Conectado abrir_machine_learning")
 
-        # Conexión a DL
-        if self.pantalla_dl and 'dl' in self.screen_indices:
-            if hasattr(self.pantalla_menu, 'abrir_deep_learning'):
-                self.pantalla_menu.abrir_deep_learning.connect(
-                    lambda: self.stack.setCurrentIndex(self.screen_indices['dl'])
-                )
+            # 🔥 ARREGLO: Conexión a DL
+            if self.pantalla_dl and 'dl' in self.screen_indices:
+                if hasattr(self.pantalla_menu, 'abrir_deep_learning'):
+                    self.pantalla_menu.abrir_deep_learning.connect(
+                        lambda: self.stack.setCurrentIndex(self.screen_indices['dl'])
+                    )
+                    print("✅ Conectado abrir_deep_learning")
 
-        # Conexión a WQI
-        if self.pantalla_wqi and 'wqi' in self.screen_indices:
-            if hasattr(self.pantalla_menu, 'abrir_wqi'):
-                self.pantalla_menu.abrir_wqi.connect(
-                    lambda: self.stack.setCurrentIndex(self.screen_indices['wqi'])
-                )
+            # Conexión a WQI
+            if self.pantalla_wqi and 'wqi' in self.screen_indices:
+                if hasattr(self.pantalla_menu, 'abrir_wqi'):
+                    self.pantalla_menu.abrir_wqi.connect(
+                        lambda: self.stack.setCurrentIndex(self.screen_indices['wqi'])
+                    )
+                    print("✅ Conectado abrir_wqi")
 
-        # Navegación desde preprocesamiento
+        except Exception as e:
+            print(f"❌ Error en conexiones del menú principal: {e}")
+
+        # 🔥 ARREGLO: Navegación desde preprocesamiento
         if self.pantalla_prepro:
-            # Cambiar a bivariado
-            if hasattr(self.pantalla_prepro, 'cambiar_a_bivariado') and self.pantalla_bivariado:
-                self.pantalla_prepro.cambiar_a_bivariado.connect(
-                    lambda: self.stack.setCurrentIndex(
-                        self.screen_indices.get('bivariado', self.screen_indices['menu']))
-                )
+            try:
+                # Cambiar a bivariado
+                if hasattr(self.pantalla_prepro, 'cambiar_a_bivariado') and self.pantalla_bivariado:
+                    self.pantalla_prepro.cambiar_a_bivariado.connect(
+                        lambda: self.stack.setCurrentIndex(
+                            self.screen_indices.get('bivariado', self.screen_indices['menu']))
+                    )
+                    print("✅ Conectado cambiar_a_bivariado desde preprocesamiento")
 
-            # Regresar al menú - manejo más robusto
-            if hasattr(self.pantalla_prepro, 'btn_regresar'):
-                try:
-                    # Verificar que btn_regresar sea realmente un QPushButton
-                    btn = getattr(self.pantalla_prepro, 'btn_regresar', None)
-                    if btn and hasattr(btn, 'clicked'):
-                        btn.clicked.connect(lambda: self.stack.setCurrentIndex(self.screen_indices['menu']))
-                except Exception as e:
-                    print(f"Error conectando btn_regresar de preprocesamiento: {e}")
+                # 🔥 ARREGLO: btn_regresar es un QPushButton en preprocesamiento
+                if hasattr(self.pantalla_prepro, 'btn_regresar'):
+                    # Verificar que es un QPushButton
+                    btn = getattr(self.pantalla_prepro, 'btn_regresar')
+                    if hasattr(btn, 'clicked'):
+                        btn.clicked.connect(
+                            lambda: self.stack.setCurrentIndex(self.screen_indices['menu'])
+                        )
+                        print("✅ Conectado btn_regresar de preprocesamiento (QPushButton)")
+                    else:
+                        print("⚠️  btn_regresar de preprocesamiento no es un QPushButton")
 
-        # Navegación desde análisis bivariado
+            except Exception as e:
+                print(f"❌ Error conectando navegación de preprocesamiento: {e}")
+
+        # 🔥 ARREGLO: Navegación desde análisis bivariado
         if self.pantalla_bivariado:
-            if hasattr(self.pantalla_bivariado, 'btn_regresar'):
-                try:
-                    btn = getattr(self.pantalla_bivariado, 'btn_regresar', None)
-                    if btn and hasattr(btn, 'clicked'):
-                        btn.clicked.connect(lambda: self.stack.setCurrentIndex(self.screen_indices['menu']))
-                except Exception as e:
-                    print(f"Error conectando btn_regresar de bivariado: {e}")
+            try:
+                if hasattr(self.pantalla_bivariado, 'btn_regresar'):
+                    # btn_regresar es un QPushButton en bivariado
+                    btn = getattr(self.pantalla_bivariado, 'btn_regresar')
+                    if hasattr(btn, 'clicked'):
+                        btn.clicked.connect(
+                            lambda: self.stack.setCurrentIndex(self.screen_indices['menu'])
+                        )
+                        print("✅ Conectado btn_regresar de bivariado (QPushButton)")
+                    else:
+                        print("⚠️  btn_regresar de bivariado no es un QPushButton")
+
+            except Exception as e:
+                print(f"❌ Error conectando navegación de bivariado: {e}")
 
         # Navegación desde ML
         if self.pantalla_ml:
-            if hasattr(self.pantalla_ml, 'exit_button'):
-                try:
+            try:
+                if hasattr(self.pantalla_ml, 'exit_button'):
                     self.pantalla_ml.exit_button.clicked.connect(
                         lambda: self.stack.setCurrentIndex(self.screen_indices['menu'])
                     )
-                except Exception as e:
-                    print(f"Error conectando exit_button de ML: {e}")
+                    print("✅ Conectado exit_button de ML")
+            except Exception as e:
+                print(f"❌ Error conectando exit_button de ML: {e}")
 
-        # Navegación desde DL
+        # 🔥 ARREGLO PRINCIPAL: Navegación desde Deep Learning
         if self.pantalla_dl:
-            if hasattr(self.pantalla_dl, 'btn_regresar'):
-                try:
-                    btn = getattr(self.pantalla_dl, 'btn_regresar', None)
-                    if btn and hasattr(btn, 'clicked'):
-                        btn.clicked.connect(lambda: self.stack.setCurrentIndex(self.screen_indices['menu']))
-                except Exception as e:
-                    print(f"Error conectando btn_regresar de DL: {e}")
+            try:
+                # btn_regresar es una SEÑAL (pyqtSignal) en Deep Learning, no un botón
+                if hasattr(self.pantalla_dl, 'btn_regresar'):
+                    signal = getattr(self.pantalla_dl, 'btn_regresar')
+                    if hasattr(signal, 'connect') and hasattr(signal, 'emit'):
+                        # Es una señal, conectar directamente
+                        signal.connect(
+                            lambda: self.stack.setCurrentIndex(self.screen_indices['menu'])
+                        )
+                        print("✅ Conectado btn_regresar de Deep Learning (pyqtSignal)")
+                    elif hasattr(signal, 'clicked'):
+                        # Es un botón, usar .clicked
+                        signal.clicked.connect(
+                            lambda: self.stack.setCurrentIndex(self.screen_indices['menu'])
+                        )
+                        print("✅ Conectado btn_regresar de Deep Learning (QPushButton)")
+                    else:
+                        print(f"⚠️  btn_regresar de Deep Learning tipo desconocido: {type(signal)}")
+                else:
+                    print("⚠️  Deep Learning no tiene btn_regresar")
+
+            except Exception as e:
+                print(f"❌ Error conectando navegación de Deep Learning: {e}")
 
         # Navegación desde WQI
         if self.pantalla_wqi:
-            if hasattr(self.pantalla_wqi, 'regresar_menu'):
-                self.pantalla_wqi.regresar_menu.connect(
-                    lambda: self.stack.setCurrentIndex(self.screen_indices['menu'])
-                )
+            try:
+                if hasattr(self.pantalla_wqi, 'regresar_menu'):
+                    self.pantalla_wqi.regresar_menu.connect(
+                        lambda: self.stack.setCurrentIndex(self.screen_indices['menu'])
+                    )
+                    print("✅ Conectado regresar_menu de WQI")
+            except Exception as e:
+                print(f"❌ Error conectando navegación de WQI: {e}")
+
+    def debug_navigation_setup(self):
+        """Debug de configuración de navegación (remover en producción)"""
+        print("\n🔍 DEBUG: Verificando configuración de navegación")
+        print(f"  - Pantallas disponibles: {list(self.screen_indices.keys())}")
+
+        if self.pantalla_dl:
+            print(f"  - Deep Learning cargado: ✅")
+            if hasattr(self.pantalla_dl, 'btn_regresar'):
+                signal = getattr(self.pantalla_dl, 'btn_regresar')
+                print(f"  - btn_regresar tipo: {type(signal)}")
+                print(f"  - Es señal: {hasattr(signal, 'emit')}")
+                print(f"  - Es botón: {hasattr(signal, 'clicked')}")
+            else:
+                print(f"  - btn_regresar: ❌ No encontrado")
+        else:
+            print(f"  - Deep Learning cargado: ❌")
+
+        print("🔍 Fin debug navegación\n")
+
+    def go_to_screen(self, screen_name):
+        """Método auxiliar para ir a una pantalla específica"""
+        try:
+            if screen_name in self.screen_indices:
+                self.stack.setCurrentIndex(self.screen_indices[screen_name])
+                print(f"✅ Navegado a: {screen_name}")
+            else:
+                print(f"❌ Pantalla no encontrada: {screen_name}")
+                # Volver al menú por defecto
+                self.stack.setCurrentIndex(self.screen_indices['menu'])
+        except Exception as e:
+            print(f"❌ Error navegando a {screen_name}: {e}")
+            # Volver al menú por defecto
+            self.stack.setCurrentIndex(self.screen_indices['menu'])
 
     def mostrar_ventana_principal(self):
         """Mostrar la ventana principal después de la carga"""
         self.showMaximized()
+
+    def closeEvent(self, event):
+        """Manejar cierre de la aplicación"""
+        try:
+            # Limpiar recursos si es necesario
+            if self.pantalla_dl and hasattr(self.pantalla_dl, 'training_thread'):
+                if self.pantalla_dl.training_thread and self.pantalla_dl.training_thread.isRunning():
+                    self.pantalla_dl.training_thread.terminate()
+                    self.pantalla_dl.training_thread.wait()
+
+            event.accept()
+        except Exception as e:
+            print(f"Error al cerrar aplicación: {e}")
+            event.accept()
 
 
 if __name__ == "__main__":
@@ -298,4 +398,5 @@ if __name__ == "__main__":
         ventana = VentanaPrincipal()
         ventana.mostrar_ventana_principal()
 
+    print("🚀 Aplicación iniciada correctamente")
     sys.exit(app.exec_())
