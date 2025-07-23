@@ -6,7 +6,6 @@ Versión mejorada con mejor rendimiento, manejo de errores y funcionalidad exten
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-import seaborn as sns
 from sklearn.model_selection import (
     train_test_split, cross_val_score, GridSearchCV,
     RandomizedSearchCV, KFold, StratifiedKFold, validation_curve,
@@ -1775,7 +1774,17 @@ def _plot_clasificacion(resultado: Dict, figsize: Tuple) -> plt.Figure:
         plot_idx += 1
 
         cm = np.array(resultado['confusion_matrix'])
-        sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', ax=ax)
+        im = ax.imshow(cm, cmap='Blues', aspect='auto')
+
+        # Agregar números en las celdas
+        for i in range(cm.shape[0]):
+            for j in range(cm.shape[1]):
+                text = ax.text(j, i, str(cm[i, j]),
+                               ha="center", va="center",
+                               color="white" if cm[i, j] > cm.max() / 2 else "black",
+                               fontsize=12, fontweight='bold')
+
+        plt.colorbar(im, ax=ax)
 
         if 'classes' in resultado and resultado['classes']:
             ax.set_xticklabels(resultado['classes'])

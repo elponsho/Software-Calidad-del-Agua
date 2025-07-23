@@ -30,6 +30,7 @@ class MenuPrincipal(QWidget, ThemedWidget):
     """Menú principal del sistema con soporte para temas"""
 
     # Señales para navegación
+    abrir_preprocesamiento = pyqtSignal()  # Nueva señal para preprocesamiento
     abrir_carga_datos = pyqtSignal()
     abrir_machine_learning = pyqtSignal()
     abrir_deep_learning = pyqtSignal()
@@ -111,7 +112,7 @@ class MenuPrincipal(QWidget, ThemedWidget):
             "📊",
             "Preprocesamiento de Datos",
             "Carga y análisis exploratorio de datos.\nGeneración de estadísticas descriptivas,\nvisualizaciones básicas y resúmenes.",
-            self.abrir_carga_datos.emit
+            self.abrir_preprocesamiento.emit  # Corregido: ahora usa la señal correcta
         )
 
         # Card 2: Machine Learning

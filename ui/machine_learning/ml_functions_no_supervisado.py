@@ -8,7 +8,6 @@ Versión corregida con firmas de funciones compatibles
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-import seaborn as sns
 from sklearn.preprocessing import StandardScaler, RobustScaler, MinMaxScaler, QuantileTransformer
 from sklearn.decomposition import PCA, KernelPCA, FastICA
 from sklearn.cluster import KMeans, DBSCAN, AgglomerativeClustering, SpectralClustering
@@ -27,7 +26,7 @@ warnings.filterwarnings('ignore')
 
 # Configuración de visualización
 plt.style.use('default')
-sns.set_palette("husl")
+plt.rcParams['axes.prop_cycle'] = plt.cycler(color=['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b'])
 
 # ==================== FUNCIONES DE GENERACIÓN DE DATOS ====================
 

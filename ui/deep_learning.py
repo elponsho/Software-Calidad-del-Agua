@@ -8,7 +8,6 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from ui.machine_learning.data_manager import get_data_manager
 from matplotlib.figure import Figure
-import seaborn as sns
 from datetime import datetime
 import warnings
 import time
@@ -2565,7 +2564,7 @@ class DeepLearningLightweight(QWidget, ThemedWidget):
             self.show_placeholder_graph(f"Error generando gráfica de CV:\n{str(e)}")
 
     def plot_confusion_matrix(self):
-        """Graficar matriz de confusión con mejor manejo de errores"""
+        """Graficar matriz de confusión SIN SEABORN"""
         try:
             if (not self.current_results or
                     'confusion_matrix' not in self.current_results or
@@ -2577,22 +2576,41 @@ class DeepLearningLightweight(QWidget, ThemedWidget):
 
             cm = self.current_results['confusion_matrix']
 
-            sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', ax=ax,
-                        square=True, linewidths=0.5, cbar_kws={'label': 'Número de muestras'},
-                        annot_kws={'fontsize': 14, 'fontweight': 'bold'})
+            # REEMPLAZAR sns.heatmap con matplotlib puro
+            # Crear heatmap manual con matplotlib
+            im = ax.imshow(cm, cmap='Blues', aspect='auto')
 
-            ax.set_title('Matriz de Confusión - Modelo Estabilizado', fontsize=16, fontweight='bold', pad=20)
+            # Agregar números en las celdas
+            for i in range(cm.shape[0]):
+                for j in range(cm.shape[1]):
+                    text = ax.text(j, i, str(cm[i, j]),
+                                   ha="center", va="center",
+                                   color="white" if cm[i, j] > cm.max() / 2 else "black",
+                                   fontsize=14, fontweight='bold')
+
+            ax.set_title('Matriz de Confusión - Modelo Estabilizado',
+                         fontsize=16, fontweight='bold', pad=20)
             ax.set_xlabel('Predicción', fontsize=12)
             ax.set_ylabel('Valor Real', fontsize=12)
+
+            # Configurar ticks
+            ax.set_xticks(range(cm.shape[1]))
+            ax.set_yticks(range(cm.shape[0]))
+            ax.set_xticklabels([f'Clase {i}' for i in range(cm.shape[1])])
+            ax.set_yticklabels([f'Clase {i}' for i in range(cm.shape[0])])
+
+            # Colorbar
+            cbar = self.confusion_figure.colorbar(im, ax=ax)
+            cbar.set_label('Número de muestras', rotation=270, labelpad=15)
 
             total_samples = np.sum(cm)
             correct_predictions = np.trace(cm)
             accuracy = correct_predictions / total_samples if total_samples > 0 else 0
 
             info_text = f"""✅ Accuracy: {accuracy:.4f}
-📊 Muestras totales: {total_samples}
-🎯 Correctas: {correct_predictions}
-⚡ Modelo: {self.current_results.get('model_type', 'Unknown').replace('_', ' ').title()}"""
+    📊 Muestras totales: {total_samples}
+    🎯 Correctas: {correct_predictions}
+    ⚡ Modelo: {self.current_results.get('model_type', 'Unknown').replace('_', ' ').title()}"""
 
             self.confusion_info_label.setText(info_text)
 

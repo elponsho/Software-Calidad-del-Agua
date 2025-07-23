@@ -65,7 +65,6 @@ try:
     import matplotlib.pyplot as plt
     from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
     from matplotlib.figure import Figure
-    import seaborn as sns
 
     ML_AVAILABLE = True
     print("✅ Librerías ML Supervisado cargadas correctamente")
