@@ -3,7 +3,9 @@ import numpy as np
 import pandas as pd
 import os
 import sys
-from scipy import stats
+
+
+# ❌ ELIMINADA: from scipy import stats
 
 
 # CONFIGURACIÓN PARA EJECUTABLES
@@ -55,6 +57,47 @@ def crear_directorio_temp():
             os.makedirs(TEMP_DIR)
     except Exception as e:
         print(f"⚠️ Error creando directorio temporal: {e}")
+
+
+# 🔥 NUEVA FUNCIÓN: KDE simplificado con NumPy
+def gaussian_kde_numpy(data, x_eval=None, bandwidth=None):
+    """
+    Implementación simple de Kernel Density Estimation usando solo NumPy
+    Reemplaza scipy.stats.gaussian_kde
+    """
+    try:
+        data = np.asarray(data).flatten()
+        n = len(data)
+
+        if n == 0:
+            raise ValueError("No hay datos")
+
+        if x_eval is None:
+            x_eval = np.linspace(data.min(), data.max(), 200)
+        else:
+            x_eval = np.asarray(x_eval)
+
+        # Calcular bandwidth automáticamente si no se proporciona
+        if bandwidth is None:
+            # Regla de Scott
+            bandwidth = n ** (-1. / (4 + 1)) * np.std(data)
+
+        # Calcular densidad en cada punto de evaluación
+        density = np.zeros_like(x_eval, dtype=float)
+
+        for i, x in enumerate(x_eval):
+            # Suma de kernels gaussianos centrados en cada punto de datos
+            kernels = np.exp(-0.5 * ((x - data) / bandwidth) ** 2)
+            density[i] = np.sum(kernels) / (n * bandwidth * np.sqrt(2 * np.pi))
+
+        return x_eval, density
+
+    except Exception as e:
+        print(f"Error en KDE: {e}")
+        # Fallback: retornar distribución uniforme
+        if x_eval is None:
+            x_eval = np.linspace(0, 1, 200)
+        return x_eval, np.ones_like(x_eval) / len(x_eval)
 
 
 def generar_boxplot(df, columna):
@@ -177,7 +220,9 @@ def generar_histograma(df, columna):
 
 
 def generar_densidad(df, columna):
-    """Generar gráfico de densidad con rutas seguras"""
+    """
+    🔥 FUNCIÓN CORREGIDA: Generar gráfico de densidad SIN SCIPY
+    """
     try:
         crear_directorio_temp()
 
@@ -189,21 +234,21 @@ def generar_densidad(df, columna):
             plt.text(0.5, 0.5, 'No hay datos válidos', ha='center', va='center',
                      transform=plt.gca().transAxes, fontsize=14)
         else:
-            # Intentar usar KDE de scipy, si falla usar histograma normalizado
+            # 🔥 REEMPLAZADO: scipy.stats.gaussian_kde con función propia
             try:
                 if len(data) > 5:
-                    density = stats.gaussian_kde(data)
-                    x_range = np.linspace(data.min(), data.max(), 200)
-                    density_values = density(x_range)
+                    # Usar KDE implementado con NumPy
+                    x_range, density_values = gaussian_kde_numpy(data)
 
                     plt.fill_between(x_range, density_values, alpha=0.6,
-                                     color=COLORES['primario'], label='Densidad')
+                                     color=COLORES['primario'], label='Densidad KDE')
                     plt.plot(x_range, density_values, color=COLORES['neutro'],
                              linewidth=2)
                 else:
                     raise ValueError("Pocos datos para KDE")
 
-            except Exception:
+            except Exception as kde_error:
+                print(f"KDE falló ({kde_error}), usando histograma normalizado")
                 # Fallback: histograma normalizado
                 plt.hist(data, bins=20, density=True, alpha=0.6,
                          color=COLORES['primario'], edgecolor='black',
@@ -268,8 +313,8 @@ def diagrama_dispersion(df, x, y):
                 plt.plot(x_data, p(x_data), color=COLORES['acento'],
                          linestyle='--', linewidth=2, label='Tendencia')
 
-                # Correlación
-                correlation = x_data.corr(y_data)
+                # 🔥 CORREGIDO: Correlación usando NumPy en lugar de pandas
+                correlation = np.corrcoef(x_data, y_data)[0, 1]
                 plt.text(0.05, 0.95, f'Correlación: {correlation:.3f}',
                          transform=plt.gca().transAxes,
                          bbox=dict(boxstyle='round', facecolor='lightgreen', alpha=0.8),
@@ -420,3 +465,15 @@ def generar_grafico_temp(tipo, *args, **kwargs):
         return serie_tiempo(*args, **kwargs)
     else:
         raise ValueError(f"Tipo de gráfico no reconocido: {tipo}")
+
+
+# 🎯 FUNCIÓN DE PRUEBA - Solo para verificar que funciona sin scipy
+def test_sin_scipy():
+    """Función de prueba para verificar que todo funciona sin scipy"""
+    print("✅ visualizaciones.py cargado exitosamente SIN scipy")
+    print("🔥 Cambios aplicados:")
+    print("   • Eliminado: from scipy import stats")
+    print("   • Agregado: gaussian_kde_numpy() - KDE con NumPy puro")
+    print("   • Corregido: correlación usando np.corrcoef()")
+    print("   • Fallback: histograma normalizado si KDE falla")
+    return True

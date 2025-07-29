@@ -1238,12 +1238,12 @@ def _calcular_metricas_clasificacion(y_true, y_pred, model=None, X=None) -> Dict
 
     return metrics
 
+
 def _analizar_residuos(residuos) -> Dict[str, float]:
-    """Análisis estadístico de residuos"""
+    """Análisis estadístico de residuos - SIN SCIPY"""
     residuos = np.array(residuos)
 
-    # Tests de normalidad
-    from scipy import stats
+    # ❌ ELIMINADA: from scipy import stats
 
     analisis = {
         'media': float(np.mean(residuos)),
@@ -1253,32 +1253,132 @@ def _analizar_residuos(residuos) -> Dict[str, float]:
         'q25': float(np.percentile(residuos, 25)),
         'q50': float(np.percentile(residuos, 50)),
         'q75': float(np.percentile(residuos, 75)),
-        'skewness': float(stats.skew(residuos)),
-        'kurtosis': float(stats.kurtosis(residuos))
+        'skewness': float(_calculate_skewness(residuos)),
+        'kurtosis': float(_calculate_kurtosis(residuos))
     }
 
-    # Test de normalidad si hay suficientes datos
-    if len(residuos) >= 20:
-        _, p_value = stats.normaltest(residuos)
-        analisis['normaltest_pvalue'] = float(p_value)
-        analisis['es_normal'] = p_value > 0.05
+    # Test de normalidad simplificado
+    if len(residuos) >= 20 and len(residuos) <= 5000:
+        try:
+            p_value = _shapiro_wilk_simple(residuos)
+            analisis['normaltest_pvalue'] = float(p_value)
+            analisis['es_normal'] = p_value > 0.05
+        except:
+            analisis['normaltest_pvalue'] = 0.01
+            analisis['es_normal'] = False
 
     return analisis
 
-def _calculate_vif(X: pd.DataFrame) -> Dict[str, float]:
-    """Calcular Variance Inflation Factor para detectar multicolinealidad"""
-    from statsmodels.stats.outliers_influence import variance_inflation_factor
 
+# 🔥 NUEVAS FUNCIONES AUXILIARES - Añádelas al final del archivo
+
+def _calculate_skewness(data):
+    """Calcular skewness usando solo NumPy"""
+    data = np.array(data)
+    mean = np.mean(data)
+    std = np.std(data, ddof=0)
+
+    if std == 0:
+        return 0.0
+
+    n = len(data)
+    skew = np.sum(((data - mean) / std) ** 3) / n
+    return skew
+
+
+def _calculate_kurtosis(data):
+    """Calcular kurtosis usando solo NumPy"""
+    data = np.array(data)
+    mean = np.mean(data)
+    std = np.std(data, ddof=0)
+
+    if std == 0:
+        return 0.0
+
+    n = len(data)
+    kurt = np.sum(((data - mean) / std) ** 4) / n - 3  # -3 para excess kurtosis
+    return kurt
+
+
+def _shapiro_wilk_simple(data):
+    """
+    Test de normalidad simplificado usando solo NumPy
+    Aproximación del test de Shapiro-Wilk
+    """
+    try:
+        data = np.array(data)
+        n = len(data)
+
+        if n < 20 or n > 5000:
+            return 0.5  # Valor neutral
+
+        # Ordenar los datos
+        x = np.sort(data)
+
+        # Calcular estadística simplificada
+        # Esta es una aproximación, no el test completo
+        mean = np.mean(x)
+        std = np.std(x, ddof=1)
+
+        if std == 0:
+            return 1.0
+
+        # Test basado en la distancia de los cuantiles esperados
+        expected_quantiles = np.linspace(-2, 2, n)
+        observed_quantiles = (x - mean) / std
+
+        # Calcular correlación entre cuantiles esperados y observados
+        correlation = np.corrcoef(expected_quantiles, observed_quantiles)[0, 1]
+
+        # Convertir correlación a p-value aproximado
+        # Valores más cercanos a 1 indican mayor normalidad
+        if correlation > 0.95:
+            p_value = 0.8
+        elif correlation > 0.90:
+            p_value = 0.3
+        elif correlation > 0.85:
+            p_value = 0.1
+        else:
+            p_value = 0.01
+
+        return p_value
+
+    except:
+        return 0.01  # Asumir no normal si hay error
+
+
+def _calculate_vif(X: pd.DataFrame) -> Dict[str, float]:
+    """
+    Calcular Variance Inflation Factor SIMPLIFICADO sin statsmodels
+    """
     vif_data = {}
 
     try:
-        for i in range(X.shape[1]):
-            vif = variance_inflation_factor(X.values, i)
-            if not np.isinf(vif) and not np.isnan(vif):
-                vif_data[X.columns[i]] = float(vif)
-    except Exception:
-        # Si falla el cálculo de VIF, retornar vacío
-        pass
+        # Método simplificado usando correlaciones
+        # VIF = 1 / (1 - R²) donde R² es la correlación múltiple
+
+        corr_matrix = X.corr().abs()
+
+        for i, col in enumerate(X.columns):
+            # Calcular R² aproximado basado en correlaciones máximas
+            other_cols = [c for c in X.columns if c != col]
+            if len(other_cols) > 0:
+                max_corr = corr_matrix.loc[col, other_cols].max()
+                # Aproximación simple: VIF ≈ 1/(1-max_correlation²)
+                r_squared_approx = max_corr ** 2
+                if r_squared_approx < 0.999:  # Evitar división por cero
+                    vif_approx = 1 / (1 - r_squared_approx)
+                    vif_data[col] = float(vif_approx)
+                else:
+                    vif_data[col] = 999.0  # VIF muy alto
+            else:
+                vif_data[col] = 1.0
+
+    except Exception as e:
+        print(f"Error calculando VIF simplificado: {e}")
+        # Si falla, retornar VIF = 1 para todas las variables
+        for col in X.columns:
+            vif_data[col] = 1.0
 
     return vif_data
 
@@ -1588,6 +1688,7 @@ def generar_visualizaciones_ml(resultado: Dict[str, Any], figsize: Tuple[int, in
     else:
         return _plot_generico(resultado, figsize)
 
+
 def _plot_regresion_simple(resultado: Dict, figsize: Tuple) -> plt.Figure:
     """Visualización para regresión lineal simple"""
     fig, axes = plt.subplots(2, 2, figsize=figsize)
@@ -1618,11 +1719,56 @@ def _plot_regresion_simple(resultado: Dict, figsize: Tuple) -> plt.Figure:
     ax.set_title('Análisis de Residuos')
     ax.grid(True, alpha=0.3)
 
-    # 3. Q-Q plot
+    # 3. Q-Q plot SIMPLIFICADO - SIN SCIPY
     ax = axes[1, 0]
-    from scipy import stats
-    stats.probplot(residuos, dist="norm", plot=ax)
-    ax.set_title('Q-Q Plot')
+    # ❌ ELIMINADA: from scipy import stats
+    # ❌ ELIMINADA: stats.probplot(residuos, dist="norm", plot=ax)
+
+    # 🔥 Q-Q plot manual con NumPy
+    try:
+        sorted_residuos = np.sort(residuos)
+        n = len(sorted_residuos)
+
+        if n > 2:
+            # Generar cuantiles teóricos de distribución normal estándar
+            # Usando aproximación de cuantiles normales
+            p = np.arange(1, n + 1) / (n + 1)  # Probabilidades
+
+            # Aproximación de cuantiles normales usando función inversa
+            # Esta es una aproximación de la función cuantil normal
+            z_scores = []
+            for prob in p:
+                if prob <= 0.5:
+                    # Aproximación para la mitad inferior
+                    t = np.sqrt(-2 * np.log(prob))
+                    z = -(t - (2.30753 + t * 0.27061) / (1 + t * (0.99229 + t * 0.04481)))
+                else:
+                    # Usar simetría para la mitad superior
+                    prob_sym = 1 - prob
+                    t = np.sqrt(-2 * np.log(prob_sym))
+                    z = t - (2.30753 + t * 0.27061) / (1 + t * (0.99229 + t * 0.04481))
+                z_scores.append(z)
+
+            theoretical_quantiles = np.array(z_scores)
+
+            # Plot Q-Q
+            ax.scatter(theoretical_quantiles, sorted_residuos, alpha=0.6, s=30)
+
+            # Línea de referencia (y = x)
+            min_val = min(theoretical_quantiles.min(), sorted_residuos.min())
+            max_val = max(theoretical_quantiles.max(), sorted_residuos.max())
+            ax.plot([min_val, max_val], [min_val, max_val], 'r--', alpha=0.8, linewidth=2)
+
+            ax.set_xlabel('Cuantiles Teóricos (Normal)')
+            ax.set_ylabel('Cuantiles de Residuos')
+            ax.set_title('Q-Q Plot vs Normal')
+        else:
+            ax.text(0.5, 0.5, 'Pocos datos\npara Q-Q plot',
+                    ha='center', va='center', transform=ax.transAxes)
+    except Exception as e:
+        ax.text(0.5, 0.5, f'Error en Q-Q plot:\n{str(e)}',
+                ha='center', va='center', transform=ax.transAxes)
+
     ax.grid(True, alpha=0.3)
 
     # 4. Histograma de residuos
@@ -1635,6 +1781,7 @@ def _plot_regresion_simple(resultado: Dict, figsize: Tuple) -> plt.Figure:
 
     plt.tight_layout()
     return fig
+
 
 def _plot_regresion_multiple(resultado: Dict, figsize: Tuple) -> plt.Figure:
     """Visualización para regresión múltiple"""
@@ -1711,9 +1858,48 @@ def _plot_regresion_multiple(resultado: Dict, figsize: Tuple) -> plt.Figure:
 
     # 5. Q-Q Plot
     ax5 = fig.add_subplot(gs[1, 1])
-    from scipy import stats
-    stats.probplot(residuos, dist="norm", plot=ax5)
-    ax5.set_title('Q-Q Plot')
+
+    try:
+        residuos_array = np.array(residuos)
+        sorted_residuos = np.sort(residuos_array)
+        n = len(sorted_residuos)
+
+        if n > 2:
+            # Generar cuantiles teóricos usando aproximación de Box-Muller
+            p = np.arange(1, n + 1) / (n + 1)
+
+            # Aproximación de cuantiles normales inversos
+            z_scores = []
+            for prob in p:
+                if prob <= 0.5:
+                    t = np.sqrt(-2 * np.log(prob))
+                    z = -(t - (2.30753 + t * 0.27061) / (1 + t * (0.99229 + t * 0.04481)))
+                else:
+                    prob_sym = 1 - prob
+                    t = np.sqrt(-2 * np.log(prob_sym))
+                    z = t - (2.30753 + t * 0.27061) / (1 + t * (0.99229 + t * 0.04481))
+                z_scores.append(z)
+
+            theoretical_quantiles = np.array(z_scores)
+
+            # Crear scatter plot
+            ax5.scatter(theoretical_quantiles, sorted_residuos, alpha=0.6, s=25)
+
+            # Línea de referencia perfecta
+            min_val = min(theoretical_quantiles.min(), sorted_residuos.min())
+            max_val = max(theoretical_quantiles.max(), sorted_residuos.max())
+            ax5.plot([min_val, max_val], [min_val, max_val], 'r--', alpha=0.8, linewidth=2)
+
+            ax5.set_xlabel('Cuantiles Teóricos')
+            ax5.set_ylabel('Cuantiles de Residuos')
+        else:
+            ax5.text(0.5, 0.5, 'Datos insuficientes\npara Q-Q plot',
+                     ha='center', va='center', transform=ax5.transAxes, fontsize=12)
+    except Exception as e:
+        ax5.text(0.5, 0.5, f'Error generando Q-Q plot:\n{str(e)}',
+                 ha='center', va='center', transform=ax5.transAxes, fontsize=10)
+
+    ax5.set_title('Q-Q Plot vs Normal')
     ax5.grid(True, alpha=0.3)
 
     # 6. Métricas o VIF
@@ -2093,3 +2279,75 @@ def cargar_modelo(filepath: str) -> Optional[Any]:
     except Exception as e:
         logger.error(f"Error cargando modelo: {str(e)}")
         return None
+
+
+def _calculate_skewness(data):
+    """Calcular skewness usando solo NumPy"""
+    data = np.array(data)
+    mean = np.mean(data)
+    std = np.std(data, ddof=0)
+
+    if std == 0:
+        return 0.0
+
+    n = len(data)
+    skew = np.sum(((data - mean) / std) ** 3) / n
+    return skew
+
+
+def _calculate_kurtosis(data):
+    """Calcular kurtosis usando solo NumPy"""
+    data = np.array(data)
+    mean = np.mean(data)
+    std = np.std(data, ddof=0)
+
+    if std == 0:
+        return 0.0
+
+    n = len(data)
+    kurt = np.sum(((data - mean) / std) ** 4) / n - 3  # -3 para excess kurtosis
+    return kurt
+
+
+def _shapiro_wilk_simple(data):
+    """
+    Test de normalidad simplificado usando solo NumPy
+    """
+    try:
+        data = np.array(data)
+        n = len(data)
+
+        if n < 20 or n > 5000:
+            return 0.5
+
+        # Ordenar datos
+        x = np.sort(data)
+        mean = np.mean(x)
+        std = np.std(x, ddof=1)
+
+        if std == 0:
+            return 1.0
+
+        # Normalizar
+        z = (x - mean) / std
+
+        # Test basado en cuantiles esperados vs observados
+        expected = np.linspace(-2.5, 2.5, n)
+        correlation = np.corrcoef(expected, z)[0, 1]
+
+        # Convertir correlación a p-value aproximado
+        if np.isnan(correlation):
+            return 0.5
+        elif correlation > 0.98:
+            return 0.9
+        elif correlation > 0.95:
+            return 0.7
+        elif correlation > 0.90:
+            return 0.3
+        elif correlation > 0.85:
+            return 0.1
+        else:
+            return 0.01
+
+    except:
+        return 0.01

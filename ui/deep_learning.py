@@ -30,7 +30,14 @@ except ImportError:
 
 # Para mantener consistencia con tu proyecto
 try:
-    from darkmode.theme_manager import ThemedWidget
+    # from darkmode.ui_theme_manager import ThemedWidget  # COMENTADA
+    class ThemedWidget:
+        def __init__(self):
+            pass
+
+        def apply_theme(self):
+            pass
+
 except ImportError:
     class ThemedWidget:
         def __init__(self):

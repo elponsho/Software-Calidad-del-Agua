@@ -21,7 +21,13 @@ from ui.machine_learning.wqi_calculator import WQICalculationEngine, TemporalAna
 
 # Importar sistema de temas
 try:
-    from darkmode import ThemedWidget
+    # from darkmode import ThemedWidget  # COMENTADA
+    class ThemedWidget:
+        def __init__(self):
+            pass
+
+        def apply_theme(self):
+            pass
 except ImportError:
     class ThemedWidget:
         def __init__(self):

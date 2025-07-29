@@ -6,6 +6,6 @@ Este módulo proporciona:
 - ThemedWidget: Clase base para widgets que soportan temas
 """
 
-from .theme_manager import ThemeManager, ThemedWidget
+from .ui_theme_manager import ThemeManager, ThemedWidget
 
 __all__ = ['ThemeManager', 'ThemedWidget']

@@ -75,7 +75,18 @@ except ImportError as e:
 
 # Importar sistema de temas
 try:
-    from darkmode.theme_manager import ThemedWidget, ThemeManager
+    # from darkmode.ui_theme_manager import ThemedWidget, ThemeManager  # COMENTADA
+    class ThemedWidget:
+        def __init__(self):
+            pass
+
+        def apply_theme(self):
+            pass
+
+
+    class ThemeManager:
+        def __init__(self):
+            pass
 except ImportError:
     class ThemedWidget(QWidget):
         def __init__(self, *args, **kwargs):

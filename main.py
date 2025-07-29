@@ -102,8 +102,13 @@ except ImportError as e:
 
 # Importar sistema de temas
 try:
-    from darkmode.theme_manager import ThemedWidget
+    # from darkmode.ui_theme_manager import ThemedWidget  # COMENTADA
+    class ThemedWidget:
+        def __init__(self):
+            pass
 
+        def apply_theme(self):
+            pass
     print("✅ ThemedWidget importado correctamente")
 except ImportError as e:
     print(f"❌ Error importando ThemedWidget: {e}")

@@ -5,25 +5,24 @@ from PyQt5.QtGui import QFont, QIcon
 
 # Importar sistema de temas
 try:
-    from darkmode.theme_manager import ThemedWidget, ThemeManager
+    # from darkmode.ui_theme_manager import ThemedWidget, ThemeManager  # COMENTADA
+    raise ImportError("Comentado temporalmente")
 except ImportError:
     try:
-        from darkmode import ThemedWidget, ThemeManager
+        # from darkmode import ThemedWidget, ThemeManager  # COMENTADA
+        raise ImportError("Comentado temporalmente")
     except ImportError:
-        # Fallback si no existe darkmode
         class ThemedWidget:
             def __init__(self):
                 pass
 
-
-        class ThemeManager:
-            @staticmethod
-            def toggle_theme():
+            def apply_theme(self):
                 pass
 
-            @staticmethod
-            def is_dark_theme():
-                return False
+
+        class ThemeManager:
+            def __init__(self):
+                pass
 
 
 class MenuPrincipal(QWidget, ThemedWidget):

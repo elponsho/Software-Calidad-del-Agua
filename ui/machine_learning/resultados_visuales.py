@@ -23,8 +23,12 @@ except ImportError as e:
     print(f"Warning: matplotlib not available: {e}")
     MATPLOTLIB_AVAILABLE = False
 
-from darkmode import ThemedWidget
-
+# from darkmode import ThemedWidget  # COMENTADA TEMPORALMENTE
+class ThemedWidget:
+    def __init__(self):
+        pass
+    def apply_theme(self):
+        pass
 
 class ResultadosVisuales(QWidget, ThemedWidget):
     """Widget para mostrar resultados de análisis ML con múltiples pestañas"""

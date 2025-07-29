@@ -22,7 +22,13 @@ from PyQt5.QtGui import QFont, QColor, QPixmap, QPainter
 
 # Importar sistema de temas
 try:
-    from darkmode import ThemedWidget
+    # from darkmode import ThemedWidget  # COMENTADA
+    class ThemedWidget:
+        def __init__(self):
+            pass
+
+        def apply_theme(self):
+            pass
 except ImportError:
     class ThemedWidget:
         def __init__(self):

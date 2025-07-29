@@ -20,10 +20,23 @@ from PyQt5.QtWidgets import QPushButton, QSizePolicy
 
 # Importar sistema de temas
 try:
-    from darkmode.theme_manager import ThemedWidget, ThemeManager
+    from darkmode.ui_theme_manager import ThemedWidget, ThemeManager
 except ImportError:
     try:
-        from darkmode import ThemedWidget, ThemeManager
+        # from darkmode import ThemedWidget, ThemeManager  # COMENTADA
+        raise ImportError("Comentado temporalmente")
+    except ImportError:
+        class ThemedWidget:
+            def __init__(self):
+                pass
+
+            def apply_theme(self):
+                pass
+
+
+        class ThemeManager:
+            def __init__(self):
+                pass
     except ImportError:
         # Fallback si no existe darkmode
         class ThemedWidget:

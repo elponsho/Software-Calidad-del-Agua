@@ -12,7 +12,18 @@ from PyQt5.QtCore import Qt, QThread, pyqtSignal
 from PyQt5.QtGui import QFont
 
 # Importar sistema de temas
-from darkmode import ThemedWidget, ThemeManager
+# from darkmode import ThemedWidget, ThemeManager  # COMENTADA TEMPORALMENTE
+class ThemedWidget:
+    def __init__(self):
+        pass
+    def apply_theme(self):
+        pass
+
+class ThemeManager:
+    def __init__(self):
+        pass
+    def apply_theme(self):
+        pass
 from resultados_visuales import ResultadosVisuales
 from data_cache import DataCache
 
