@@ -1243,7 +1243,6 @@ def _analizar_residuos(residuos) -> Dict[str, float]:
     """Análisis estadístico de residuos - SIN SCIPY"""
     residuos = np.array(residuos)
 
-    # ❌ ELIMINADA: from scipy import stats
 
     analisis = {
         'media': float(np.mean(residuos)),

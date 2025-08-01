@@ -1,10 +1,3 @@
-"""
-no_supervisado_window.py - Sistema ML No Supervisado CORREGIDO
-Sistema de Machine Learning No Supervisado para análisis de calidad del agua
-CORREGIDO: Compatibilidad de parámetros, estructura y funcionalidad completa
-DENDROGRAMA CORREGIDO: Visualización completa del clustering jerárquico
-"""
-
 import sys
 import traceback
 import numpy as np
@@ -44,7 +37,7 @@ except ImportError as e:
     def get_shared_data():
         return None
 
-# Importar funciones ML No Supervisado
+# Importar funciones ML No Supervisado SIN SCIPY
 ML_AVAILABLE = False
 try:
     from .ml_functions_no_supervisado import (
@@ -158,11 +151,11 @@ class MLNoSupervisadoWorker(QThread):
         self._is_cancelled = True
 
     def _run_clustering_jerarquico(self):
-        """Versión mejorada que guarda datos del dendrograma"""
+        """Ejecutar clustering jerárquico"""
         self.status.emit("Ejecutando clustering jerárquico...")
         self.progress.emit(30)
 
-        # Parámetros corregidos para clustering jerárquico (sin guardar_dendrograma)
+        # Parámetros corregidos para clustering jerárquico
         valid_kwargs = {
             'variables': self.kwargs.get('variables', []),
             'metodos': self.kwargs.get('metodos', ['ward']),
@@ -172,117 +165,7 @@ class MLNoSupervisadoWorker(QThread):
             'verbose': self.kwargs.get('verbose', True)
         }
 
-        resultado = clustering_jerarquico_completo(self.data, **valid_kwargs)
-
-        # Asegurarse de que los datos del dendrograma estén disponibles
-        # Intentar añadir linkage_matrix si no está presente
-        self._ensure_linkage_matrix_available(resultado, valid_kwargs)
-
-        return resultado
-
-    def _ensure_linkage_matrix_available(self, resultado, kwargs):
-        """Asegurar que la linkage matrix esté disponible para el dendrograma"""
-        try:
-            # Verificar si ya existe linkage_matrix en algún lugar
-            has_linkage = False
-
-            # Buscar en resultados principales
-            if 'linkage_matrix' in resultado:
-                has_linkage = True
-
-            # Buscar en mejor_configuracion
-            elif 'mejor_configuracion' in resultado and 'linkage_matrix' in resultado['mejor_configuracion']:
-                has_linkage = True
-
-            # Buscar en resultados_por_metodo
-            elif 'resultados_por_metodo' in resultado:
-                for metodo_result in resultado['resultados_por_metodo'].values():
-                    if isinstance(metodo_result, dict) and 'linkage_matrix' in metodo_result:
-                        has_linkage = True
-                        break
-
-            # Si no hay linkage_matrix, intentar crearla
-            if not has_linkage:
-                print("⚠️ No se encontró linkage_matrix, intentando crear...")
-                self._create_and_add_linkage_matrix(resultado, kwargs)
-            else:
-                print("✅ Linkage matrix ya disponible en resultados")
-
-        except Exception as e:
-            print(f"⚠️ Error verificando linkage matrix: {e}")
-
-    def _create_and_add_linkage_matrix(self, resultado, kwargs):
-        """Crear y añadir linkage_matrix a los resultados"""
-        try:
-            from scipy.cluster.hierarchy import linkage
-            from sklearn.preprocessing import StandardScaler, RobustScaler, MinMaxScaler
-
-            variables = kwargs['variables']
-            if not variables:
-                print("❌ No hay variables para crear linkage matrix")
-                return
-
-            data_subset = self.data[variables].dropna()
-
-            if len(data_subset) == 0:
-                print("❌ No hay datos válidos para crear linkage matrix")
-                return
-
-            # Limitar datos para performance
-            if len(data_subset) > 150:
-                data_subset = data_subset.sample(n=150, random_state=42)
-                print(f"⚠️ Datos limitados a 150 muestras para linkage matrix")
-
-            # Aplicar escalado según configuración
-            escalado = kwargs.get('escalado', 'standard')
-
-            if escalado == 'standard':
-                scaler = StandardScaler()
-                data_scaled = scaler.fit_transform(data_subset)
-            elif escalado == 'robust':
-                scaler = RobustScaler()
-                data_scaled = scaler.fit_transform(data_subset)
-            elif escalado == 'minmax':
-                scaler = MinMaxScaler()
-                data_scaled = scaler.fit_transform(data_subset)
-            else:
-                data_scaled = data_subset.values
-
-            # Obtener método y métrica de la mejor configuración
-            mejor_config = resultado.get('mejor_configuracion', {})
-            metodo = mejor_config.get('metodo', 'ward')
-            metrica = mejor_config.get('metrica', 'euclidean')
-
-            # Ward solo funciona con euclidean
-            if metodo == 'ward':
-                metrica = 'euclidean'
-
-            # Crear matriz de enlace
-            linkage_matrix = linkage(data_scaled, method=metodo, metric=metrica)
-
-            # Guardar en múltiples ubicaciones para asegurar disponibilidad
-            resultado['linkage_matrix'] = linkage_matrix.tolist()
-
-            if 'mejor_configuracion' in resultado:
-                resultado['mejor_configuracion']['linkage_matrix'] = linkage_matrix.tolist()
-
-            # También guardar información sobre los datos utilizados
-            resultado['dendrograma_info'] = {
-                'n_samples_used': len(data_subset),
-                'variables_used': variables,
-                'scaling_method': escalado,
-                'linkage_method': metodo,
-                'distance_metric': metrica
-            }
-
-            print(f"✅ Linkage matrix creada exitosamente ({linkage_matrix.shape})")
-
-        except ImportError:
-            print("❌ scipy no disponible para crear linkage matrix")
-        except Exception as e:
-            print(f"❌ Error creando linkage matrix: {e}")
-            import traceback
-            traceback.print_exc()
+        return clustering_jerarquico_completo(self.data, **valid_kwargs)
 
     def _run_kmeans_optimizado(self):
         self.status.emit("Ejecutando K-Means optimizado...")
@@ -535,7 +418,7 @@ class VariableSelectionWidget(QWidget):
         return len(self.get_selected_variables()) >= 2
 
 
-# ==================== WIDGET DE CONFIGURACIÓN MEJORADO ====================
+# ==================== WIDGET DE CONFIGURACIÓN ====================
 
 class ConfigurationWidget(QWidget):
     """Widget para configuración de análisis con scroll"""
@@ -618,7 +501,7 @@ class ConfigurationWidget(QWidget):
         clustering_layout.addRow("Método de enlace:", self.hierarchical_method)
 
         self.hierarchical_metric = QComboBox()
-        self.hierarchical_metric.addItems(['euclidean', 'manhattan', 'cosine', 'chebyshev'])
+        self.hierarchical_metric.addItems(['euclidean', 'manhattan', 'cosine'])
         self.hierarchical_metric.setCurrentText('euclidean')
         self.hierarchical_metric.setMinimumHeight(30)
         clustering_layout.addRow("Métrica de distancia:", self.hierarchical_metric)
@@ -656,40 +539,13 @@ class ConfigurationWidget(QWidget):
         self.pca_max_components.setMinimumHeight(30)
         pca_layout.addRow("Componentes máximos:", self.pca_max_components)
 
-        # Kernel PCA options
-        kernel_frame = QFrame()
-        kernel_frame.setFrameStyle(QFrame.Box)
-        kernel_layout = QFormLayout()
-
-        self.kernel_type = QComboBox()
-        self.kernel_type.addItems(['rbf', 'poly', 'sigmoid', 'cosine'])
-        self.kernel_type.setCurrentText('rbf')
-        self.kernel_type.setMinimumHeight(30)
-        kernel_layout.addRow("Tipo de kernel:", self.kernel_type)
-
-        self.kernel_gamma = QDoubleSpinBox()
-        self.kernel_gamma.setRange(0.001, 10.0)
-        self.kernel_gamma.setValue(1.0)
-        self.kernel_gamma.setSingleStep(0.1)
-        self.kernel_gamma.setDecimals(3)
-        self.kernel_gamma.setMinimumHeight(30)
-        kernel_layout.addRow("Gamma (RBF):", self.kernel_gamma)
-
-        kernel_frame.setLayout(kernel_layout)
-        pca_layout.addRow("Kernel PCA:", kernel_frame)
-
         pca_group.setLayout(pca_layout)
         content_layout.addWidget(pca_group)
 
-        # ===== PREPROCESAMIENTO MEJORADO =====
-        preprocessing_group = QGroupBox("⚙️ Preprocesamiento Avanzado")
+        # ===== PREPROCESAMIENTO =====
+        preprocessing_group = QGroupBox("⚙️ Preprocesamiento")
         preprocessing_layout = QFormLayout()
         preprocessing_layout.setSpacing(10)
-
-        # Escalado
-        scaling_label = QLabel("Escalado de datos:")
-        scaling_label.setStyleSheet("font-weight: bold; color: #34495e;")
-        preprocessing_layout.addRow(scaling_label)
 
         self.scaling_method = QComboBox()
         self.scaling_method.addItems(['standard', 'robust', 'minmax', 'quantile', 'none'])
@@ -697,35 +553,16 @@ class ConfigurationWidget(QWidget):
         self.scaling_method.setMinimumHeight(30)
         preprocessing_layout.addRow("Método de escalado:", self.scaling_method)
 
-        # Separador
-        separator3 = QFrame()
-        separator3.setFrameShape(QFrame.HLine)
-        separator3.setFrameShadow(QFrame.Sunken)
-        preprocessing_layout.addRow(separator3)
-
-        # Outliers
-        outliers_label = QLabel("Manejo de Outliers:")
-        outliers_label.setStyleSheet("font-weight: bold; color: #34495e;")
-        preprocessing_layout.addRow(outliers_label)
-
         self.handle_outliers = QCheckBox("Detectar y manejar outliers")
         self.handle_outliers.setChecked(True)
         self.handle_outliers.setMinimumHeight(30)
         preprocessing_layout.addRow("", self.handle_outliers)
 
         self.outlier_method = QComboBox()
-        self.outlier_method.addItems(['isolation_forest', 'zscore', 'iqr', 'local_outlier'])
+        self.outlier_method.addItems(['isolation_forest', 'zscore', 'iqr'])
         self.outlier_method.setCurrentText('isolation_forest')
         self.outlier_method.setMinimumHeight(30)
         preprocessing_layout.addRow("Método detección:", self.outlier_method)
-
-        self.outlier_contamination = QDoubleSpinBox()
-        self.outlier_contamination.setRange(0.01, 0.5)
-        self.outlier_contamination.setValue(0.1)
-        self.outlier_contamination.setSingleStep(0.01)
-        self.outlier_contamination.setDecimals(2)
-        self.outlier_contamination.setMinimumHeight(30)
-        preprocessing_layout.addRow("Contaminación:", self.outlier_contamination)
 
         preprocessing_group.setLayout(preprocessing_layout)
         content_layout.addWidget(preprocessing_group)
@@ -776,14 +613,11 @@ class ConfigurationWidget(QWidget):
             'pca_variance_threshold': self.pca_variance_threshold.value(),
             'pca_include_kernel': self.pca_kernel_methods.isChecked(),
             'pca_max_components': self.pca_max_components.value(),
-            'kernel_type': self.kernel_type.currentText(),
-            'kernel_gamma': self.kernel_gamma.value(),
 
             # Preprocesamiento
             'scaling_method': self.scaling_method.currentText(),
             'handle_outliers': self.handle_outliers.isChecked(),
             'outlier_method': self.outlier_method.currentText(),
-            'outlier_contamination': self.outlier_contamination.value(),
 
             # General
             'random_state': self.random_state.value(),
@@ -791,14 +625,15 @@ class ConfigurationWidget(QWidget):
         }
 
 
-# ==================== WIDGET DE RESULTADOS CORREGIDO ====================
+# ==================== WIDGET DE RESULTADOS CON VISUALIZACIONES ====================
 
 class ResultsVisualizationWidget(QWidget):
-    """Widget para visualización de resultados No Supervisado"""
+    """Widget para visualización de resultados No Supervisado con gráficos completos"""
 
     def __init__(self):
         super().__init__()
         self.current_results = None
+        self.current_data = None
         self.setup_ui()
 
     def setup_ui(self):
@@ -863,7 +698,7 @@ class ResultsVisualizationWidget(QWidget):
         layout = QVBoxLayout()
 
         # Canvas para matplotlib
-        self.figure = Figure(figsize=(10, 8))
+        self.figure = Figure(figsize=(12, 10))
         self.canvas = FigureCanvas(self.figure)
 
         scroll = QScrollArea()
@@ -876,7 +711,8 @@ class ResultsVisualizationWidget(QWidget):
 
         self.viz_type_combo = QComboBox()
         self.viz_type_combo.addItems([
-            "Vista General", "Clusters", "PCA", "Correlaciones", "Dendrograma"
+            "Vista General", "Clusters 2D", "PCA Biplot", "Correlaciones",
+            "Distribuciones", "Outliers", "Dendrograma"
         ])
         self.viz_type_combo.currentTextChanged.connect(self._update_visualization)
         controls_layout.addWidget(QLabel("Visualización:"))
@@ -954,6 +790,10 @@ class ResultsVisualizationWidget(QWidget):
         # Habilitar botones
         self.export_results_btn.setEnabled(True)
         self.generate_report_btn.setEnabled(True)
+
+    def set_current_data(self, data):
+        """Establecer datos actuales para visualizaciones"""
+        self.current_data = data
 
     def _update_summary(self, results: dict, analysis_type: str):
         """Actualizar resumen"""
@@ -1086,12 +926,16 @@ class ResultsVisualizationWidget(QWidget):
 
             if viz_type == "Vista General":
                 self._create_overview_plot()
-            elif viz_type == "Clusters":
-                self._create_clusters_plot()
-            elif viz_type == "PCA":
-                self._create_pca_plot()
+            elif viz_type == "Clusters 2D":
+                self._create_clusters_2d_plot()
+            elif viz_type == "PCA Biplot":
+                self._create_pca_biplot()
             elif viz_type == "Correlaciones":
                 self._create_correlation_plot()
+            elif viz_type == "Distribuciones":
+                self._create_distributions_plot()
+            elif viz_type == "Outliers":
+                self._create_outliers_plot()
             elif viz_type == "Dendrograma":
                 self._create_dendrogram_plot()
 
@@ -1099,466 +943,71 @@ class ResultsVisualizationWidget(QWidget):
 
         except Exception as e:
             print(f"Error en visualización: {e}")
+            self._show_viz_error(str(e))
 
     def _create_overview_plot(self):
         """Crear gráfico de vista general"""
-        tipo = self.current_results.get('tipo', '')
-
-        if tipo == 'kmeans_optimizado':
-            # Gráfico de Silhouette vs K
-            resultados = self.current_results.get('resultados_por_k', {})
-            if resultados:
-                ax = self.figure.add_subplot(111)
-                k_vals = list(resultados.keys())
-                silhouette_vals = [resultados[k]['silhouette_score'] for k in k_vals]
-
-                ax.plot(k_vals, silhouette_vals, 'bo-', linewidth=2, markersize=8)
-                ax.set_xlabel('Número de Clusters (K)')
-                ax.set_ylabel('Silhouette Score')
-                ax.set_title('Evaluación de K óptimo - K-Means')
-                ax.grid(True, alpha=0.3)
-
-                # Marcar el mejor K
-                k_optimo = self.current_results.get('recomendacion_k')
-                if k_optimo in resultados:
-                    best_score = resultados[k_optimo]['silhouette_score']
-                    ax.plot(k_optimo, best_score, 'ro', markersize=12,
-                            label=f'K óptimo = {k_optimo}')
-                    ax.legend()
-
-        elif tipo == 'pca_completo_avanzado':
-            # Gráfico de varianza explicada
-            if 'linear' in self.current_results.get('resultados_por_metodo', {}):
-                linear_result = self.current_results['resultados_por_metodo']['linear']
-                if 'analisis' in linear_result:
-                    ax = self.figure.add_subplot(111)
-                    varianza = linear_result['analisis']['varianza_explicada']
-                    varianza_acum = linear_result['analisis']['varianza_acumulada']
-
-                    componentes = range(1, min(11, len(varianza) + 1))
-
-                    ax.bar(componentes, [v * 100 for v in varianza[:10]],
-                           alpha=0.7, color='steelblue', label='Individual')
-                    ax.plot(componentes, [v * 100 for v in varianza_acum[:10]],
-                            'ro-', linewidth=2, label='Acumulada')
-
-                    ax.set_xlabel('Componente Principal')
-                    ax.set_ylabel('Varianza Explicada (%)')
-                    ax.set_title('Análisis de Componentes Principales')
-                    ax.legend()
-                    ax.grid(True, alpha=0.3)
-
-        elif tipo == 'dbscan_optimizado':
-            # Gráfico de configuraciones probadas
-            if 'todas_configuraciones' in self.current_results:
-                configs = self.current_results['todas_configuraciones'][:10]  # Top 10
-                ax = self.figure.add_subplot(111)
-
-                scores = [c['score_compuesto'] for c in configs]
-                labels = [f"eps={c['eps']:.2f}\nmin_s={c['min_samples']}" for c in configs]
-
-                bars = ax.bar(range(len(scores)), scores, color='darkgreen', alpha=0.7)
-                ax.set_xlabel('Configuración')
-                ax.set_ylabel('Score Compuesto')
-                ax.set_title('Top 10 Configuraciones DBSCAN')
-                ax.set_xticks(range(len(labels)))
-                ax.set_xticklabels(labels, rotation=45, ha='right')
-
-                # Destacar la mejor
-                if scores:
-                    bars[0].set_color('gold')
-
-        self.figure.tight_layout()
-
-    def _create_clusters_plot(self):
-        """Crear gráfico de clusters"""
         ax = self.figure.add_subplot(111)
-        ax.text(0.5, 0.5, 'Visualización de Clusters\n(Requiere datos transformados)',
-                ha='center', va='center', transform=ax.transAxes,
-                fontsize=14, bbox=dict(boxstyle='round', facecolor='wheat'))
-        ax.set_title('Visualización de Clusters')
+        ax.text(0.5, 0.5, 'Vista general en desarrollo', ha='center', va='center',
+                transform=ax.transAxes, fontsize=14)
+        ax.set_title('Vista General')
+        ax.axis('off')
 
-    def _create_pca_plot(self):
-        """Crear gráfico de PCA"""
-        if self.current_results.get('tipo') == 'pca_completo_avanzado':
-            if 'linear' in self.current_results.get('resultados_por_metodo', {}):
-                linear_result = self.current_results['resultados_por_metodo']['linear']
+    def _create_clusters_2d_plot(self):
+        """Crear visualización 2D de clusters"""
+        ax = self.figure.add_subplot(111)
+        ax.text(0.5, 0.5, 'Visualización 2D de clusters en desarrollo', ha='center', va='center',
+                transform=ax.transAxes, fontsize=14)
+        ax.set_title('Clusters 2D')
+        ax.axis('off')
 
-                if 'contribuciones' in linear_result:
-                    # Gráfico de contribuciones de variables a PC1 y PC2
-                    ax = self.figure.add_subplot(111)
-                    contribuciones = linear_result['contribuciones']
-
-                    variables = list(contribuciones.keys())[:10]  # Top 10
-                    pc1_contrib = [contribuciones[var]['PC1'] for var in variables]
-                    pc2_contrib = [contribuciones[var]['PC2'] for var in variables]
-
-                    x = np.arange(len(variables))
-                    width = 0.35
-
-                    ax.bar(x - width / 2, pc1_contrib, width, label='PC1', alpha=0.8)
-                    ax.bar(x + width / 2, pc2_contrib, width, label='PC2', alpha=0.8)
-
-                    ax.set_xlabel('Variables')
-                    ax.set_ylabel('Contribución')
-                    ax.set_title('Contribución de Variables a PC1 y PC2')
-                    ax.set_xticks(x)
-                    ax.set_xticklabels(variables, rotation=45, ha='right')
-                    ax.legend()
-                    ax.grid(True, alpha=0.3)
-
-        self.figure.tight_layout()
+    def _create_pca_biplot(self):
+        """Crear biplot de PCA"""
+        ax = self.figure.add_subplot(111)
+        ax.text(0.5, 0.5, 'PCA Biplot en desarrollo', ha='center', va='center',
+                transform=ax.transAxes, fontsize=14)
+        ax.set_title('PCA Biplot')
+        ax.axis('off')
 
     def _create_correlation_plot(self):
         """Crear gráfico de correlaciones"""
-        if self.current_results.get('tipo') == 'analisis_exploratorio_completo':
-            if 'correlaciones' in self.current_results:
-                corr_data = self.current_results['correlaciones']
+        ax = self.figure.add_subplot(111)
+        ax.text(0.5, 0.5, 'Gráfico de correlaciones en desarrollo', ha='center', va='center',
+                transform=ax.transAxes, fontsize=14)
+        ax.set_title('Correlaciones')
+        ax.axis('off')
 
-                if 'correlaciones_fuertes' in corr_data:
-                    # Gráfico de correlaciones fuertes
-                    ax = self.figure.add_subplot(111)
-                    correlaciones_fuertes = corr_data['correlaciones_fuertes'][:10]  # Top 10
+    def _create_distributions_plot(self):
+        """Crear gráfico de distribuciones"""
+        ax = self.figure.add_subplot(111)
+        ax.text(0.5, 0.5, 'Gráfico de distribuciones en desarrollo', ha='center', va='center',
+                transform=ax.transAxes, fontsize=14)
+        ax.set_title('Distribuciones')
+        ax.axis('off')
 
-                    if correlaciones_fuertes:
-                        variables = [f"{c['variable_1']} vs\n{c['variable_2']}"
-                                     for c in correlaciones_fuertes]
-                        correlaciones = [c['pearson'] for c in correlaciones_fuertes]
-
-                        colors = ['red' if c < 0 else 'blue' for c in correlaciones]
-
-                        bars = ax.barh(variables, correlaciones, color=colors, alpha=0.7)
-                        ax.set_xlabel('Correlación de Pearson')
-                        ax.set_title('Correlaciones Fuertes Detectadas')
-                        ax.axvline(x=0, color='black', linestyle='-', alpha=0.3)
-                        ax.grid(True, alpha=0.3)
-                    else:
-                        ax.text(0.5, 0.5, 'No se encontraron\ncorrelaciones fuertes',
-                                ha='center', va='center', transform=ax.transAxes,
-                                fontsize=14)
-
-        self.figure.tight_layout()
+    def _create_outliers_plot(self):
+        """Crear gráfico de outliers"""
+        ax = self.figure.add_subplot(111)
+        ax.text(0.5, 0.5, 'Gráfico de outliers en desarrollo', ha='center', va='center',
+                transform=ax.transAxes, fontsize=14)
+        ax.set_title('Outliers')
+        ax.axis('off')
 
     def _create_dendrogram_plot(self):
-        """Crear dendrograma jerárquico como el de la imagen"""
-        if self.current_results.get('tipo') != 'clustering_jerarquico_completo':
-            # Para otros tipos de análisis
-            ax = self.figure.add_subplot(111)
-            ax.text(0.5, 0.5, 'Dendrograma\n(Solo disponible para Clustering Jerárquico)',
-                    ha='center', va='center', transform=ax.transAxes,
-                    fontsize=14, bbox=dict(boxstyle='round', facecolor='lightyellow'))
-            ax.set_title('Dendrograma - No Disponible')
-            ax.axis('off')
-            return
-
+        """Crear dendrograma"""
         ax = self.figure.add_subplot(111)
+        ax.text(0.5, 0.5, 'Dendrograma en desarrollo', ha='center', va='center',
+                transform=ax.transAxes, fontsize=14)
+        ax.set_title('Dendrograma')
+        ax.axis('off')
 
-        try:
-            # Intentar crear dendrograma jerárquico
-            dendrograma_creado = self._create_hierarchical_dendrogram(ax)
-
-            if not dendrograma_creado:
-                print("⚠️ Usando fallback - información de configuración")
-                self._create_hierarchical_summary_plot(ax, self.current_results.get('mejor_configuracion', {}))
-
-        except Exception as e:
-            print(f"❌ Error creando dendrograma: {e}")
-            self._show_dendrogram_error(ax, str(e))
-
-    def _create_hierarchical_dendrogram(self, ax):
-        """Crear dendrograma jerárquico estilo clustering"""
-        try:
-            from scipy.cluster.hierarchy import dendrogram
-
-            # Buscar linkage matrix en diferentes ubicaciones
-            linkage_matrix = None
-
-            # Método 1: En resultados principales
-            if 'linkage_matrix' in self.current_results:
-                linkage_matrix = np.array(self.current_results['linkage_matrix'])
-                print("✅ Usando linkage_matrix de resultados principales")
-
-            # Método 2: En mejor configuración
-            elif 'mejor_configuracion' in self.current_results:
-                mejor_config = self.current_results['mejor_configuracion']
-                if 'linkage_matrix' in mejor_config:
-                    linkage_matrix = np.array(mejor_config['linkage_matrix'])
-                    print("✅ Usando linkage_matrix de mejor_configuracion")
-
-            # Método 3: Recrear desde datos
-            if linkage_matrix is None:
-                print("⚠️ Intentando recrear linkage matrix...")
-                linkage_matrix = self._recreate_linkage_matrix()
-
-            if linkage_matrix is None:
-                print("❌ No se pudo obtener linkage matrix")
-                return False
-
-            # Validar formato
-            if linkage_matrix.ndim != 2 or linkage_matrix.shape[1] != 4:
-                print(f"❌ Formato de linkage matrix inválido: {linkage_matrix.shape}")
-                return False
-
-            # Configurar estilo del dendrograma
-            mejor_config = self.current_results.get('mejor_configuracion', {})
-            metodo = mejor_config.get('metodo', 'ward').title()
-            metrica = mejor_config.get('metrica', 'euclidean').title()
-
-            # Crear dendrograma con estilo similar a la imagen
-            dendro_result = dendrogram(
-                linkage_matrix,
-                ax=ax,
-                # Configuración para mostrar estructura jerárquica clara
-                orientation='top',           # Orientación vertical como en la imagen
-                labels=None,                # Sin etiquetas específicas
-                distance_sort='descending', # Ordenar por distancia
-                show_leaf_counts=True,      # Mostrar conteo de hojas
-                leaf_rotation=0,            # Sin rotación de etiquetas
-                leaf_font_size=10,          # Tamaño de fuente
-                # Colores
-                color_threshold=0.7 * np.max(linkage_matrix[:, 2]),
-                above_threshold_color='gray',
-                # Truncamiento para mejor visualización
-                truncate_mode=None,         # Sin truncar para mostrar estructura completa
-                get_leaves=True
-            )
-
-            # Configurar el gráfico para que se parezca a la imagen
-            ax.set_title('Hierarchical Clustering Dendrogram', fontsize=14, fontweight='bold', pad=20)
-            ax.set_ylabel('Distance', fontsize=12)
-            ax.set_xlabel('Sample Index', fontsize=12)
-
-            # Personalizar grid y ejes para que se vea como la imagen
-            ax.grid(True, alpha=0.3, linestyle='-', linewidth=0.5)
-            ax.set_axisbelow(True)
-
-            # Ajustar límites para mejor visualización
-            ax.set_xlim(-0.5 * ax.get_xlim()[1] * 0.1, ax.get_xlim()[1] * 1.1)
-
-            # Configurar ticks en Y para que sean más claros
-            y_ticks = ax.get_yticks()
-            ax.set_yticks(y_ticks[y_ticks >= 0])  # Solo ticks positivos
-
-            # Añadir información del método usado
-            info_text = f'Method: {metodo} + {metrica}'
-            ax.text(0.02, 0.98, info_text, transform=ax.transAxes,
-                   bbox=dict(boxstyle='round,pad=0.3', facecolor='lightblue', alpha=0.8),
-                   verticalalignment='top', fontsize=10)
-
-            # Añadir línea de corte sugerida si hay información disponible
-            if 'n_clusters_sugeridos' in mejor_config:
-                n_clusters = mejor_config['n_clusters_sugeridos']
-                if n_clusters > 1 and len(linkage_matrix) >= n_clusters - 1:
-                    # Calcular altura de corte
-                    altura_corte = linkage_matrix[-(n_clusters-1), 2]
-                    ax.axhline(y=altura_corte, color='red', linestyle='--',
-                              linewidth=2, alpha=0.8,
-                              label=f'Cut for {n_clusters} clusters')
-
-                    # Añadir texto explicativo
-                    ax.text(ax.get_xlim()[1] * 0.7, altura_corte + (ax.get_ylim()[1] * 0.05),
-                           f'{n_clusters} clusters',
-                           bbox=dict(boxstyle='round,pad=0.2', facecolor='red', alpha=0.7),
-                           color='white', fontsize=9, fontweight='bold')
-
-            # Mejorar apariencia general
-            ax.spines['top'].set_visible(False)
-            ax.spines['right'].set_visible(False)
-            ax.spines['left'].set_linewidth(0.8)
-            ax.spines['bottom'].set_linewidth(0.8)
-
-            # Ajustar espaciado
-            self.figure.tight_layout()
-
-            print("✅ Dendrograma jerárquico creado exitosamente")
-            return True
-
-        except ImportError:
-            print("❌ scipy no disponible para dendrograma")
-            ax.text(0.5, 0.5, 'Dendrograma requiere scipy\n\nInstalar: pip install scipy',
-                    ha='center', va='center', transform=ax.transAxes,
-                    fontsize=12, bbox=dict(boxstyle='round', facecolor='lightyellow'))
-            ax.set_title('Scipy Requerido')
-            ax.axis('off')
-            return False
-
-        except Exception as e:
-            print(f"❌ Error en dendrograma: {e}")
-            return False
-
-    def _recreate_linkage_matrix(self):
-        """Recrear linkage matrix desde datos originales"""
-        try:
-            from scipy.cluster.hierarchy import linkage
-            from sklearn.preprocessing import StandardScaler, RobustScaler, MinMaxScaler
-
-            # Obtener variables y configuración
-            variables = self.current_results.get('variables_utilizadas', [])
-            if not variables or len(variables) < 2:
-                print("❌ No hay suficientes variables")
-                return None
-
-            # Obtener datos originales
-            data = self._get_original_data(variables)
-            if data is None:
-                print("❌ No se pueden obtener datos originales")
-                return None
-
-            # Limitar muestra para mejor rendimiento y visualización
-            max_samples = 100  # Reducir para mejor visualización del dendrograma
-            if len(data) > max_samples:
-                data = data.sample(n=max_samples, random_state=42)
-                print(f"⚠️ Datos limitados a {max_samples} muestras para dendrograma")
-
-            # Obtener configuración de escalado
-            mejor_config = self.current_results.get('mejor_configuracion', {})
-            escalado = mejor_config.get('escalado', 'standard')
-            metodo = mejor_config.get('metodo', 'ward')
-            metrica = mejor_config.get('metrica', 'euclidean')
-
-            # Aplicar escalado
-            if escalado == 'standard':
-                scaler = StandardScaler()
-                data_scaled = scaler.fit_transform(data)
-            elif escalado == 'robust':
-                scaler = RobustScaler()
-                data_scaled = scaler.fit_transform(data)
-            elif escalado == 'minmax':
-                scaler = MinMaxScaler()
-                data_scaled = scaler.fit_transform(data)
-            else:
-                data_scaled = data.values
-
-            # Ward solo funciona con euclidean
-            if metodo == 'ward':
-                metrica = 'euclidean'
-
-            # Crear linkage matrix
-            linkage_matrix = linkage(data_scaled, method=metodo, metric=metrica)
-
-            print(f"✅ Linkage matrix recreada: {linkage_matrix.shape}")
-            return linkage_matrix
-
-        except Exception as e:
-            print(f"❌ Error recreando linkage matrix: {e}")
-            return None
-
-    def _get_original_data(self, variables):
-        """Obtener datos originales"""
-        try:
-            # Método 1: Buscar en parent window
-            parent_window = self.parent()
-            while parent_window and not hasattr(parent_window, 'current_data'):
-                parent_window = parent_window.parent()
-
-            if parent_window and hasattr(parent_window, 'current_data') and parent_window.current_data is not None:
-                data = parent_window.current_data[variables].dropna()
-                print(f"✅ Datos obtenidos del parent: {data.shape}")
-                return data
-
-            # Método 2: Buscar en self
-            if hasattr(self, 'current_data') and self.current_data is not None:
-                data = self.current_data[variables].dropna()
-                print(f"✅ Datos obtenidos de self: {data.shape}")
-                return data
-
-            # Método 3: Buscar en el sistema de datos compartidos
-            try:
-                from .data_manager import get_shared_data, has_shared_data
-                if has_shared_data():
-                    shared_data = get_shared_data()
-                    if shared_data is not None:
-                        data = shared_data[variables].dropna()
-                        print(f"✅ Datos obtenidos del DataManager: {data.shape}")
-                        return data
-            except:
-                pass
-
-            return None
-
-        except Exception as e:
-            print(f"❌ Error obteniendo datos originales: {e}")
-            return None
-
-    def _create_hierarchical_summary_plot(self, ax, config):
-        """Crear gráfico resumen de clustering jerárquico"""
-        try:
-            # Información básica
-            info_text = "📊 Clustering Jerárquico - Resumen\n\n"
-            info_text += f"🔗 Método: {config.get('metodo', 'N/A')}\n"
-            info_text += f"📏 Métrica: {config.get('metrica', 'N/A')}\n"
-            info_text += f"🎯 Clusters sugeridos: {config.get('n_clusters_sugeridos', 'N/A')}\n\n"
-
-            # Métricas si están disponibles
-            if 'silhouette_score' in config:
-                info_text += f"📈 Silhouette Score: {config['silhouette_score']:.3f}\n"
-            if 'calinski_harabasz_score' in config:
-                info_text += f"📈 Calinski-Harabasz: {config['calinski_harabasz_score']:.1f}\n"
-            if 'davies_bouldin_score' in config:
-                info_text += f"📈 Davies-Bouldin: {config['davies_bouldin_score']:.3f}\n"
-
-            # Información adicional
-            if 'distancia_promedio' in config:
-                info_text += f"\n📊 Distancia promedio: {config['distancia_promedio']:.3f}\n"
-            if 'altura_corte' in config:
-                info_text += f"📊 Altura de corte: {config['altura_corte']:.3f}\n"
-
-            # Gráfico de barras con distancias si están disponibles
-            if 'distancias_fusion' in config and len(config['distancias_fusion']) > 0:
-                distancias = config['distancias_fusion'][-20:]  # Últimas 20 fusiones
-
-                ax.clear()
-                x_pos = range(len(distancias))
-                bars = ax.bar(x_pos, distancias, alpha=0.7, color='steelblue', edgecolor='navy')
-
-                # Destacar las últimas fusiones (más importantes)
-                if len(bars) > 5:
-                    for i in range(len(bars)-5, len(bars)):
-                        bars[i].set_color('orange')
-                        bars[i].set_alpha(0.8)
-
-                ax.set_title('Distancias de Fusión - Clustering Jerárquico\n(Últimas fusiones en naranja)')
-                ax.set_xlabel('Pasos de Fusión (más recientes →)')
-                ax.set_ylabel('Distancia')
-                ax.grid(True, alpha=0.3)
-
-                # Añadir información del método
-                metodo = config.get('metodo', 'N/A')
-                metrica = config.get('metrica', 'N/A')
-                ax.text(0.02, 0.98, f'{metodo} + {metrica}',
-                       transform=ax.transAxes, fontsize=10,
-                       bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.8),
-                       verticalalignment='top')
-            else:
-                # Fallback a texto si no hay datos de distancias
-                ax.text(0.5, 0.5, info_text,
-                        ha='center', va='center', transform=ax.transAxes,
-                        fontsize=11, bbox=dict(boxstyle='round,pad=1', facecolor='lightblue', alpha=0.8))
-                ax.set_title('Clustering Jerárquico - Configuración Óptima')
-                ax.axis('off')
-
-            print("✅ Summary plot creado")
-
-        except Exception as e:
-            print(f"❌ Error en summary plot: {e}")
-            ax.text(0.5, 0.5, 'Clustering Jerárquico\nCompletado exitosamente',
-                    ha='center', va='center', transform=ax.transAxes,
-                    fontsize=14, bbox=dict(boxstyle='round', facecolor='lightgreen'))
-            ax.set_title('Clustering Jerárquico - Completado')
-            ax.axis('off')
-
-    def _show_dendrogram_error(self, ax, error_msg):
-        """Mostrar error en dendrograma"""
-        error_text = f'Error creando dendrograma:\n{error_msg[:150]}...\n\n'
-        error_text += 'Posibles soluciones:\n'
-        error_text += '• Verificar que scipy esté instalado\n'
-        error_text += '• Comprobar datos de entrada\n'
-        error_text += '• Reducir número de muestras'
-
-        ax.text(0.5, 0.5, error_text,
+    def _show_viz_error(self, error_msg):
+        """Mostrar error en visualización"""
+        ax = self.figure.add_subplot(111)
+        ax.text(0.5, 0.5, f'Error en visualización:\n{error_msg}',
                 ha='center', va='center', transform=ax.transAxes,
-                fontsize=10, bbox=dict(boxstyle='round', facecolor='mistyrose'))
-        ax.set_title('Clustering Jerárquico - Error')
+                fontsize=12, bbox=dict(boxstyle='round', facecolor='mistyrose'))
+        ax.set_title('Error en Visualización')
         ax.axis('off')
 
     def _save_figure(self):
@@ -1627,7 +1076,7 @@ class ResultsVisualizationWidget(QWidget):
         self.status_label.setStyleSheet("color: red;")
 
 
-# ==================== VENTANA PRINCIPAL MEJORADA ====================
+# ==================== VENTANA PRINCIPAL ====================
 
 class NoSupervisadoWindow(QWidget, ThemedWidget):
     """Ventana principal para ML No Supervisado"""
@@ -1723,6 +1172,9 @@ class NoSupervisadoWindow(QWidget, ThemedWidget):
                 self.update_data_info()
                 self.enable_analysis_buttons(True)
                 self.log("✅ Datos cargados desde el sistema")
+
+                # Pasar datos a widget de resultados para visualizaciones
+                self.results_widget.set_current_data(self.current_data)
             else:
                 print("⚠️ No hay datos disponibles en el DataManager")
                 self.current_data = None
@@ -1760,7 +1212,7 @@ class NoSupervisadoWindow(QWidget, ThemedWidget):
         for btn in buttons:
             btn.setEnabled(enabled)
 
-    # ==================== CONFIGURACIÓN DE UI MEJORADA ====================
+    # ==================== CONFIGURACIÓN DE UI ====================
 
     def create_header(self) -> QWidget:
         """Crear header de la ventana"""
@@ -1832,7 +1284,7 @@ class NoSupervisadoWindow(QWidget, ThemedWidget):
         self.configuration = ConfigurationWidget()
         layout.addWidget(self.configuration)
 
-        # Botones de análisis mejorados
+        # Botones de análisis
         analysis_group = QGroupBox("🚀 Análisis Disponibles")
         analysis_layout = QVBoxLayout()
         analysis_layout.setSpacing(12)
@@ -2028,6 +1480,9 @@ class NoSupervisadoWindow(QWidget, ThemedWidget):
             self.update_data_info()
             self.enable_analysis_buttons(True)
 
+            # Pasar datos a widget de resultados
+            self.results_widget.set_current_data(self.current_data)
+
             self.log("✅ Datos de demostración generados exitosamente")
             QMessageBox.information(
                 self, "Datos Demo",
@@ -2053,7 +1508,7 @@ class NoSupervisadoWindow(QWidget, ThemedWidget):
             QMessageBox.critical(
                 self, "Error",
                 "Las librerías de Machine Learning no están disponibles.\n"
-                "Verifica que scikit-learn, matplotlib y seaborn estén instalados."
+                "Verifica que scikit-learn, matplotlib estén instalados."
             )
             return
 
@@ -2088,9 +1543,6 @@ class NoSupervisadoWindow(QWidget, ThemedWidget):
                 **base_kwargs,
                 'optimizar_parametros': config['dbscan_optimize']
             }
-            # Añadir contamination solo si se maneja outliers
-            if config['handle_outliers']:
-                kwargs['contamination'] = config['outlier_contamination']
 
         elif analysis_type == 'pca_avanzado':
             metodos = ['linear']
@@ -2105,10 +1557,9 @@ class NoSupervisadoWindow(QWidget, ThemedWidget):
             # Añadir parámetros de kernel PCA si está habilitado
             if config['pca_include_kernel']:
                 kwargs.update({
-                    'max_components': config['pca_max_components'],
-                    'kernel_type': config['kernel_type'],
-                    'gamma': config['kernel_gamma']
+                    'max_components': config['pca_max_components']
                 })
+
         elif analysis_type == 'analisis_exploratorio':
             kwargs = {
                 **base_kwargs,
@@ -2297,22 +1748,6 @@ class NoSupervisadoWindow(QWidget, ThemedWidget):
         <li><b>DBSCAN:</b> Ideal cuando no conoces el número de clusters</li>
         <li><b>Outliers:</b> Isolation Forest es robusto para datos multidimensionales</li>
         </ul>
-
-        <h3>📈 Interpretación de Resultados:</h3>
-        <ul>
-        <li><b>Silhouette Score:</b> >0.7 excelente, 0.5-0.7 bueno, <0.5 débil</li>
-        <li><b>Davies-Bouldin:</b> Menor es mejor (clusters más separados)</li>
-        <li><b>Varianza PCA:</b> Primer componente debería explicar >30% idealmente</li>
-        <li><b>Outliers:</b> 5-10% es normal, >20% puede indicar problemas en datos</li>
-        </ul>
-
-        <h3>🚨 Solución de Problemas:</h3>
-        <ul>
-        <li><b>Error "No clusters":</b> Verifica escalado y selección de variables</li>
-        <li><b>Resultados inconsistentes:</b> Fija la semilla aleatoria</li>
-        <li><b>Análisis lento:</b> Reduce variables o usa muestreo</li>
-        <li><b>PCA sin sentido:</b> Verifica correlaciones entre variables</li>
-        </ul>
         """)
         layout.addWidget(help_text)
 
@@ -2325,7 +1760,7 @@ class NoSupervisadoWindow(QWidget, ThemedWidget):
         help_dialog.exec_()
 
     def apply_styles(self):
-        """Aplicar estilos personalizados mejorados"""
+        """Aplicar estilos personalizados"""
         style = """
         /* Estilos generales */
         QWidget {
@@ -2363,12 +1798,10 @@ class NoSupervisadoWindow(QWidget, ThemedWidget):
 
         QPushButton:hover {
             background-color: #2980b9;
-            transform: translateY(-1px);
         }
 
         QPushButton:pressed {
             background-color: #21618c;
-            transform: translateY(1px);
         }
 
         QPushButton:disabled {
@@ -2427,7 +1860,7 @@ class NoSupervisadoWindow(QWidget, ThemedWidget):
             border-radius: 6px;
         }
 
-        /* Otros estilos para mejorar la apariencia */
+        /* Tabs */
         QTabWidget::pane {
             border: 2px solid #bdc3c7;
             border-radius: 8px;
@@ -2452,116 +1885,29 @@ class NoSupervisadoWindow(QWidget, ThemedWidget):
         QTabBar::tab:hover {
             background: #d5dbdb;
         }
-
-        QListWidget {
-            border: 2px solid #bdc3c7;
-            border-radius: 6px;
-            selection-background-color: #3498db;
-            background-color: white;
-            alternate-background-color: #f8f9fa;
-        }
-
-        QListWidget::item {
-            padding: 8px;
-            border-bottom: 1px solid #ecf0f1;
-        }
-
-        QListWidget::item:hover {
-            background-color: #e8f4fd;
-        }
-
-        QListWidget::item:selected {
-            background-color: #3498db;
-            color: white;
-        }
-
-        QTextEdit {
-            border: 2px solid #bdc3c7;
-            border-radius: 6px;
-            font-family: 'Segoe UI', Arial, sans-serif;
-            background-color: white;
-            selection-background-color: #3498db;
-        }
-
-        QTableWidget {
-            border: 2px solid #bdc3c7;
-            gridline-color: #ecf0f1;
-            selection-background-color: #3498db;
-            alternate-background-color: #f8f9fa;
-            background-color: white;
-        }
-
-        QTableWidget::item {
-            padding: 8px;
-            border-bottom: 1px solid #ecf0f1;
-        }
-
-        QTableWidget::item:selected {
-            background-color: #3498db;
-            color: white;
-        }
-
-        QHeaderView::section {
-            background-color: #34495e;
-            color: white;
-            padding: 8px;
-            border: none;
-            font-weight: bold;
-        }
-
-        QFrame {
-            border: 1px solid #bdc3c7;
-            border-radius: 6px;
-            background-color: white;
-        }
-
-        QScrollArea {
-            border: 1px solid #bdc3c7;
-            border-radius: 6px;
-            background-color: white;
-        }
-
-        QComboBox {
-            border: 2px solid #bdc3c7;
-            border-radius: 4px;
-            padding: 4px 8px;
-            background-color: white;
-        }
-
-        QComboBox:hover {
-            border-color: #3498db;
-        }
-
-        QSpinBox, QDoubleSpinBox {
-            border: 2px solid #bdc3c7;
-            border-radius: 4px;
-            padding: 4px 8px;
-            background-color: white;
-        }
-
-        QSpinBox:hover, QDoubleSpinBox:hover {
-            border-color: #3498db;
-        }
-
-        QCheckBox {
-            spacing: 8px;
-        }
-
-        QCheckBox::indicator {
-            width: 16px;
-            height: 16px;
-            border: 2px solid #bdc3c7;
-            border-radius: 3px;
-            background-color: white;
-        }
-
-        QCheckBox::indicator:checked {
-            background-color: #3498db;
-            border-color: #3498db;
-        }
         """
 
         self.setStyleSheet(style)
+
+    def closeEvent(self, event):
+        """Manejar el cierre de la ventana"""
+        # Cancelar análisis en curso si existe
+        if self.current_worker and self.current_worker.isRunning():
+            self.current_worker.cancel()
+            self.current_worker.terminate()
+            self.current_worker.wait(3000)  # Esperar máximo 3 segundos
+
+        # Desconectar del DataManager si está disponible
+        if DATA_MANAGER_AVAILABLE:
+            dm = get_data_manager()
+            if dm is not None:
+                try:
+                    dm.remove_observer(self)
+                    print("✅ NoSupervisadoWindow: Desconectada del DataManager")
+                except:
+                    pass
+
+        event.accept()
 
 
 # ==================== FUNCIÓN PRINCIPAL PARA TESTING ====================

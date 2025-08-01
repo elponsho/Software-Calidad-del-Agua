@@ -40,6 +40,7 @@ except ImportError as e:
     NO_SUPERVISADO_AVAILABLE = False
     print(f"⚠️ Módulo No Supervisado no disponible: {e}")
 
+
 class ModernButton(QFrame):
     """Botón moderno personalizado con efectos hover"""
     clicked = pyqtSignal()
@@ -720,6 +721,8 @@ class SegmentacionML(QWidget):
 
     def open_no_supervisado(self):
         """Abrir módulo de aprendizaje no supervisado"""
+        print("🔍 Intentando abrir módulo No Supervisado...")
+
         # Verificar dependencias
         if not self.check_dependencies():
             self.show_dependencies_warning()
@@ -733,8 +736,8 @@ class SegmentacionML(QWidget):
                 "El módulo de Aprendizaje No Supervisado no está disponible.\n\n"
                 "Verifica que:\n"
                 "• El archivo 'no_supervisado_window.py' esté en el directorio correcto\n"
-                "• Las librerías scikit-learn, matplotlib y seaborn estén instaladas\n\n"
-                "Instala con: pip install scikit-learn matplotlib seaborn scipy"
+                "• Las librerías scikit-learn, matplotlib y numpy estén instaladas\n\n"
+                "Instala con: pip install scikit-learn matplotlib numpy pandas"
             )
             return
 
@@ -772,26 +775,36 @@ class SegmentacionML(QWidget):
 
         # Crear o mostrar ventana
         try:
+            print("✅ Creando ventana NoSupervisadoWindow...")
+
             if self.no_supervisado_window is None:
                 self.no_supervisado_window = NoSupervisadoWindow()
+                print("✅ Ventana NoSupervisadoWindow creada")
 
                 # Conectar señal de cierre para limpieza
                 self.no_supervisado_window.destroyed.connect(
                     lambda: setattr(self, 'no_supervisado_window', None)
                 )
 
+            print("📱 Mostrando ventana NoSupervisadoWindow...")
             self.no_supervisado_window.show()
             self.no_supervisado_window.raise_()
             self.no_supervisado_window.activateWindow()
+            print("✅ Ventana NoSupervisadoWindow mostrada correctamente")
 
         except Exception as e:
-            print(f"Error abriendo NoSupervisadoWindow:\n{traceback.format_exc()}")
+            error_msg = f"Error abriendo NoSupervisadoWindow:\n{traceback.format_exc()}"
+            print(error_msg)
             QMessageBox.critical(
                 self,
                 "Error al abrir módulo",
                 f"No se pudo abrir el módulo de Aprendizaje No Supervisado:\n\n{str(e)}\n\n"
-                "Verifica que las dependencias estén instaladas:\n"
-                "pip install scikit-learn matplotlib seaborn scipy"
+                "Detalles técnicos:\n"
+                "• Verifica que las dependencias estén instaladas\n"
+                "• Revisa que el archivo no_supervisado_window.py esté presente\n"
+                "• Consulta la consola para más detalles del error\n\n"
+                "Instala dependencias con:\n"
+                "pip install scikit-learn matplotlib numpy pandas"
             )
 
     def show_dependencies_warning(self):
