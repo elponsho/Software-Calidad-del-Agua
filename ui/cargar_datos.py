@@ -14,44 +14,6 @@ import numpy as np
 from datetime import datetime
 import os
 from ui.machine_learning.data_manager import get_data_manager, has_shared_data
-from PyQt5.QtWidgets import QPushButton, QSizePolicy
-
-
-
-# Importar sistema de temas
-try:
-    from darkmode.ui_theme_manager import ThemedWidget, ThemeManager
-except ImportError:
-    try:
-        # from darkmode import ThemedWidget, ThemeManager  # COMENTADA
-        raise ImportError("Comentado temporalmente")
-    except ImportError:
-        class ThemedWidget:
-            def __init__(self):
-                pass
-
-            def apply_theme(self):
-                pass
-
-
-        class ThemeManager:
-            def __init__(self):
-                pass
-    except ImportError:
-        # Fallback si no existe darkmode
-        class ThemedWidget:
-            def __init__(self):
-                pass
-
-
-        class ThemeManager:
-            @staticmethod
-            def toggle_theme():
-                pass
-
-            @staticmethod
-            def is_dark_theme():
-                return False
 
 
 class DataLoadingThread(QThread):
@@ -482,7 +444,7 @@ class StatusCard(QFrame):
         self.unit = unit
 
         layout = QHBoxLayout()
-        layout.setContentsMargins(10, 5, 10, 5)  # Añadir márgenes consistentes
+        layout.setContentsMargins(10, 5, 10, 5)
 
         # Icono
         icon_label = QLabel(icon)
@@ -492,7 +454,7 @@ class StatusCard(QFrame):
 
         # Contenido
         content_layout = QVBoxLayout()
-        content_layout.setSpacing(2)  # Reducir espaciado
+        content_layout.setSpacing(2)
 
         self.title_label = QLabel(title)
         self.title_label.setFont(QFont("Arial", 9))
@@ -514,7 +476,7 @@ class StatusCard(QFrame):
         self.value_label.setText(str(new_value))
 
 
-class CargaDatos(QWidget, ThemedWidget):
+class CargaDatos(QWidget):
     """Pantalla de carga de datos simplificada"""
 
     # Señales para cuando los datos están listos
@@ -522,8 +484,7 @@ class CargaDatos(QWidget, ThemedWidget):
     data_loaded_signal = pyqtSignal(object)  # Alias para compatibilidad
 
     def __init__(self):
-        QWidget.__init__(self)
-        ThemedWidget.__init__(self)
+        super().__init__()
         self.df = None
         self.loading_thread = None
         self.setup_ui()
@@ -559,58 +520,38 @@ class CargaDatos(QWidget, ThemedWidget):
 
         main_layout.addWidget(splitter)
 
-        # Footer con botones principales - CORREGIDO
+        # Footer con botones principales
         self.create_footer(main_layout)
 
         self.setLayout(main_layout)
 
     def create_header(self, parent_layout):
-        """Crear header simplificado"""
+        """Crear header simplificado sin modo oscuro"""
         header_frame = QFrame()
         header_frame.setObjectName("headerFrame")
-        header_frame.setFixedHeight(80)  # Aumentado de 60 a 80
+        header_frame.setFixedHeight(80)
 
         header_layout = QHBoxLayout()
-        header_layout.setContentsMargins(20, 15, 20, 15)  # Márgenes más generosos
+        header_layout.setContentsMargins(20, 15, 20, 15)
 
-        # Título - CORREGIDO
+        # Título
         title_layout = QVBoxLayout()
         title_layout.setSpacing(5)
 
         title_label = QLabel("💧 Control de Calidad del Agua")
         title_label.setObjectName("mainTitle")
-        title_label.setFont(QFont("Arial", 18, QFont.Bold))  # Aumentado font-size
-        title_label.setStyleSheet("color: #2c3e50; margin: 0px; padding: 0px;")  # Estilo directo
+        title_label.setFont(QFont("Arial", 20, QFont.Bold))
+        title_label.setStyleSheet("color: #2c3e50; margin: 0px; padding: 0px;")
 
         subtitle_label = QLabel("Carga de Datos")
-        subtitle_label.setFont(QFont("Arial", 12))  # Aumentado font-size
+        subtitle_label.setFont(QFont("Arial", 12))
         subtitle_label.setStyleSheet("color: #666; margin: 0px; padding: 0px;")
 
         title_layout.addWidget(title_label)
         title_layout.addWidget(subtitle_label)
 
-        # Botón tema - CORREGIDO
-        self.dark_mode_button = QPushButton("🌙")
-        self.dark_mode_button.setObjectName("darkModeButton")
-        self.dark_mode_button.setFixedSize(50, 50)  # Aumentado de 45 a 50
-        self.dark_mode_button.setStyleSheet("""
-            QPushButton {
-                background-color: #495057;
-                color: white;
-                border: none;
-                border-radius: 25px;
-                font-size: 20px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #343a40;
-            }
-        """)
-        self.dark_mode_button.clicked.connect(self.toggle_theme)
-
         header_layout.addLayout(title_layout)
         header_layout.addStretch()
-        header_layout.addWidget(self.dark_mode_button)
 
         header_frame.setLayout(header_layout)
         parent_layout.addWidget(header_frame)
@@ -622,7 +563,7 @@ class CargaDatos(QWidget, ThemedWidget):
 
         status_layout = QHBoxLayout()
         status_layout.setSpacing(15)
-        status_layout.setContentsMargins(10, 10, 10, 10)  # Añadir márgenes
+        status_layout.setContentsMargins(10, 10, 10, 10)
 
         self.file_card = StatusCard("Archivo", "📁", "Ninguno")
         self.rows_card = StatusCard("Registros", "📊", "0")
@@ -645,7 +586,7 @@ class CargaDatos(QWidget, ThemedWidget):
 
         control_layout = QVBoxLayout()
         control_layout.setSpacing(20)
-        control_layout.setContentsMargins(15, 15, 15, 15)  # Añadir márgenes
+        control_layout.setContentsMargins(15, 15, 15, 15)
 
         # Título del panel
         panel_title = QLabel("📂 Fuentes de Datos")
@@ -667,36 +608,32 @@ class CargaDatos(QWidget, ThemedWidget):
         info_group.setLayout(info_layout)
         control_layout.addWidget(info_group)
 
-        # Botones de carga principales - CORREGIDOS
+        # Botones de carga principales
         load_group = QGroupBox("📥 Cargar Datos")
         load_layout = QGridLayout()
         load_layout.setSpacing(10)
         load_layout.setContentsMargins(10, 15, 10, 10)
 
-        # Definir altura mínima para todos los botones
-        button_height = 55  # Aumentado de 50 a 55
+        # Altura estándar para botones
+        button_height = 45
 
         self.csv_button = QPushButton("📄 Archivo CSV")
         self.csv_button.setMinimumHeight(button_height)
-        self.csv_button.setMinimumWidth(150)  # Aumentado de 120 a 150
         self.csv_button.setObjectName("loadButton")
         self.csv_button.clicked.connect(self.load_csv)
 
         self.excel_button = QPushButton("📊 Archivo Excel")
         self.excel_button.setMinimumHeight(button_height)
-        self.excel_button.setMinimumWidth(150)  # Aumentado de 120 a 150
         self.excel_button.setObjectName("loadButton")
         self.excel_button.clicked.connect(self.load_excel)
 
-        self.sample_button = QPushButton("🎯 Datos de Ejemplo")  # Texto completo
+        self.sample_button = QPushButton("🎯 Datos de Ejemplo")
         self.sample_button.setMinimumHeight(button_height)
-        self.sample_button.setMinimumWidth(130)  # Aumentado de 100 a 130
         self.sample_button.setObjectName("sampleButton")
         self.sample_button.clicked.connect(self.load_sample_data)
 
-        self.api_button = QPushButton("🌐 Conectar API")  # Texto completo
+        self.api_button = QPushButton("🌐 Conectar API")
         self.api_button.setMinimumHeight(button_height)
-        self.api_button.setMinimumWidth(130)  # Aumentado de 100 a 130
         self.api_button.setObjectName("apiButton")
         self.api_button.clicked.connect(self.load_from_api)
 
@@ -704,10 +641,6 @@ class CargaDatos(QWidget, ThemedWidget):
         load_layout.addWidget(self.excel_button, 1, 0, 1, 2)
         load_layout.addWidget(self.sample_button, 2, 0)
         load_layout.addWidget(self.api_button, 2, 1)
-
-        # Configurar expansión de columnas
-        load_layout.setColumnStretch(0, 1)
-        load_layout.setColumnStretch(1, 1)
 
         load_group.setLayout(load_layout)
         control_layout.addWidget(load_group)
@@ -720,12 +653,12 @@ class CargaDatos(QWidget, ThemedWidget):
         self.status_label = QLabel("✅ Sistema listo para cargar datos")
         self.status_label.setObjectName("statusLabel")
         self.status_label.setWordWrap(True)
-        self.status_label.setMinimumHeight(40)  # Altura mínima
+        self.status_label.setMinimumHeight(40)
 
         self.progress_bar = QProgressBar()
         self.progress_bar.setObjectName("progressBar")
         self.progress_bar.setVisible(False)
-        self.progress_bar.setMinimumHeight(25)  # Altura mínima
+        self.progress_bar.setMinimumHeight(25)
 
         system_layout.addWidget(self.status_label)
         system_layout.addWidget(self.progress_bar)
@@ -812,44 +745,41 @@ class CargaDatos(QWidget, ThemedWidget):
         self.tab_widget.addTab(self.stats_tab, "📊 Estadísticas")
 
     def create_footer(self, parent_layout):
-        """Crear footer con botones principales - CORREGIDO"""
+        """Crear footer con botones principales"""
         footer_frame = QFrame()
         footer_frame.setObjectName("footerFrame")
-        footer_frame.setFixedHeight(80)  # Aumentar altura de 70 a 80
+        footer_frame.setFixedHeight(70)
 
         footer_layout = QHBoxLayout()
-        footer_layout.setContentsMargins(25, 20, 25, 20)  # Márgenes más generosos
-        footer_layout.setSpacing(20)  # Más espaciado entre elementos
+        footer_layout.setContentsMargins(20, 15, 20, 15)
+        footer_layout.setSpacing(15)
 
         # Info
         self.footer_info_label = QLabel("💡 Selecciona un archivo para comenzar")
         self.footer_info_label.setStyleSheet("font-size: 12px; color: #666; font-weight: normal;")
         self.footer_info_label.setWordWrap(True)
 
-        # Botones principales - SIGNIFICATIVAMENTE AUMENTADOS
-        button_height = 55  # Aumentado de 50 a 55
+        # Botones principales
+        button_height = 45
 
         self.export_button = QPushButton("📤 Exportar")
         self.export_button.setObjectName("secondaryButton")
         self.export_button.setMinimumHeight(button_height)
-        self.export_button.setMinimumWidth(160)  # Aumentado de 140 a 160
-        self.export_button.setMaximumHeight(button_height)
+        self.export_button.setMinimumWidth(120)
         self.export_button.setEnabled(False)
         self.export_button.clicked.connect(self.exportar_datos)
 
         self.clear_button = QPushButton("🗑️ Limpiar")
         self.clear_button.setObjectName("dangerButton")
         self.clear_button.setMinimumHeight(button_height)
-        self.clear_button.setMinimumWidth(150)  # Aumentado de 130 a 150
-        self.clear_button.setMaximumHeight(button_height)
+        self.clear_button.setMinimumWidth(110)
         self.clear_button.setEnabled(False)
         self.clear_button.clicked.connect(self.clear_data)
 
         self.btn_cargar = QPushButton("✅ Usar Estos Datos")
         self.btn_cargar.setObjectName("primaryButton")
         self.btn_cargar.setMinimumHeight(button_height)
-        self.btn_cargar.setMinimumWidth(1240)  # Aumentado de 200 a 240
-        self.btn_cargar.setMaximumHeight(button_height)
+        self.btn_cargar.setMinimumWidth(180)
         self.btn_cargar.setEnabled(False)
         self.btn_cargar.clicked.connect(self.usar_datos)
 
@@ -861,21 +791,6 @@ class CargaDatos(QWidget, ThemedWidget):
 
         footer_frame.setLayout(footer_layout)
         parent_layout.addWidget(footer_frame)
-
-    def toggle_theme(self):
-        """Alternar tema"""
-        try:
-            theme_manager = ThemeManager()
-            theme_manager.toggle_theme()
-            if theme_manager.is_dark_theme():
-                self.dark_mode_button.setText("☀️")
-            else:
-                self.dark_mode_button.setText("🌙")
-        except Exception:
-            if self.dark_mode_button.text() == "🌙":
-                self.dark_mode_button.setText("☀️")
-            else:
-                self.dark_mode_button.setText("🌙")
 
     def load_csv(self):
         """Cargar archivo CSV"""
@@ -1230,7 +1145,6 @@ class CargaDatos(QWidget, ThemedWidget):
                     )
                     print("¿Datos cargados?", has_shared_data())  # Debería imprimir True
 
-
             except Exception as e:
                 QMessageBox.critical(self, "❌ Error", f"Error al exportar: {str(e)}")
 
@@ -1280,35 +1194,18 @@ class CargaDatos(QWidget, ThemedWidget):
         return self.df
 
     def apply_styles(self):
-        """Aplicar estilos CSS - CORREGIDOS"""
+        """Aplicar estilos CSS optimizados"""
         self.setStyleSheet("""
             QWidget {
                 font-family: 'Segoe UI', Arial, sans-serif;
                 background-color: #f8f9fa;
             }
 
-            /* HEADER Y TÍTULOS - CORREGIDOS */
+            /* FRAMES PRINCIPALES */
             #headerFrame {
                 background-color: #ffffff;
                 border-bottom: 2px solid #e9ecef;
                 border-radius: 8px;
-                min-height: 80px;
-            }
-
-            #mainTitle {
-                color: #2c3e50;
-                font-size: 20px;  /* Aumentado de 18px a 20px */
-                font-weight: bold;
-                margin: 0px;
-                padding: 0px;
-                line-height: 1.2;
-            }
-
-            #panelTitle {
-                color: #495057;
-                font-size: 14px;  /* Aumentado de 12px a 14px */
-                font-weight: bold;
-                padding: 5px;
             }
 
             #statusFrame {
@@ -1322,37 +1219,44 @@ class CargaDatos(QWidget, ThemedWidget):
                 background-color: #ffffff;
                 border: 1px solid #dee2e6;
                 border-radius: 10px;
-                padding: 15px;
             }
 
             #previewFrame {
                 background-color: #ffffff;
                 border: 1px solid #dee2e6;
                 border-radius: 10px;
-                padding: 15px;
             }
 
             #footerFrame {
                 background-color: #ffffff;
                 border-top: 2px solid #e9ecef;
                 border-radius: 8px;
-                padding: 10px;
-                min-height: 80px;  /* Aumentado de 70px a 80px */
             }
 
-            /* BOTONES DE CARGA - CORREGIDOS CON TAMAÑOS ADECUADOS */
+            /* TÍTULOS */
+            #mainTitle {
+                color: #2c3e50;
+                font-size: 20px;
+                font-weight: bold;
+            }
+
+            #panelTitle {
+                color: #495057;
+                font-size: 14px;
+                font-weight: bold;
+                padding: 5px;
+            }
+
+            /* BOTONES DE CARGA */
             #loadButton {
                 background-color: #007bff;
                 color: white;
                 border: none;
-                padding: 14px 20px;  /* Aumentado padding */
-                border-radius: 8px;
+                padding: 10px 15px;
+                border-radius: 6px;
                 font-weight: bold;
-                font-size: 14px;  /* Aumentado font-size */
+                font-size: 13px;
                 text-align: center;
-                min-height: 55px;  /* Aumentado de 50 a 55 */
-                max-height: 55px;
-                min-width: 150px;  /* Aumentado de 120 a 150 */
             }
 
             #loadButton:hover {
@@ -1368,14 +1272,11 @@ class CargaDatos(QWidget, ThemedWidget):
                 background-color: #28a745;
                 color: white;
                 border: none;
-                padding: 14px 18px;  /* Aumentado padding */
-                border-radius: 8px;
+                padding: 10px 15px;
+                border-radius: 6px;
                 font-weight: bold;
-                font-size: 14px;  /* Aumentado font-size */
+                font-size: 13px;
                 text-align: center;
-                min-height: 55px;  /* Aumentado de 50 a 55 */
-                max-height: 55px;
-                min-width: 130px;  /* Aumentado de 100 a 130 */
             }
 
             #sampleButton:hover {
@@ -1391,14 +1292,11 @@ class CargaDatos(QWidget, ThemedWidget):
                 background-color: #17a2b8;
                 color: white;
                 border: none;
-                padding: 14px 18px;  /* Aumentado padding */
-                border-radius: 8px;
+                padding: 10px 15px;
+                border-radius: 6px;
                 font-weight: bold;
-                font-size: 14px;  /* Aumentado font-size */
+                font-size: 13px;
                 text-align: center;
-                min-height: 55px;  /* Aumentado de 50 a 55 */
-                max-height: 55px;
-                min-width: 130px;  /* Aumentado de 100 a 130 */
             }
 
             #apiButton:hover {
@@ -1410,19 +1308,16 @@ class CargaDatos(QWidget, ThemedWidget):
                 color: #adb5bd;
             }
 
-            /* BOTONES DEL FOOTER - SIGNIFICATIVAMENTE AUMENTADOS */
+            /* BOTONES DEL FOOTER */
             #primaryButton {
                 background-color: #28a745;
                 color: white;
                 border: none;
-                padding: 16px 28px;  /* Aumentado significativamente */
+                padding: 12px 20px;
                 border-radius: 6px;
                 font-weight: bold;
-                font-size: 15px;  /* Aumentado de 14px a 15px */
+                font-size: 14px;
                 text-align: center;
-                min-height: 55px;  /* Aumentado de 50px a 55px */
-                max-height: 55px;
-                min-width: 240px;  /* Aumentado de 200px a 240px */
             }
 
             #primaryButton:hover {
@@ -1438,14 +1333,11 @@ class CargaDatos(QWidget, ThemedWidget):
                 background-color: #6c757d;
                 color: white;
                 border: none;
-                padding: 16px 24px;  /* Aumentado significativamente */
+                padding: 12px 18px;
                 border-radius: 6px;
                 font-weight: bold;
-                font-size: 15px;  /* Aumentado de 14px a 15px */
+                font-size: 14px;
                 text-align: center;
-                min-height: 55px;  /* Aumentado de 50px a 55px */
-                max-height: 55px;
-                min-width: 160px;  /* Aumentado de 140px a 160px */
             }
 
             #secondaryButton:hover {
@@ -1461,14 +1353,11 @@ class CargaDatos(QWidget, ThemedWidget):
                 background-color: #dc3545;
                 color: white;
                 border: none;
-                padding: 16px 24px;  /* Aumentado significativamente */
+                padding: 12px 18px;
                 border-radius: 6px;
                 font-weight: bold;
-                font-size: 15px;  /* Aumentado de 14px a 15px */
+                font-size: 14px;
                 text-align: center;
-                min-height: 55px;  /* Aumentado de 50px a 55px */
-                max-height: 55px;
-                min-width: 150px;  /* Aumentado de 130px a 150px */
             }
 
             #dangerButton:hover {
@@ -1480,26 +1369,7 @@ class CargaDatos(QWidget, ThemedWidget):
                 color: #6c757d;
             }
 
-            /* BOTÓN DE TEMA - CORREGIDO */
-            #darkModeButton {
-                background-color: #495057;
-                color: white;
-                border: none;
-                border-radius: 22px;
-                font-size: 18px;
-                font-weight: bold;
-                min-width: 45px;
-                max-width: 45px;
-                min-height: 45px;
-                max-height: 45px;
-                text-align: center;
-            }
-
-            #darkModeButton:hover {
-                background-color: #343a40;
-            }
-
-            /* CARDS DE ESTADO - CORREGIDAS */
+            /* CARDS DE ESTADO */
             StatusCard {
                 background-color: #ffffff;
                 border: 1px solid #dee2e6;
@@ -1508,15 +1378,13 @@ class CargaDatos(QWidget, ThemedWidget):
                 padding: 5px;
             }
 
-            /* BARRA DE PROGRESO - CORREGIDA */
+            /* BARRA DE PROGRESO */
             QProgressBar {
                 border: 1px solid #dee2e6;
                 border-radius: 4px;
                 background-color: #f8f9fa;
                 text-align: center;
                 font-weight: bold;
-                min-height: 25px;
-                max-height: 25px;
             }
 
             QProgressBar::chunk {
@@ -1524,7 +1392,7 @@ class CargaDatos(QWidget, ThemedWidget):
                 border-radius: 3px;
             }
 
-            /* TABLA - CORREGIDA */
+            /* TABLA */
             QTableWidget {
                 gridline-color: #dee2e6;
                 selection-background-color: #007bff;
@@ -1552,7 +1420,7 @@ class CargaDatos(QWidget, ThemedWidget):
                 font-size: 12px;
             }
 
-            /* TEXTO Y AREAS DE TEXTO - CORREGIDAS */
+            /* TEXTO Y AREAS DE TEXTO */
             QTextEdit {
                 border: 1px solid #dee2e6;
                 border-radius: 4px;
@@ -1561,7 +1429,7 @@ class CargaDatos(QWidget, ThemedWidget):
                 font-size: 12px;
             }
 
-            /* GRUPOS - CORREGIDOS */
+            /* GRUPOS */
             QGroupBox {
                 font-weight: bold;
                 border: 2px solid #dee2e6;
@@ -1582,7 +1450,7 @@ class CargaDatos(QWidget, ThemedWidget):
                 font-weight: bold;
             }
 
-            /* TABS - CORREGIDOS */
+            /* TABS */
             QTabWidget::pane {
                 border: 1px solid #dee2e6;
                 border-radius: 4px;
@@ -1611,7 +1479,7 @@ class CargaDatos(QWidget, ThemedWidget):
                 background-color: #e9ecef;
             }
 
-            /* LABELS DE INFORMACIÓN - CORREGIDOS */
+            /* LABELS DE INFORMACIÓN */
             #fileInfoLabel {
                 background-color: #f8f9fa;
                 border: 1px solid #dee2e6;
@@ -1619,7 +1487,6 @@ class CargaDatos(QWidget, ThemedWidget):
                 padding: 10px;
                 color: #495057;
                 font-size: 12px;
-                min-height: 60px;
             }
 
             #statusLabel {
@@ -1627,10 +1494,9 @@ class CargaDatos(QWidget, ThemedWidget):
                 font-weight: bold;
                 padding: 5px;
                 font-size: 12px;
-                min-height: 40px;
             }
 
-            /* INPUTS Y FORMULARIOS - CORREGIDOS */
+            /* INPUTS Y FORMULARIOS */
             QLineEdit {
                 border: 1px solid #dee2e6;
                 border-radius: 4px;
@@ -1656,40 +1522,7 @@ class CargaDatos(QWidget, ThemedWidget):
                 border: 2px solid #007bff;
             }
 
-            QComboBox::drop-down {
-                border: none;
-                width: 20px;
-            }
-
-            QComboBox::down-arrow {
-                image: none;
-                border: none;
-                width: 0;
-                height: 0;
-            }
-
-            /* MENSAJES Y DIÁLOGOS - CORREGIDOS */
-            QMessageBox {
-                background-color: #ffffff;
-                font-size: 12px;
-            }
-
-            QMessageBox QPushButton {
-                background-color: #007bff;
-                color: white;
-                border: none;
-                padding: 8px 16px;
-                border-radius: 4px;
-                font-weight: bold;
-                min-width: 80px;
-                min-height: 30px;
-            }
-
-            QMessageBox QPushButton:hover {
-                background-color: #0056b3;
-            }
-
-            /* SCROLLBARS - CORREGIDOS */
+            /* SCROLLBARS */
             QScrollBar:vertical {
                 background-color: #f8f9fa;
                 width: 12px;
@@ -1722,7 +1555,7 @@ class CargaDatos(QWidget, ThemedWidget):
                 background-color: #495057;
             }
 
-            /* SPLITTER - CORREGIDO */
+            /* SPLITTER */
             QSplitter::handle {
                 background-color: #dee2e6;
                 width: 2px;
@@ -1733,7 +1566,7 @@ class CargaDatos(QWidget, ThemedWidget):
                 background-color: #007bff;
             }
 
-            /* TOOLTIPS - CORREGIDOS */
+            /* TOOLTIPS */
             QToolTip {
                 background-color: #343a40;
                 color: white;
@@ -1741,6 +1574,27 @@ class CargaDatos(QWidget, ThemedWidget):
                 padding: 5px;
                 border-radius: 4px;
                 font-size: 11px;
+            }
+
+            /* MENSAJES Y DIÁLOGOS */
+            QMessageBox {
+                background-color: #ffffff;
+                font-size: 12px;
+            }
+
+            QMessageBox QPushButton {
+                background-color: #007bff;
+                color: white;
+                border: none;
+                padding: 8px 16px;
+                border-radius: 4px;
+                font-weight: bold;
+                min-width: 80px;
+                min-height: 30px;
+            }
+
+            QMessageBox QPushButton:hover {
+                background-color: #0056b3;
             }
         """)
 
@@ -1760,11 +1614,9 @@ if __name__ == "__main__":
     window.resize(1200, 700)
     window.show()
 
-
     def on_data_loaded(df):
         print(f"Datos cargados: {df.shape}")
         print(f"Columnas: {list(df.columns)}")
-
 
     window.datos_cargados.connect(on_data_loaded)
     sys.exit(app.exec_())
