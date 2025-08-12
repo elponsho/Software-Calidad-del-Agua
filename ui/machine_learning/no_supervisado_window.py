@@ -1,3 +1,4 @@
+
 import sys
 import traceback
 import numpy as np
@@ -37,7 +38,7 @@ except ImportError as e:
     def get_shared_data():
         return None
 
-# Importar funciones ML No Supervisado SIN SCIPY
+# Importar funciones ML No Supervisado
 ML_AVAILABLE = False
 try:
     from .ml_functions_no_supervisado import (
@@ -55,6 +56,14 @@ try:
     import matplotlib.pyplot as plt
     from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
     from matplotlib.figure import Figure
+    import seaborn as sns
+
+    # Configurar estilo de seaborn
+    sns.set_style("whitegrid")
+
+    # Importar scipy para dendrogramas
+    from scipy.cluster.hierarchy import dendrogram, linkage
+    from scipy import stats
 
     ML_AVAILABLE = True
     print("✅ Librerías ML No Supervisado cargadas correctamente")
@@ -65,7 +74,6 @@ except ImportError as e:
 
 # Importar sistema de temas
 try:
-    # from darkmode.ui_theme_manager import ThemedWidget, ThemeManager  # COMENTADA
     class ThemedWidget:
         def __init__(self):
             pass
@@ -155,7 +163,6 @@ class MLNoSupervisadoWorker(QThread):
         self.status.emit("Ejecutando clustering jerárquico...")
         self.progress.emit(30)
 
-        # Parámetros corregidos para clustering jerárquico
         valid_kwargs = {
             'variables': self.kwargs.get('variables', []),
             'metodos': self.kwargs.get('metodos', ['ward']),
@@ -165,13 +172,17 @@ class MLNoSupervisadoWorker(QThread):
             'verbose': self.kwargs.get('verbose', True)
         }
 
-        return clustering_jerarquico_completo(self.data, **valid_kwargs)
+        resultado = clustering_jerarquico_completo(self.data, **valid_kwargs)
+
+        # Guardar datos originales para visualización
+        resultado['datos_originales'] = self.data[valid_kwargs['variables']].copy()
+
+        return resultado
 
     def _run_kmeans_optimizado(self):
         self.status.emit("Ejecutando K-Means optimizado...")
         self.progress.emit(30)
 
-        # Parámetros corregidos para K-Means
         valid_kwargs = {
             'variables': self.kwargs.get('variables', []),
             'k_range': self.kwargs.get('k_range', range(2, 9)),
@@ -181,13 +192,17 @@ class MLNoSupervisadoWorker(QThread):
             'verbose': self.kwargs.get('verbose', True)
         }
 
-        return kmeans_optimizado_completo(self.data, **valid_kwargs)
+        resultado = kmeans_optimizado_completo(self.data, **valid_kwargs)
+
+        # Guardar datos originales para visualización
+        resultado['datos_originales'] = self.data[valid_kwargs['variables']].copy()
+
+        return resultado
 
     def _run_dbscan(self):
         self.status.emit("Ejecutando DBSCAN...")
         self.progress.emit(30)
 
-        # Parámetros corregidos para DBSCAN
         valid_kwargs = {
             'variables': self.kwargs.get('variables', []),
             'optimizar_parametros': self.kwargs.get('optimizar_parametros', True),
@@ -195,17 +210,20 @@ class MLNoSupervisadoWorker(QThread):
             'verbose': self.kwargs.get('verbose', True)
         }
 
-        # Añadir parámetros opcionales si están disponibles
         if 'contamination' in self.kwargs:
             valid_kwargs['contamination'] = self.kwargs['contamination']
 
-        return dbscan_optimizado(self.data, **valid_kwargs)
+        resultado = dbscan_optimizado(self.data, **valid_kwargs)
+
+        # Guardar datos originales para visualización
+        resultado['datos_originales'] = self.data[valid_kwargs['variables']].copy()
+
+        return resultado
 
     def _run_pca_avanzado(self):
         self.status.emit("Ejecutando PCA avanzado...")
         self.progress.emit(30)
 
-        # Parámetros corregidos para PCA
         valid_kwargs = {
             'variables': self.kwargs.get('variables', []),
             'metodos': self.kwargs.get('metodos', ['linear']),
@@ -215,7 +233,6 @@ class MLNoSupervisadoWorker(QThread):
             'verbose': self.kwargs.get('verbose', True)
         }
 
-        # Añadir parámetros específicos de kernel si están disponibles
         if 'max_components' in self.kwargs:
             valid_kwargs['max_components'] = self.kwargs['max_components']
         if 'kernel_type' in self.kwargs:
@@ -223,13 +240,17 @@ class MLNoSupervisadoWorker(QThread):
         if 'gamma' in self.kwargs:
             valid_kwargs['gamma'] = self.kwargs['gamma']
 
-        return pca_completo_avanzado(self.data, **valid_kwargs)
+        resultado = pca_completo_avanzado(self.data, **valid_kwargs)
+
+        # Guardar datos originales para visualización
+        resultado['datos_originales'] = self.data[valid_kwargs['variables']].copy()
+
+        return resultado
 
     def _run_analisis_exploratorio(self):
         self.status.emit("Ejecutando análisis exploratorio...")
         self.progress.emit(30)
 
-        # Parámetros corregidos para análisis exploratorio
         valid_kwargs = {
             'variables': self.kwargs.get('variables', []),
             'escalado': self.kwargs.get('escalado', 'standard'),
@@ -237,13 +258,17 @@ class MLNoSupervisadoWorker(QThread):
             'verbose': self.kwargs.get('verbose', True)
         }
 
-        # Añadir parámetros opcionales si están disponibles
         if 'outlier_method' in self.kwargs:
             valid_kwargs['outlier_method'] = self.kwargs['outlier_method']
         if 'random_state' in self.kwargs:
             valid_kwargs['random_state'] = self.kwargs['random_state']
 
-        return analisis_exploratorio_completo(self.data, **valid_kwargs)
+        resultado = analisis_exploratorio_completo(self.data, **valid_kwargs)
+
+        # Guardar datos originales para visualización
+        resultado['datos_originales'] = self.data[valid_kwargs['variables']].copy()
+
+        return resultado
 
 
 # ==================== WIDGET DE SELECCIÓN DE VARIABLES ====================
@@ -418,7 +443,7 @@ class VariableSelectionWidget(QWidget):
         return len(self.get_selected_variables()) >= 2
 
 
-# ==================== WIDGET DE CONFIGURACIÓN ====================
+# ==================== WIDGET DE CONFIGURACIÓN MEJORADO ====================
 
 class ConfigurationWidget(QWidget):
     """Widget para configuración de análisis con scroll"""
@@ -501,7 +526,7 @@ class ConfigurationWidget(QWidget):
         clustering_layout.addRow("Método de enlace:", self.hierarchical_method)
 
         self.hierarchical_metric = QComboBox()
-        self.hierarchical_metric.addItems(['euclidean', 'manhattan', 'cosine'])
+        self.hierarchical_metric.addItems(['euclidean', 'manhattan', 'cosine', 'chebyshev'])
         self.hierarchical_metric.setCurrentText('euclidean')
         self.hierarchical_metric.setMinimumHeight(30)
         clustering_layout.addRow("Métrica de distancia:", self.hierarchical_metric)
@@ -542,8 +567,8 @@ class ConfigurationWidget(QWidget):
         pca_group.setLayout(pca_layout)
         content_layout.addWidget(pca_group)
 
-        # ===== PREPROCESAMIENTO =====
-        preprocessing_group = QGroupBox("⚙️ Preprocesamiento")
+        # ===== PREPROCESAMIENTO MEJORADO =====
+        preprocessing_group = QGroupBox("⚙️ Preprocesamiento Avanzado")
         preprocessing_layout = QFormLayout()
         preprocessing_layout.setSpacing(10)
 
@@ -559,10 +584,18 @@ class ConfigurationWidget(QWidget):
         preprocessing_layout.addRow("", self.handle_outliers)
 
         self.outlier_method = QComboBox()
-        self.outlier_method.addItems(['isolation_forest', 'zscore', 'iqr'])
+        self.outlier_method.addItems(['isolation_forest', 'zscore', 'iqr', 'local_outlier'])
         self.outlier_method.setCurrentText('isolation_forest')
         self.outlier_method.setMinimumHeight(30)
         preprocessing_layout.addRow("Método detección:", self.outlier_method)
+
+        self.outlier_contamination = QDoubleSpinBox()
+        self.outlier_contamination.setRange(0.01, 0.5)
+        self.outlier_contamination.setValue(0.1)
+        self.outlier_contamination.setSingleStep(0.01)
+        self.outlier_contamination.setDecimals(2)
+        self.outlier_contamination.setMinimumHeight(30)
+        preprocessing_layout.addRow("Contaminación:", self.outlier_contamination)
 
         preprocessing_group.setLayout(preprocessing_layout)
         content_layout.addWidget(preprocessing_group)
@@ -618,6 +651,7 @@ class ConfigurationWidget(QWidget):
             'scaling_method': self.scaling_method.currentText(),
             'handle_outliers': self.handle_outliers.isChecked(),
             'outlier_method': self.outlier_method.currentText(),
+            'outlier_contamination': self.outlier_contamination.value(),
 
             # General
             'random_state': self.random_state.value(),
@@ -625,15 +659,15 @@ class ConfigurationWidget(QWidget):
         }
 
 
-# ==================== WIDGET DE RESULTADOS CON VISUALIZACIONES ====================
+# ==================== WIDGET DE RESULTADOS CON VISUALIZACIONES IMPLEMENTADAS ====================
 
 class ResultsVisualizationWidget(QWidget):
-    """Widget para visualización de resultados No Supervisado con gráficos completos"""
+    """Widget para visualización de resultados No Supervisado"""
 
     def __init__(self):
         super().__init__()
         self.current_results = None
-        self.current_data = None
+        self.current_analysis_type = None
         self.setup_ui()
 
     def setup_ui(self):
@@ -680,53 +714,85 @@ class ResultsVisualizationWidget(QWidget):
         widget.setLayout(layout)
         return widget
 
-    def _create_metrics_tab(self) -> QWidget:
-        """Crear tab de métricas"""
-        widget = QWidget()
-        layout = QVBoxLayout()
+    def _save_figure(self):
+        """Guardar figura actual en PNG."""
+        if not hasattr(self, 'figure'):
+            QMessageBox.warning(self, "Sin figura", "No hay figura para guardar.")
+            return
 
-        self.metrics_table = QTableWidget()
-        self.metrics_table.setAlternatingRowColors(True)
-        layout.addWidget(self.metrics_table)
+        file_path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Guardar Figura",
+            "",
+            "Imagen PNG (*.png);;Imagen JPEG (*.jpg)"
+        )
+        if file_path:
+            try:
+                self.figure.savefig(file_path, dpi=300, bbox_inches='tight')
+                QMessageBox.information(self, "Éxito", f"Figura guardada en:\n{file_path}")
+            except Exception as e:
+                QMessageBox.critical(self, "Error", f"No se pudo guardar la figura:\n{e}")
 
-        widget.setLayout(layout)
-        return widget
+    def _generate_report(self):
+        """Generar reporte de los resultados actuales."""
+        from PyQt5.QtWidgets import QFileDialog, QMessageBox
+        import pandas as pd
 
-    def _create_viz_tab(self) -> QWidget:
-        """Crear tab de visualizaciones"""
-        widget = QWidget()
-        layout = QVBoxLayout()
+        if not hasattr(self, 'current_results') or not self.current_results:
+            QMessageBox.warning(self, "Sin datos", "No hay resultados para generar el reporte.")
+            return
 
-        # Canvas para matplotlib
-        self.figure = Figure(figsize=(12, 10))
-        self.canvas = FigureCanvas(self.figure)
+        file_path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Guardar Reporte",
+            "",
+            "Archivo de texto (*.txt);;Archivo CSV (*.csv)"
+        )
+        if not file_path:
+            return
 
-        scroll = QScrollArea()
-        scroll.setWidget(self.canvas)
-        scroll.setWidgetResizable(True)
-        layout.addWidget(scroll)
+        try:
+            mejor_config = self.current_results.get('mejor_configuracion', {})
+            lines = []
+            lines.append("=== Reporte de Resultados No Supervisado ===\n")
+            if mejor_config:
+                lines.append("Parámetros óptimos:\n")
+                for key, val in mejor_config.items():
+                    lines.append(f"- {key}: {val}\n")
+            else:
+                lines.append("No se encontraron parámetros óptimos.\n")
 
-        # Controles
-        controls_layout = QHBoxLayout()
+            with open(file_path, "w", encoding="utf-8") as f:
+                f.writelines(lines)
 
-        self.viz_type_combo = QComboBox()
-        self.viz_type_combo.addItems([
-            "Vista General", "Clusters 2D", "PCA Biplot", "Correlaciones",
-            "Distribuciones", "Outliers", "Dendrograma"
-        ])
-        self.viz_type_combo.currentTextChanged.connect(self._update_visualization)
-        controls_layout.addWidget(QLabel("Visualización:"))
-        controls_layout.addWidget(self.viz_type_combo)
+            QMessageBox.information(self, "Éxito", f"Reporte guardado en:\n{file_path}")
 
-        self.save_fig_btn = QPushButton("💾 Guardar")
-        self.save_fig_btn.clicked.connect(self._save_figure)
-        controls_layout.addWidget(self.save_fig_btn)
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"No se pudo generar el reporte:\n{e}")
 
-        controls_layout.addStretch()
-        layout.addLayout(controls_layout)
+    def _export_results(self):
+        """Exportar resultados actuales a CSV."""
+        if not hasattr(self, 'current_results') or 'datos_originales' not in self.current_results:
+            QMessageBox.warning(self, "Sin datos", "No hay resultados para exportar.")
+            return
 
-        widget.setLayout(layout)
-        return widget
+        df = self.current_results['datos_originales'].copy()
+        mejor_config = self.current_results.get('mejor_configuracion', {})
+        if 'cluster_labels' in mejor_config:
+            df['Cluster'] = mejor_config['cluster_labels'][:len(df)]
+
+        file_path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Exportar Resultados",
+            "",
+            "Archivo CSV (*.csv)"
+        )
+        if file_path:
+            try:
+                df.to_csv(file_path, index=False, encoding='utf-8-sig')
+                QMessageBox.information(self, "Éxito", f"Resultados exportados a:\n{file_path}")
+            except Exception as e:
+                QMessageBox.critical(self, "Error", f"No se pudo exportar:\n{e}")
 
     def _create_details_tab(self) -> QWidget:
         """Crear tab de detalles"""
@@ -771,6 +837,7 @@ class ResultsVisualizationWidget(QWidget):
     def update_results(self, results: dict, analysis_type: str):
         """Actualizar con nuevos resultados"""
         self.current_results = results
+        self.current_analysis_type = analysis_type
 
         if 'error' in results:
             self._show_error(results['error'])
@@ -790,10 +857,6 @@ class ResultsVisualizationWidget(QWidget):
         # Habilitar botones
         self.export_results_btn.setEnabled(True)
         self.generate_report_btn.setEnabled(True)
-
-    def set_current_data(self, data):
-        """Establecer datos actuales para visualizaciones"""
-        self.current_data = data
 
     def _update_summary(self, results: dict, analysis_type: str):
         """Actualizar resumen"""
@@ -825,19 +888,34 @@ class ResultsVisualizationWidget(QWidget):
         elif results.get('tipo') == 'clustering_jerarquico_completo':
             if 'mejor_configuracion' in results:
                 mejor_config = results['mejor_configuracion']
-                summary += f"🎯 Mejor configuración: {mejor_config}\n"
+                summary += f"🎯 Mejor configuración:\n"
+                summary += f"  - Método: {mejor_config.get('metodo', 'N/A')}\n"
+                summary += f"  - Métrica: {mejor_config.get('metrica', 'N/A')}\n"
+                summary += f"  - Clusters sugeridos: {mejor_config.get('n_clusters_sugeridos', 'N/A')}\n"
 
         elif results.get('tipo') == 'pca_completo_avanzado':
             if 'linear' in results.get('resultados_por_metodo', {}):
                 linear_result = results['resultados_por_metodo']['linear']
                 n_comp = linear_result.get('componentes_recomendados', 'N/A')
                 summary += f"📊 Componentes recomendados: {n_comp}\n"
+                if 'analisis' in linear_result:
+                    var_exp = linear_result['analisis'].get('varianza_acumulada', [])
+                    if var_exp and n_comp != 'N/A' and n_comp <= len(var_exp):
+                        summary += f"📊 Varianza explicada: {var_exp[n_comp -1 ] *100:.1f}%\n"
 
         elif results.get('tipo') == 'dbscan_optimizado':
             if 'mejor_configuracion' in results:
                 config = results['mejor_configuracion']
                 summary += f"🎯 Clusters encontrados: {config.get('n_clusters', 'N/A')}\n"
                 summary += f"🔍 Outliers detectados: {config.get('n_noise', 'N/A')}\n"
+                summary += f"📊 Eps óptimo: {config.get('eps', 'N/A'):.3f}\n"
+
+        elif results.get('tipo') == 'analisis_exploratorio_completo':
+            if 'estadisticas_basicas' in results:
+                summary += f"📊 Variables analizadas: {len(results['estadisticas_basicas'])}\n"
+            if 'outliers' in results:
+                outliers_info = results['outliers']
+                summary += f"🔍 Outliers detectados: {outliers_info.get('total_outliers', 'N/A')}\n"
 
         # Recomendaciones
         if 'recomendaciones' in results:
@@ -873,13 +951,27 @@ class ResultsVisualizationWidget(QWidget):
         elif tipo == 'pca_completo_avanzado':
             if 'linear' in results.get('resultados_por_metodo', {}):
                 linear_result = results['resultados_por_metodo']['linear']
+                if 'analisis' in linear_result:
+                    metrics_data.extend([
+                        ("Componentes recomendados", linear_result.get('componentes_recomendados', 'N/A')),
+                        ("Varianza PC1", f"{linear_result['analisis']['varianza_explicada'][0 ] *100:.1f}%"),
+                        ("Varianza PC2", f"{linear_result['analisis']['varianza_explicada'][1 ] *100:.1f}%"
+                        if len(linear_result['analisis']['varianza_explicada']) > 1 else 'N/A'),
+                        ("Varianza Acumulada (2 PCs)",
+                         f"{linear_result['analisis']['varianza_acumulada'][1 ] *100:.1f}%"
+                         if len(linear_result['analisis']['varianza_acumulada']) > 1 else 'N/A')
+                    ])
+
+        elif tipo == 'clustering_jerarquico_completo':
+            if 'mejor_configuracion' in results:
+                config = results['mejor_configuracion']
                 metrics_data.extend([
-                    ("Componentes recomendados", linear_result.get('componentes_recomendados', 'N/A')),
-                    ("Varianza PC1",
-                     f"{linear_result['analisis']['varianza_explicada'][0] * 100:.1f}%" if linear_result.get(
-                         'analisis') else 'N/A'),
-                    ("Varianza PC2", f"{linear_result['analisis']['varianza_explicada'][1] * 100:.1f}%" if len(
-                        linear_result.get('analisis', {}).get('varianza_explicada', [])) > 1 else 'N/A')
+                    ("Método", config.get('metodo', 'N/A')),
+                    ("Métrica", config.get('metrica', 'N/A')),
+                    ("Clusters sugeridos", config.get('n_clusters_sugeridos', 'N/A')),
+                    ("Silhouette Score", f"{config.get('silhouette_score', 0):.3f}"),
+                    ("Calinski-Harabasz", f"{config.get('calinski_harabasz_score', 0):.1f}"),
+                    ("Davies-Bouldin", f"{config.get('davies_bouldin_score', 0):.3f}")
                 ])
 
         elif tipo == 'dbscan_optimizado':
@@ -888,10 +980,22 @@ class ResultsVisualizationWidget(QWidget):
                 metrics_data.extend([
                     ("Clusters", config.get('n_clusters', 'N/A')),
                     ("Outliers", config.get('n_noise', 'N/A')),
-                    ("% Outliers", f"{config.get('noise_ratio', 0) * 100:.1f}%"),
+                    ("% Outliers", f"{config.get('noise_ratio', 0 ) *100:.1f}%"),
                     ("Silhouette Score", f"{config.get('silhouette_score', 0):.3f}"),
                     ("Eps óptimo", f"{config.get('eps', 0):.3f}"),
                     ("Min samples", config.get('min_samples', 'N/A'))
+                ])
+
+        elif tipo == 'analisis_exploratorio_completo':
+            if 'correlaciones' in results:
+                corr_data = results['correlaciones']
+                metrics_data.append(("Correlaciones fuertes",
+                                     len(corr_data.get('correlaciones_fuertes', []))))
+            if 'outliers' in results:
+                outlier_data = results['outliers']
+                metrics_data.extend([
+                    ("Total outliers", outlier_data.get('total_outliers', 'N/A')),
+                    ("% Outliers", f"{outlier_data.get('porcentaje_outliers', 0):.1f}%")
                 ])
 
         # Llenar tabla
@@ -907,7 +1011,19 @@ class ResultsVisualizationWidget(QWidget):
 
     def _update_details(self, results: dict):
         """Actualizar detalles técnicos"""
-        details = json.dumps(results, indent=2, default=str, ensure_ascii=False)
+        # Limitar el contenido para evitar problemas de memoria
+        results_copy = results.copy()
+
+        # Eliminar datos grandes para el JSON
+        if 'datos_originales' in results_copy:
+            del results_copy['datos_originales']
+        if 'datos_escalados' in results_copy:
+            del results_copy['datos_escalados']
+        if 'linkage_matrix' in results_copy:
+            results_copy['linkage_matrix'] = "... (matriz muy grande, omitida)"
+
+        details = json.dumps(results_copy, indent=2, default=str, ensure_ascii=False)
+
         # Limitar longitud para evitar sobrecarga
         if len(details) > 50000:
             details = details[:50000] + "\n\n... (Resultado truncado por longitud)"
@@ -915,168 +1031,422 @@ class ResultsVisualizationWidget(QWidget):
         self.details_text.setText(details)
 
     def _update_visualization(self):
-        """Actualizar visualización"""
+        """Actualizar visualización según el tipo de análisis"""
         if not self.current_results or not ML_AVAILABLE:
             return
-
-        viz_type = self.viz_type_combo.currentText()
 
         try:
             self.figure.clear()
 
-            if viz_type == "Vista General":
-                self._create_overview_plot()
-            elif viz_type == "Clusters 2D":
-                self._create_clusters_2d_plot()
-            elif viz_type == "PCA Biplot":
-                self._create_pca_biplot()
-            elif viz_type == "Correlaciones":
-                self._create_correlation_plot()
-            elif viz_type == "Distribuciones":
-                self._create_distributions_plot()
-            elif viz_type == "Outliers":
-                self._create_outliers_plot()
-            elif viz_type == "Dendrograma":
-                self._create_dendrogram_plot()
+            tipo = self.current_results.get('tipo', '')
 
+            if tipo == 'kmeans_optimizado':
+                self._create_kmeans_visualization()
+            elif tipo == 'clustering_jerarquico_completo':
+                self._create_hierarchical_visualization()
+            elif tipo == 'dbscan_optimizado':
+                self._create_dbscan_visualization()
+            elif tipo == 'pca_completo_avanzado':
+                self._create_pca_visualization()
+            elif tipo == 'analisis_exploratorio_completo':
+                self._create_exploratory_visualization()
+            else:
+                ax = self.figure.add_subplot(111)
+                ax.text(0.5, 0.5, f'Visualización no disponible para: {tipo}',
+                        ha='center', va='center', transform=ax.transAxes)
+                ax.set_title('Visualización No Disponible')
+
+            self.figure.tight_layout()
             self.canvas.draw()
 
         except Exception as e:
             print(f"Error en visualización: {e}")
-            self._show_viz_error(str(e))
+            import traceback
+            traceback.print_exc()
 
-    def _create_overview_plot(self):
-        """Crear gráfico de vista general"""
-        ax = self.figure.add_subplot(111)
-        ax.text(0.5, 0.5, 'Vista general en desarrollo', ha='center', va='center',
-                transform=ax.transAxes, fontsize=14)
-        ax.set_title('Vista General')
-        ax.axis('off')
+            # Mostrar error en el canvas
+            self.figure.clear()
+            ax = self.figure.add_subplot(111)
+            ax.text(0.5, 0.5, f'Error generando visualización:\n{str(e)[:100]}',
+                    ha='center', va='center', transform=ax.transAxes,
+                    bbox=dict(boxstyle='round', facecolor='mistyrose'))
+            ax.set_title('Error en Visualización')
+            ax.axis('off')
+            self.canvas.draw()
 
-    def _create_clusters_2d_plot(self):
-        """Crear visualización 2D de clusters"""
-        ax = self.figure.add_subplot(111)
-        ax.text(0.5, 0.5, 'Visualización 2D de clusters en desarrollo', ha='center', va='center',
-                transform=ax.transAxes, fontsize=14)
-        ax.set_title('Clusters 2D')
-        ax.axis('off')
+    def _create_kmeans_visualization(self):
+        """Crear visualización para K-Means"""
+        resultados = self.current_results.get('resultados_por_k', {})
 
-    def _create_pca_biplot(self):
-        """Crear biplot de PCA"""
-        ax = self.figure.add_subplot(111)
-        ax.text(0.5, 0.5, 'PCA Biplot en desarrollo', ha='center', va='center',
-                transform=ax.transAxes, fontsize=14)
-        ax.set_title('PCA Biplot')
-        ax.axis('off')
-
-    def _create_correlation_plot(self):
-        """Crear gráfico de correlaciones"""
-        ax = self.figure.add_subplot(111)
-        ax.text(0.5, 0.5, 'Gráfico de correlaciones en desarrollo', ha='center', va='center',
-                transform=ax.transAxes, fontsize=14)
-        ax.set_title('Correlaciones')
-        ax.axis('off')
-
-    def _create_distributions_plot(self):
-        """Crear gráfico de distribuciones"""
-        ax = self.figure.add_subplot(111)
-        ax.text(0.5, 0.5, 'Gráfico de distribuciones en desarrollo', ha='center', va='center',
-                transform=ax.transAxes, fontsize=14)
-        ax.set_title('Distribuciones')
-        ax.axis('off')
-
-    def _create_outliers_plot(self):
-        """Crear gráfico de outliers"""
-        ax = self.figure.add_subplot(111)
-        ax.text(0.5, 0.5, 'Gráfico de outliers en desarrollo', ha='center', va='center',
-                transform=ax.transAxes, fontsize=14)
-        ax.set_title('Outliers')
-        ax.axis('off')
-
-    def _create_dendrogram_plot(self):
-        """Crear dendrograma"""
-        ax = self.figure.add_subplot(111)
-        ax.text(0.5, 0.5, 'Dendrograma en desarrollo', ha='center', va='center',
-                transform=ax.transAxes, fontsize=14)
-        ax.set_title('Dendrograma')
-        ax.axis('off')
-
-    def _show_viz_error(self, error_msg):
-        """Mostrar error en visualización"""
-        ax = self.figure.add_subplot(111)
-        ax.text(0.5, 0.5, f'Error en visualización:\n{error_msg}',
-                ha='center', va='center', transform=ax.transAxes,
-                fontsize=12, bbox=dict(boxstyle='round', facecolor='mistyrose'))
-        ax.set_title('Error en Visualización')
-        ax.axis('off')
-
-    def _save_figure(self):
-        """Guardar figura"""
-        if not hasattr(self, 'figure'):
+        if not resultados:
+            ax = self.figure.add_subplot(111)
+            ax.text(0.5, 0.5, 'No hay resultados de K-Means para visualizar',
+                    ha='center', va='center', transform=ax.transAxes)
             return
 
-        filepath, _ = QFileDialog.getSaveFileName(
-            self, "Guardar Gráfico",
-            f"grafico_no_supervisado_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png",
-            "PNG (*.png);;PDF (*.pdf)"
-        )
+        # Crear subplots
+        fig = self.figure
 
-        if filepath:
-            self.figure.savefig(filepath, dpi=300, bbox_inches='tight')
-            QMessageBox.information(self, "Éxito", "Gráfico guardado correctamente")
+        # Si tenemos los datos y clusters, hacer visualización 2D
+        k_optimo = self.current_results.get('recomendacion_k')
+        if k_optimo and k_optimo in resultados and 'datos_originales' in self.current_results:
+            # 2 subplots: métricas y clusters
+            ax1 = fig.add_subplot(121)
+            ax2 = fig.add_subplot(122)
 
-    def _export_results(self):
-        """Exportar resultados"""
-        if not self.current_results:
-            return
+            # Plot 1: Silhouette score vs K
+            k_vals = sorted(list(resultados.keys()))
+            silhouette_vals = [resultados[k]['silhouette_score'] for k in k_vals]
 
-        filepath, _ = QFileDialog.getSaveFileName(
-            self, "Exportar Resultados",
-            f"resultados_no_supervisado_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
-            "JSON (*.json)"
-        )
+            ax1.plot(k_vals, silhouette_vals, 'bo-', linewidth=2, markersize=8)
+            ax1.set_xlabel('Número de Clusters (K)', fontsize=11)
+            ax1.set_ylabel('Silhouette Score', fontsize=11)
+            ax1.set_title('Evaluación de K óptimo', fontsize=12, fontweight='bold')
+            ax1.grid(True, alpha=0.3)
 
-        if filepath:
+            # Marcar el K óptimo
+            if k_optimo in resultados:
+                best_score = resultados[k_optimo]['silhouette_score']
+                ax1.plot(k_optimo, best_score, 'ro', markersize=12, label=f'K óptimo = {k_optimo}')
+                ax1.legend()
+
+            # Plot 2: Visualización de clusters (PCA 2D si hay muchas dimensiones)
             try:
-                # Preparar datos para exportación
-                export_data = {}
-                for key, value in self.current_results.items():
-                    if isinstance(value, np.ndarray):
-                        export_data[key] = value.tolist()
-                    elif isinstance(value, pd.DataFrame):
-                        export_data[key] = value.to_dict()
-                    else:
-                        export_data[key] = value
+                from sklearn.decomposition import PCA
+                from sklearn.preprocessing import StandardScaler
 
-                with open(filepath, 'w', encoding='utf-8') as f:
-                    json.dump(export_data, f, indent=2, ensure_ascii=False, default=str)
+                datos = self.current_results['datos_originales'].dropna()
 
-                QMessageBox.information(self, "Éxito", "Resultados exportados correctamente")
+                # Si hay más de 2 dimensiones, usar PCA
+                if datos.shape[1] > 2:
+                    scaler = StandardScaler()
+                    datos_scaled = scaler.fit_transform(datos)
+                    pca = PCA(n_components=2)
+                    datos_2d = pca.fit_transform(datos_scaled)
+                    xlabel = f'PC1 ({pca.explained_variance_ratio_[0 ] *100:.1f}%)'
+                    ylabel = f'PC2 ({pca.explained_variance_ratio_[1 ] *100:.1f}%)'
+                else:
+                    datos_2d = datos.values
+                    xlabel = datos.columns[0] if datos.shape[1] > 0 else 'X'
+                    ylabel = datos.columns[1] if datos.shape[1] > 1 else 'Y'
+
+                # Obtener clusters del k óptimo
+                if 'cluster_labels' in resultados[k_optimo]:
+                    labels = resultados[k_optimo]['cluster_labels'][:len(datos_2d)]
+
+                    # Graficar puntos coloreados por cluster
+                    scatter = ax2.scatter(datos_2d[:, 0], datos_2d[:, 1],
+                                          c=labels, cmap='viridis',
+                                          alpha=0.6, edgecolors='black', linewidth=0.5)
+                    ax2.set_xlabel(xlabel, fontsize=11)
+                    ax2.set_ylabel(ylabel, fontsize=11)
+                    ax2.set_title(f'Clusters K-Means (K={k_optimo})', fontsize=12, fontweight='bold')
+
+                    # Añadir colorbar
+                    cbar = plt.colorbar(scatter, ax=ax2)
+                    cbar.set_label('Cluster', fontsize=10)
+
+                    # Marcar centroides si están disponibles
+                    if 'centroides' in resultados[k_optimo]:
+                        centroides = resultados[k_optimo]['centroides']
+                        if centroides.shape[1] > 2:
+                            # Transformar centroides con el mismo PCA
+                            centroides_scaled = scaler.transform(centroides)
+                            centroides_2d = pca.transform(centroides_scaled)
+                        else:
+                            centroides_2d = centroides
+
+                        ax2.scatter(centroides_2d[:, 0], centroides_2d[:, 1],
+                                    c='red', marker='*', s=300, edgecolors='black',
+                                    linewidth=2, label='Centroides')
+                        ax2.legend()
+                else:
+                    ax2.scatter(datos_2d[:, 0], datos_2d[:, 1], alpha=0.6)
+                    ax2.set_xlabel(xlabel, fontsize=11)
+                    ax2.set_ylabel(ylabel, fontsize=11)
+                    ax2.set_title('Datos sin clusters', fontsize=12)
 
             except Exception as e:
-                QMessageBox.critical(self, "Error", f"Error al exportar: {str(e)}")
+                print(f"Error en visualización de clusters: {e}")
+                ax2.text(0.5, 0.5, 'Error visualizando clusters',
+                         ha='center', va='center', transform=ax2.transAxes)
+                ax2.set_title('Error')
+        else:
+            # Solo mostrar gráfico de métricas
+            ax = fig.add_subplot(111)
 
-    def _generate_report(self):
-        """Generar reporte completo"""
-        QMessageBox.information(
-            self, "Generar Reporte",
-            "La funcionalidad de generación de reportes automáticos estará disponible próximamente.\n\n"
-            "Por ahora, puedes:\n"
-            "- Exportar los resultados en JSON\n"
-            "- Guardar los gráficos como imágenes\n"
-            "- Copiar el contenido del resumen"
-        )
+            k_vals = sorted(list(resultados.keys()))
+            silhouette_vals = [resultados[k]['silhouette_score'] for k in k_vals]
+            davies_vals = [resultados[k]['davies_bouldin_score'] for k in k_vals]
 
-    def _show_error(self, error_msg: str):
-        """Mostrar error"""
-        self.summary_text.setText(f"❌ Error: {error_msg}")
-        self.metrics_table.setRowCount(0)
-        self.details_text.setText(f"Error: {error_msg}")
-        self.status_label.setText("❌ Error en análisis")
-        self.status_label.setStyleSheet("color: red;")
+            ax2 = ax.twinx()
+
+            line1 = ax.plot(k_vals, silhouette_vals, 'bo-', linewidth=2,
+                            markersize=8, label='Silhouette (↑ mejor)')
+            line2 = ax2.plot(k_vals, davies_vals, 'rs-', linewidth=2,
+                             markersize=8, label='Davies-Bouldin (↓ mejor)')
+
+            ax.set_xlabel('Número de Clusters (K)', fontsize=12)
+            ax.set_ylabel('Silhouette Score', fontsize=12, color='b')
+            ax2.set_ylabel('Davies-Bouldin Score', fontsize=12, color='r')
+            ax.set_title('Métricas de Evaluación K-Means', fontsize=14, fontweight='bold')
+            ax.grid(True, alpha=0.3)
+
+            # Combinar leyendas
+            lines = line1 + line2
+            labels = [l.get_label() for l in lines]
+            ax.legend(lines, labels, loc='best')
+
+            # Marcar K óptimo
+            k_optimo = self.current_results.get('recomendacion_k')
+            if k_optimo and k_optimo in resultados:
+                ax.axvline(k_optimo, color='green', linestyle='--', alpha=0.7,
+                           label=f'K óptimo = {k_optimo}')
+
+    def _create_hierarchical_visualization(self):
+        """Crear dendrograma para clustering jerárquico"""
+        try:
+            from scipy.cluster.hierarchy import dendrogram, linkage
+            from sklearn.preprocessing import StandardScaler
+
+            # Obtener datos
+            if 'datos_originales' not in self.current_results:
+                ax = self.figure.add_subplot(111)
+                ax.text(0.5, 0.5, 'No hay datos para crear dendrograma',
+                        ha='center', va='center', transform=ax.transAxes)
+                return
+
+            datos = self.current_results['datos_originales'].dropna()
+
+            # Limitar número de muestras para visualización clara
+            max_samples = 100
+            if len(datos) > max_samples:
+                datos = datos.sample(n=max_samples, random_state=42)
+                print(f"Datos limitados a {max_samples} muestras para dendrograma")
+
+            # Escalar datos
+            scaler = StandardScaler()
+            datos_scaled = scaler.fit_transform(datos)
+
+            # Obtener configuración
+            mejor_config = self.current_results.get('mejor_configuracion', {})
+            metodo = mejor_config.get('metodo', 'ward')
+            metrica = mejor_config.get('metrica', 'euclidean')
+
+            # Ward solo funciona con euclidean
+            if metodo == 'ward':
+                metrica = 'euclidean'
+
+            # Crear linkage matrix
+            Z = linkage(datos_scaled, method=metodo, metric=metrica)
+
+            # Crear dendrograma
+            ax = self.figure.add_subplot(111)
+
+            dendro = dendrogram(
+                Z,
+                ax=ax,
+                orientation='top',
+                distance_sort='descending',
+                show_leaf_counts=True,
+                leaf_font_size=10,
+                color_threshold=0.7 * np.max(Z[:, 2]),
+                above_threshold_color='gray'
+            )
+
+            ax.set_title(f'Dendrograma - Clustering Jerárquico ({metodo} + {metrica})',
+                         fontsize=14, fontweight='bold', pad=20)
+            ax.set_ylabel('Distancia', fontsize=12)
+            ax.set_xlabel('Índice de Muestra', fontsize=12)
+            ax.grid(True, alpha=0.3, axis='y')
+
+            # Añadir línea de corte sugerida
+            n_clusters = mejor_config.get('n_clusters_sugeridos', 3)
+            if n_clusters > 1 and len(Z) >= n_clusters - 1:
+                altura_corte = Z[-(n_clusters -1), 2]
+                ax.axhline(y=altura_corte, color='red', linestyle='--',
+                           linewidth=2, alpha=0.8)
+                ax.text(ax.get_xlim()[1] * 0.7, altura_corte * 1.05,
+                        f'{n_clusters} clusters sugeridos',
+                        bbox=dict(boxstyle='round,pad=0.3', facecolor='yellow', alpha=0.7),
+                        fontsize=10, fontweight='bold')
+
+        except Exception as e:
+            print(f"Error creando dendrograma: {e}")
+            ax = self.figure.add_subplot(111)
+            ax.text(0.5, 0.5, f'Error creando dendrograma:\n{str(e)[:100]}',
+                    ha='center', va='center', transform=ax.transAxes,
+                    bbox=dict(boxstyle='round', facecolor='mistyrose'))
+            ax.set_title('Error en Dendrograma')
+            ax.axis('off')
+
+    def _create_dbscan_visualization(self):
+        """Crear visualización para DBSCAN"""
+        try:
+            from sklearn.decomposition import PCA
+            from sklearn.preprocessing import StandardScaler
+
+            mejor_config = self.current_results.get('mejor_configuracion', {})
+
+            if not mejor_config or 'datos_originales' not in self.current_results:
+                ax = self.figure.add_subplot(111)
+                ax.text(0.5, 0.5, 'No hay resultados de DBSCAN para visualizar',
+                        ha='center', va='center', transform=ax.transAxes)
+                return
+
+            # Obtener datos
+            datos = self.current_results['datos_originales'].dropna()
+
+            # Crear figura
+            fig = self.figure
+
+            # Si tenemos labels, crear visualización
+            if 'cluster_labels' in mejor_config:
+                labels = mejor_config['cluster_labels'][:len(datos)]
+
+                # Reducir dimensionalidad si es necesario
+                if datos.shape[1] > 2:
+                    scaler = StandardScaler()
+                    datos_scaled = scaler.fit_transform(datos)
+                    pca = PCA(n_components=2)
+                    datos_2d = pca.fit_transform(datos_scaled)
+                    var_exp = pca.explained_variance_ratio_
+
+                    # 2 subplots
+                    ax1 = fig.add_subplot(121)
+                    ax2 = fig.add_subplot(122)
+
+                    # Plot 1: Clusters
+                    unique_labels = set(labels)
+                    colors = plt.cm.Spectral(np.linspace(0, 1, len(unique_labels)))
+
+                    for k, col in zip(unique_labels, colors):
+                        if k == -1:
+                            # Ruido/outliers en negro
+                            col = 'black'
+                            marker = 'x'
+                            label = 'Outliers'
+                        else:
+                            marker = 'o'
+                            label = f'Cluster {k}'
+
+                        class_member_mask = (labels == k)
+                        xy = datos_2d[class_member_mask]
+                        ax1.scatter(xy[:, 0], xy[:, 1], c=[col], marker=marker,
+                                    s=50, label=label, alpha=0.7, edgecolors='black', linewidth=0.5)
+
+                    ax1.set_xlabel(f'PC1 ({var_exp[0] * 100:.1f}%)', fontsize=11)
+                    ax1.set_ylabel(f'PC2 ({var_exp[1] * 100:.1f}%)', fontsize=11)
+                    ax1.set_title(f'DBSCAN - {mejor_config.get("n_clusters", 0)} Clusters',
+                                  fontsize=12, fontweight='bold')
+                    ax1.legend(loc='best', fontsize=9)
+                    ax1.grid(True, alpha=0.3)
+
+                    # Plot 2: Información de parámetros
+                    info_text = f"Parámetros Óptimos:\n\n"
+                    info_text += f"Eps: {mejor_config.get('eps', 0):.3f}\n"
+                    info_text += f"Min Samples: {mejor_config.get('min_samples', 0)}\n\n"
+
+                    info_text += f"Resultados:\n"
+                    info_text += f"Clusters: {mejor_config.get('n_clusters', 0)}\n"
+                    info_text += f"Outliers: {mejor_config.get('n_outliers', 0)}\n"
+
+                    silhouette = mejor_config.get('silhouette', None)
+                    if silhouette is not None:
+                        info_text += f"Silhouette Score: {silhouette:.3f}\n"
+
+                    davies_bouldin = mejor_config.get('davies_bouldin', None)
+                    if davies_bouldin is not None:
+                        info_text += f"Davies-Bouldin Index: {davies_bouldin:.3f}\n"
+
+                    calinski_harabasz = mejor_config.get('calinski_harabasz', None)
+                    if calinski_harabasz is not None:
+                        info_text += f"Calinski-Harabasz Index: {calinski_harabasz:.3f}\n"
+
+                    # Mostrar texto
+                    ax2.axis('off')
+                    ax2.text(0.05, 0.95, info_text, fontsize=10, va='top', ha='left',
+                             family='monospace', transform=ax2.transAxes)
+
+        except Exception as e:
+            ax = self.figure.add_subplot(111)
+            ax.text(0.5, 0.5, f"Error en visualización DBSCAN:\n{str(e)}",
+                    ha='center', va='center', transform=ax.transAxes)
 
 
-# ==================== VENTANA PRINCIPAL ====================
+    def _export_results(self):
+        """Exportar resultados actuales a un archivo CSV"""
+        from PyQt5.QtWidgets import QFileDialog, QMessageBox
+        import pandas as pd
+
+        try:
+            if not hasattr(self, 'current_results') or 'datos_originales' not in self.current_results:
+                QMessageBox.warning(self, "Sin datos", "No hay resultados para exportar.")
+                return
+
+            # Obtener DataFrame original y etiquetas de cluster
+            df = self.current_results['datos_originales'].copy()
+            mejor_config = self.current_results.get('mejor_configuracion', {})
+            if 'cluster_labels' in mejor_config:
+                df['Cluster'] = mejor_config['cluster_labels'][:len(df)]
+
+            # Diálogo para guardar archivo
+            file_path, _ = QFileDialog.getSaveFileName(
+                self,
+                "Exportar Resultados",
+                "",
+                "Archivo CSV (*.csv);;Todos los archivos (*.*)"
+            )
+
+            if file_path:
+                df.to_csv(file_path, index=False, encoding='utf-8-sig')
+                QMessageBox.information(self, "Exportación completada",
+                                        f"Resultados exportados a:\n{file_path}")
+
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"No se pudieron exportar los resultados:\n{str(e)}")
+
+    def _create_metrics_tab(self) -> QWidget:
+        """Crear tab de métricas"""
+        widget = QWidget()
+        layout = QVBoxLayout()
+
+        self.metrics_table = QTableWidget()
+        self.metrics_table.setAlternatingRowColors(True)
+        layout.addWidget(self.metrics_table)
+
+        widget.setLayout(layout)
+        return widget
+
+    def _create_viz_tab(self) -> QWidget:
+        """Crear tab de visualizaciones"""
+        widget = QWidget()
+        layout = QVBoxLayout()
+
+        # Canvas para matplotlib
+        self.figure = Figure(figsize=(12, 8))
+        self.canvas = FigureCanvas(self.figure)
+
+        scroll = QScrollArea()
+        scroll.setWidget(self.canvas)
+        scroll.setWidgetResizable(True)
+        layout.addWidget(scroll)
+
+        # Controles
+        controls_layout = QHBoxLayout()
+
+        self.save_fig_btn = QPushButton("💾 Guardar Gráfico")
+        self.save_fig_btn.clicked.connect(self._save_figure)
+        controls_layout.addWidget(self.save_fig_btn)
+
+        controls_layout.addStretch()
+        layout.addLayout(controls_layout)
+
+        widget.setLayout(layout)
+        return widget
+
+
+# ==================== VENTANA PRINCIPAL MEJORADA ====================
 
 class NoSupervisadoWindow(QWidget, ThemedWidget):
     """Ventana principal para ML No Supervisado"""
@@ -1172,9 +1542,6 @@ class NoSupervisadoWindow(QWidget, ThemedWidget):
                 self.update_data_info()
                 self.enable_analysis_buttons(True)
                 self.log("✅ Datos cargados desde el sistema")
-
-                # Pasar datos a widget de resultados para visualizaciones
-                self.results_widget.set_current_data(self.current_data)
             else:
                 print("⚠️ No hay datos disponibles en el DataManager")
                 self.current_data = None
@@ -1212,7 +1579,7 @@ class NoSupervisadoWindow(QWidget, ThemedWidget):
         for btn in buttons:
             btn.setEnabled(enabled)
 
-    # ==================== CONFIGURACIÓN DE UI ====================
+    # ==================== CONFIGURACIÓN DE UI MEJORADA ====================
 
     def create_header(self) -> QWidget:
         """Crear header de la ventana"""
@@ -1284,7 +1651,7 @@ class NoSupervisadoWindow(QWidget, ThemedWidget):
         self.configuration = ConfigurationWidget()
         layout.addWidget(self.configuration)
 
-        # Botones de análisis
+        # Botones de análisis mejorados
         analysis_group = QGroupBox("🚀 Análisis Disponibles")
         analysis_layout = QVBoxLayout()
         analysis_layout.setSpacing(12)
@@ -1480,9 +1847,6 @@ class NoSupervisadoWindow(QWidget, ThemedWidget):
             self.update_data_info()
             self.enable_analysis_buttons(True)
 
-            # Pasar datos a widget de resultados
-            self.results_widget.set_current_data(self.current_data)
-
             self.log("✅ Datos de demostración generados exitosamente")
             QMessageBox.information(
                 self, "Datos Demo",
@@ -1508,7 +1872,7 @@ class NoSupervisadoWindow(QWidget, ThemedWidget):
             QMessageBox.critical(
                 self, "Error",
                 "Las librerías de Machine Learning no están disponibles.\n"
-                "Verifica que scikit-learn, matplotlib estén instalados."
+                "Verifica que scikit-learn, matplotlib y seaborn estén instalados."
             )
             return
 
@@ -1543,6 +1907,9 @@ class NoSupervisadoWindow(QWidget, ThemedWidget):
                 **base_kwargs,
                 'optimizar_parametros': config['dbscan_optimize']
             }
+            # Añadir contamination solo si se maneja outliers
+            if config['handle_outliers']:
+                kwargs['contamination'] = config['outlier_contamination']
 
         elif analysis_type == 'pca_avanzado':
             metodos = ['linear']
@@ -1559,7 +1926,6 @@ class NoSupervisadoWindow(QWidget, ThemedWidget):
                 kwargs.update({
                     'max_components': config['pca_max_components']
                 })
-
         elif analysis_type == 'analisis_exploratorio':
             kwargs = {
                 **base_kwargs,
@@ -1748,6 +2114,22 @@ class NoSupervisadoWindow(QWidget, ThemedWidget):
         <li><b>DBSCAN:</b> Ideal cuando no conoces el número de clusters</li>
         <li><b>Outliers:</b> Isolation Forest es robusto para datos multidimensionales</li>
         </ul>
+
+        <h3>📈 Interpretación de Resultados:</h3>
+        <ul>
+        <li><b>Silhouette Score:</b> >0.7 excelente, 0.5-0.7 bueno, <0.5 débil</li>
+        <li><b>Davies-Bouldin:</b> Menor es mejor (clusters más separados)</li>
+        <li><b>Varianza PCA:</b> Primer componente debería explicar >30% idealmente</li>
+        <li><b>Outliers:</b> 5-10% es normal, >20% puede indicar problemas en datos</li>
+        </ul>
+
+        <h3>🚨 Solución de Problemas:</h3>
+        <ul>
+        <li><b>Error "No clusters":</b> Verifica escalado y selección de variables</li>
+        <li><b>Resultados inconsistentes:</b> Fija la semilla aleatoria</li>
+        <li><b>Análisis lento:</b> Reduce variables o usa muestreo</li>
+        <li><b>PCA sin sentido:</b> Verifica correlaciones entre variables</li>
+        </ul>
         """)
         layout.addWidget(help_text)
 
@@ -1760,7 +2142,7 @@ class NoSupervisadoWindow(QWidget, ThemedWidget):
         help_dialog.exec_()
 
     def apply_styles(self):
-        """Aplicar estilos personalizados"""
+        """Aplicar estilos personalizados mejorados"""
         style = """
         /* Estilos generales */
         QWidget {
@@ -1809,42 +2191,6 @@ class NoSupervisadoWindow(QWidget, ThemedWidget):
             color: #7f8c8d;
         }
 
-        /* Botones específicos de análisis */
-        QPushButton[text*="K-Means"] {
-            background-color: #e74c3c;
-        }
-        QPushButton[text*="K-Means"]:hover {
-            background-color: #c0392b;
-        }
-
-        QPushButton[text*="Jerárquico"] {
-            background-color: #f39c12;
-        }
-        QPushButton[text*="Jerárquico"]:hover {
-            background-color: #e67e22;
-        }
-
-        QPushButton[text*="DBSCAN"] {
-            background-color: #9b59b6;
-        }
-        QPushButton[text*="DBSCAN"]:hover {
-            background-color: #8e44ad;
-        }
-
-        QPushButton[text*="PCA"] {
-            background-color: #27ae60;
-        }
-        QPushButton[text*="PCA"]:hover {
-            background-color: #229954;
-        }
-
-        QPushButton[text*="Exploratorio"] {
-            background-color: #17a2b8;
-        }
-        QPushButton[text*="Exploratorio"]:hover {
-            background-color: #138496;
-        }
-
         /* Progress bar */
         QProgressBar {
             border: 2px solid #bdc3c7;
@@ -1860,7 +2206,7 @@ class NoSupervisadoWindow(QWidget, ThemedWidget):
             border-radius: 6px;
         }
 
-        /* Tabs */
+        /* TabWidget */
         QTabWidget::pane {
             border: 2px solid #bdc3c7;
             border-radius: 8px;
@@ -1885,29 +2231,124 @@ class NoSupervisadoWindow(QWidget, ThemedWidget):
         QTabBar::tab:hover {
             background: #d5dbdb;
         }
+
+        /* ListWidget */
+        QListWidget {
+            border: 2px solid #bdc3c7;
+            border-radius: 6px;
+            selection-background-color: #3498db;
+            background-color: white;
+            alternate-background-color: #f8f9fa;
+        }
+
+        QListWidget::item {
+            padding: 8px;
+            border-bottom: 1px solid #ecf0f1;
+        }
+
+        QListWidget::item:hover {
+            background-color: #e8f4fd;
+        }
+
+        QListWidget::item:selected {
+            background-color: #3498db;
+            color: white;
+        }
+
+        /* TextEdit */
+        QTextEdit {
+            border: 2px solid #bdc3c7;
+            border-radius: 6px;
+            font-family: 'Segoe UI', Arial, sans-serif;
+            background-color: white;
+            selection-background-color: #3498db;
+        }
+
+        /* TableWidget */
+        QTableWidget {
+            border: 2px solid #bdc3c7;
+            gridline-color: #ecf0f1;
+            selection-background-color: #3498db;
+            alternate-background-color: #f8f9fa;
+            background-color: white;
+        }
+
+        QTableWidget::item {
+            padding: 8px;
+            border-bottom: 1px solid #ecf0f1;
+        }
+
+        QTableWidget::item:selected {
+            background-color: #3498db;
+            color: white;
+        }
+
+        QHeaderView::section {
+            background-color: #34495e;
+            color: white;
+            padding: 8px;
+            border: none;
+            font-weight: bold;
+        }
+
+        /* Frame */
+        QFrame {
+            border: 1px solid #bdc3c7;
+            border-radius: 6px;
+            background-color: white;
+        }
+
+        /* ScrollArea */
+        QScrollArea {
+            border: 1px solid #bdc3c7;
+            border-radius: 6px;
+            background-color: white;
+        }
+
+        /* ComboBox */
+        QComboBox {
+            border: 2px solid #bdc3c7;
+            border-radius: 4px;
+            padding: 4px 8px;
+            background-color: white;
+        }
+
+        QComboBox:hover {
+            border-color: #3498db;
+        }
+
+        /* SpinBox */
+        QSpinBox, QDoubleSpinBox {
+            border: 2px solid #bdc3c7;
+            border-radius: 4px;
+            padding: 4px 8px;
+            background-color: white;
+        }
+
+        QSpinBox:hover, QDoubleSpinBox:hover {
+            border-color: #3498db;
+        }
+
+        /* CheckBox */
+        QCheckBox {
+            spacing: 8px;
+        }
+
+        QCheckBox::indicator {
+            width: 16px;
+            height: 16px;
+            border: 2px solid #bdc3c7;
+            border-radius: 3px;
+            background-color: white;
+        }
+
+        QCheckBox::indicator:checked {
+            background-color: #3498db;
+            border-color: #3498db;
+        }
         """
 
         self.setStyleSheet(style)
-
-    def closeEvent(self, event):
-        """Manejar el cierre de la ventana"""
-        # Cancelar análisis en curso si existe
-        if self.current_worker and self.current_worker.isRunning():
-            self.current_worker.cancel()
-            self.current_worker.terminate()
-            self.current_worker.wait(3000)  # Esperar máximo 3 segundos
-
-        # Desconectar del DataManager si está disponible
-        if DATA_MANAGER_AVAILABLE:
-            dm = get_data_manager()
-            if dm is not None:
-                try:
-                    dm.remove_observer(self)
-                    print("✅ NoSupervisadoWindow: Desconectada del DataManager")
-                except:
-                    pass
-
-        event.accept()
 
 
 # ==================== FUNCIÓN PRINCIPAL PARA TESTING ====================

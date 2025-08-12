@@ -10,7 +10,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from sklearn.preprocessing import StandardScaler, RobustScaler, MinMaxScaler, QuantileTransformer
 from sklearn.decomposition import PCA, KernelPCA, FastICA
-from sklearn.cluster import KMeans, DBSCAN, AgglomerativeClustering, SpectralClustering
+from sklearn.cluster import KMeans, DBSCAN, SpectralClustering
+from sklearn.cluster import AgglomerativeClustering
 from sklearn.mixture import GaussianMixture
 from sklearn.ensemble import IsolationForest
 from sklearn.metrics import silhouette_score, davies_bouldin_score, calinski_harabasz_score, adjusted_rand_score
@@ -320,10 +321,10 @@ def clustering_jerarquico_completo(data, variables=None, metodos=['ward', 'compl
                     else:
                         affinity = 'euclidean'
 
-                    clusterer = AgglomerativeClustering(
-                        n_clusters=k,
+                    clustering = AgglomerativeClustering(
+                        n_clusters=n_clusters,
                         linkage=metodo,
-                        affinity=affinity
+                        metric=affinity  # Aquí pones "euclidean", "manhattan", etc.
                     )
 
                     labels = clusterer.fit_predict(X_scaled.values)
@@ -422,10 +423,10 @@ def crear_dendrograma_data_sklearn(X_scaled, metodo, affinity):
 
         max_clusters = min(20, len(X_sample) - 1)
         for n_clusters in range(max_clusters, 1, -1):
-            clusterer = AgglomerativeClustering(
+            clustering = AgglomerativeClustering(
                 n_clusters=n_clusters,
                 linkage=metodo,
-                affinity=affinity
+                metric=affinity  # Aquí pones "euclidean", "manhattan", etc.
             )
 
             labels = clusterer.fit_predict(X_sample)
@@ -485,8 +486,11 @@ def analizar_estabilidad_clusters_sklearn(X, metodo, affinity, k_range):
     for k in k_range:
         # Clustering original
         clusterer_original = AgglomerativeClustering(
-            n_clusters=k, linkage=metodo, affinity=affinity
+            n_clusters=k,
+            linkage=metodo,
+            metric=affinity  # 'euclidean', 'manhattan', etc.
         )
+
         labels_original = clusterer_original.fit_predict(X)
 
         # Bootstrap sampling
@@ -500,9 +504,12 @@ def analizar_estabilidad_clusters_sklearn(X, metodo, affinity, k_range):
 
             try:
                 # Clustering en muestra bootstrap
-                clusterer_bootstrap = AgglomerativeClustering(
-                    n_clusters=k, linkage=metodo, affinity=affinity
+                clusterer_original = AgglomerativeClustering(
+                    n_clusters=k,
+                    linkage=metodo,
+                    metric=affinity  # 'euclidean', 'manhattan', etc.
                 )
+
                 labels_bootstrap = clusterer_bootstrap.fit_predict(X_bootstrap)
 
                 # Calcular ARI con etiquetas originales (solo índices comunes)
