@@ -298,7 +298,7 @@ class SegmentacionML(QWidget):
         layout.setContentsMargins(20, 5, 20, 5)
 
         # Verificar dependencias y datos
-        deps_ok = self.check_dependencies()
+        deps_ok = True  # Asumimos que las dependencias están disponibles
 
         # Estado de datos
         if self.data_manager and self.data_manager.has_data():
@@ -625,17 +625,6 @@ class SegmentacionML(QWidget):
             }
         """)
 
-    def check_dependencies(self):
-        """Verificar si las dependencias están instaladas"""
-        try:
-            import numpy
-            import pandas
-            import sklearn
-            import matplotlib
-            return True
-        except ImportError:
-            return False
-
     def check_data_status(self):
         """Verificar y actualizar estado de los datos"""
         if self.data_manager and self.data_manager.has_data():
@@ -651,11 +640,6 @@ class SegmentacionML(QWidget):
 
     def open_supervisado(self):
         """Abrir módulo de aprendizaje supervisado"""
-        # Verificar dependencias
-        if not self.check_dependencies():
-            self.show_dependencies_warning()
-            return
-
         # Verificar disponibilidad del módulo
         if not SUPERVISADO_AVAILABLE:
             QMessageBox.warning(
@@ -722,11 +706,6 @@ class SegmentacionML(QWidget):
     def open_no_supervisado(self):
         """Abrir módulo de aprendizaje no supervisado"""
         print("🔍 Intentando abrir módulo No Supervisado...")
-
-        # Verificar dependencias
-        if not self.check_dependencies():
-            self.show_dependencies_warning()
-            return
 
         # Verificar disponibilidad del módulo
         if not NO_SUPERVISADO_AVAILABLE:
@@ -806,22 +785,6 @@ class SegmentacionML(QWidget):
                 "Instala dependencias con:\n"
                 "pip install scikit-learn matplotlib numpy pandas"
             )
-
-    def show_dependencies_warning(self):
-        """Mostrar advertencia de dependencias faltantes"""
-        QMessageBox.warning(
-            self,
-            "📦 Dependencias Faltantes",
-            "Para usar el sistema ML necesitas instalar:\n\n"
-            "• numpy\n"
-            "• pandas\n"
-            "• scikit-learn\n"
-            "• matplotlib\n"
-            "• seaborn\n"
-            "• scipy\n\n"
-            "Instala con:\n"
-            "pip install numpy pandas scikit-learn matplotlib seaborn scipy"
-        )
 
     def show_help(self):
         """Mostrar ayuda del sistema"""

@@ -1092,27 +1092,41 @@ class CargaDatos(QWidget):
     def usar_datos(self):
         """Emitir señal con los datos cargados y notificar al DataManager."""
         if self.df is not None:
-            # Registrar los datos globalmente
-            dm = get_data_manager()  # Obtener la instancia del DataManager
-            dm.set_data(self.df, source="carga_manual")
+            try:
+                # Intentar usar DataManager con manejo robusto de errores
+                try:
+                    from ui.machine_learning.data_manager import get_data_manager, has_shared_data
+                    dm = get_data_manager()
+                    dm.set_data(self.df, source="carga_manual")
+                    print(f"📊 Datos registrados en DataManager: {self.df.shape}")
 
-            # ¡CRUCIAL! Notificar al DataManager Singleton que los datos han cambiado
-            dm._notify_observers('data_changed')  # Esto hará que DataManager llame a update() en SupervisadoWindow
+                    # Solo notificar si el método existe
+                    if hasattr(dm, '_notify_observers'):
+                        dm._notify_observers('data_changed')
+                        print("📡 Observadores notificados")
+                    else:
+                        print("📡 Mock DataManager - sin observadores")
 
-            # Emitir señal con los datos (esto sigue siendo útil si otros widgets escuchan esta señal específica)
-            self.datos_cargados.emit(self.df)
+                except ImportError:
+                    print("⚠️ DataManager no disponible - usando modo standalone")
+                except Exception as dm_error:
+                    print(f"⚠️ Error en DataManager: {dm_error}")
 
-            # Mostrar mensaje informativo
-            size_mb = self.df.memory_usage(deep=True).sum() / (1024 * 1024)
-            QMessageBox.information(
-                self,
-                "✅ Datos Preparados",
-                f"Los datos han sido preparados para análisis:\n\n"
-                f"📊 Registros: {len(self.df):,}\n"
-                f"📋 Variables: {len(self.df.columns)}\n"
-                f"💾 Memoria: {size_mb:.1f} MB\n\n"
-                f"Los datos están listos para el análisis."
-            )
+                # Emitir señal independientemente del DataManager
+                self.datos_cargados.emit(self.df)
+
+                # Mostrar confirmación
+                QMessageBox.information(
+                    self, "✅ Datos Preparados",
+                    f"Datos preparados exitosamente:\n\n"
+                    f"📊 Registros: {len(self.df):,}\n"
+                    f"📋 Variables: {len(self.df.columns)}\n"
+                    f"💾 Memoria: {self.df.memory_usage(deep=True).sum() / (1024 ** 2):.1f} MB"
+                )
+
+            except Exception as e:
+                print(f"❌ Error en usar_datos: {e}")
+                QMessageBox.critical(self, "Error", f"Error preparando datos:\n{e}")
 
     def exportar_datos(self):
         """Exportar datos"""
@@ -1143,7 +1157,10 @@ class CargaDatos(QWidget):
                         f"📊 Registros: {len(self.df):,}\n"
                         f"📋 Variables: {len(self.df.columns)}"
                     )
-                    print("¿Datos cargados?", has_shared_data())  # Debería imprimir True
+                    try:
+                        print("¿Datos cargados?", has_shared_data())
+                    except:
+                        print("⚠️ has_shared_data no disponible - usando modo standalone")
 
             except Exception as e:
                 QMessageBox.critical(self, "❌ Error", f"Error al exportar: {str(e)}")

@@ -5,9 +5,6 @@ import os
 import sys
 
 
-# ❌ ELIMINADA: from scipy import stats
-
-
 # CONFIGURACIÓN PARA EJECUTABLES
 def get_temp_dir():
     """Obtiene directorio temporal que funciona en ejecutables"""

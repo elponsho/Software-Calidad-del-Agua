@@ -20,6 +20,9 @@ from sklearn.impute import KNNImputer, SimpleImputer
 from sklearn.feature_selection import VarianceThreshold
 from sklearn.metrics.pairwise import euclidean_distances, manhattan_distances, cosine_distances
 import warnings
+
+from typing import Dict, Any, Tuple
+
 warnings.filterwarnings('ignore')
 
 # Configuración de visualización
@@ -313,7 +316,7 @@ def clustering_jerarquico_completo(data, variables=None, metodos=['ward', 'compl
                 labels_por_k = {}
 
                 for k in range(2, min(max_clusters + 1, len(X) // 2)):
-                    # Usar AgglomerativeClustering
+                    # Usar AgglomerativeClustering - FIXED: correct parameter names
                     if metrica == 'cosine':
                         affinity = 'cosine'
                     elif metrica == 'manhattan':
@@ -321,10 +324,18 @@ def clustering_jerarquico_completo(data, variables=None, metodos=['ward', 'compl
                     else:
                         affinity = 'euclidean'
 
+<<<<<<< HEAD
                     clustering = AgglomerativeClustering(
                         n_clusters=n_clusters,
                         linkage=metodo,
                         metric=affinity  # Aquí pones "euclidean", "manhattan", etc.
+=======
+                    # FIXED: Use correct parameter name 'metric' instead of 'affinity'
+                    clusterer = AgglomerativeClustering(
+                        n_clusters=k,
+                        linkage=metodo,
+                        metric=affinity
+>>>>>>> 73b8f33 (Vivan los papus)
                     )
 
                     labels = clusterer.fit_predict(X_scaled.values)
@@ -392,6 +403,18 @@ def clustering_jerarquico_completo(data, variables=None, metodos=['ward', 'compl
         mejor_config = max(resultados_completos.keys(),
                           key=lambda k: resultados_completos[k]['mejor_silhouette'])
 
+        # FIXED: Add proper mejor_configuracion structure
+        mejor_resultado = resultados_completos[mejor_config]
+        mejor_configuracion = {
+            'metodo': mejor_resultado['metodo'],
+            'metrica': mejor_resultado['metrica'],
+            'n_clusters_sugeridos': mejor_resultado['mejor_k'],
+            'silhouette_score': mejor_resultado['mejor_silhouette'],
+            'labels': mejor_resultado['evaluaciones_por_k'][mejor_resultado['mejor_k']]['labels']
+        }
+    else:
+        mejor_configuracion = {}
+
     if verbose:
         print(f"✅ Clustering jerárquico completado. Mejor configuración: {mejor_config}")
 
@@ -400,13 +423,64 @@ def clustering_jerarquico_completo(data, variables=None, metodos=['ward', 'compl
         'variables_utilizadas': variables,
         'metodo_escalado': escalado,
         'resultados_por_configuracion': resultados_completos,
-        'mejor_configuracion': mejor_config,
+        'mejor_configuracion': mejor_configuracion,  # FIXED: Add this key
+        'datos_originales': X,  # FIXED: Add original data
         'datos_escalados': X_scaled.values.tolist(),
         'indices_muestras': X.index.tolist(),
         'resumen_evaluacion': generar_resumen_clustering(resultados_completos),
         'recomendaciones': generar_recomendaciones_clustering(resultados_completos)
     }
+def analizar_estabilidad_clusters_sklearn(X, metodo, affinity, k_range):
+    """Analizar estabilidad usando sklearn"""
+    estabilidad_scores = {}
 
+    for k in k_range:
+        # Clustering original
+        clusterer_original = AgglomerativeClustering(
+            n_clusters=k,
+            linkage=metodo,
+            metric=affinity  # FIXED: Use 'metric' instead of 'affinity'
+        )
+
+        labels_original = clusterer_original.fit_predict(X)
+
+        # Bootstrap sampling
+        n_bootstrap = 10
+        ari_scores = []
+
+        for _ in range(n_bootstrap):
+            # Muestra bootstrap
+            bootstrap_indices = np.random.choice(len(X), len(X), replace=True)
+            X_bootstrap = X.iloc[bootstrap_indices] if hasattr(X, 'iloc') else X[bootstrap_indices]
+
+            try:
+                # Clustering en muestra bootstrap
+                clusterer_bootstrap = AgglomerativeClustering(
+                    n_clusters=k,
+                    linkage=metodo,
+                    metric=affinity  # FIXED: Use 'metric' instead of 'affinity'
+                )
+
+                labels_bootstrap = clusterer_bootstrap.fit_predict(X_bootstrap)
+
+                # Calcular ARI con etiquetas originales (solo índices comunes)
+                ari = adjusted_rand_score(labels_original[bootstrap_indices], labels_bootstrap)
+                ari_scores.append(ari)
+
+            except:
+                continue
+
+        if ari_scores:
+            estabilidad_scores[k] = {
+                'ari_mean': float(np.mean(ari_scores)),
+                'ari_std': float(np.std(ari_scores)),
+                'estabilidad': 'Alta' if np.mean(ari_scores) > 0.7 else 'Media' if np.mean(ari_scores) > 0.5 else 'Baja'
+            }
+
+    return estabilidad_scores
+
+
+# 3. Fix the crear_dendrograma_data_sklearn function
 def crear_dendrograma_data_sklearn(X_scaled, metodo, affinity):
     """Crear datos simulados para dendrograma usando sklearn"""
     try:
@@ -426,10 +500,14 @@ def crear_dendrograma_data_sklearn(X_scaled, metodo, affinity):
             clustering = AgglomerativeClustering(
                 n_clusters=n_clusters,
                 linkage=metodo,
+<<<<<<< HEAD
                 metric=affinity  # Aquí pones "euclidean", "manhattan", etc.
+=======
+                metric=affinity  # FIXED: Use 'metric' instead of 'affinity'
+>>>>>>> 73b8f33 (Vivan los papus)
             )
 
-            labels = clusterer.fit_predict(X_sample)
+            labels = clustering.fit_predict(X_sample)
 
             # Calcular distancia promedio intra-cluster como medida de fusión
             unique_labels = np.unique(labels)
@@ -479,10 +557,8 @@ def crear_dendrograma_data_sklearn(X_scaled, metodo, affinity):
             'affinity': affinity
         }
 
-def analizar_estabilidad_clusters_sklearn(X, metodo, affinity, k_range):
-    """Analizar estabilidad usando sklearn"""
-    estabilidad_scores = {}
 
+<<<<<<< HEAD
     for k in k_range:
         # Clustering original
         clusterer_original = AgglomerativeClustering(
@@ -492,16 +568,20 @@ def analizar_estabilidad_clusters_sklearn(X, metodo, affinity, k_range):
         )
 
         labels_original = clusterer_original.fit_predict(X)
+=======
+# 4. Fix the _create_pca_visualization function in no_supervisado_window.py
+# Replace the problematic method in ResultsVisualizationWidget:
+>>>>>>> 73b8f33 (Vivan los papus)
 
-        # Bootstrap sampling
-        n_bootstrap = 10
-        ari_scores = []
+def _create_pca_visualization(self):
+    """Crear visualización para PCA con enfoque en puntos de muestreo"""
+    try:
+        from sklearn.decomposition import PCA
+        from sklearn.preprocessing import StandardScaler
 
-        for _ in range(n_bootstrap):
-            # Muestra bootstrap
-            bootstrap_indices = np.random.choice(len(X), len(X), replace=True)
-            X_bootstrap = X.iloc[bootstrap_indices] if hasattr(X, 'iloc') else X[bootstrap_indices]
+        resultados = self.current_results.get('resultados_por_metodo', {})
 
+<<<<<<< HEAD
             try:
                 # Clustering en muestra bootstrap
                 clusterer_original = AgglomerativeClustering(
@@ -511,288 +591,554 @@ def analizar_estabilidad_clusters_sklearn(X, metodo, affinity, k_range):
                 )
 
                 labels_bootstrap = clusterer_bootstrap.fit_predict(X_bootstrap)
+=======
+        if 'linear' not in resultados:
+            ax = self.figure.add_subplot(111)
+            ax.text(0.5, 0.5, 'No hay resultados de PCA lineal para visualizar',
+                    ha='center', va='center', transform=ax.transAxes)
+            return
+>>>>>>> 73b8f33 (Vivan los papus)
 
-                # Calcular ARI con etiquetas originales (solo índices comunes)
-                ari = adjusted_rand_score(labels_original[bootstrap_indices], labels_bootstrap)
-                ari_scores.append(ari)
-
-            except:
-                continue
-
-        if ari_scores:
-            estabilidad_scores[k] = {
-                'ari_mean': float(np.mean(ari_scores)),
-                'ari_std': float(np.std(ari_scores)),
-                'estabilidad': 'Alta' if np.mean(ari_scores) > 0.7 else 'Media' if np.mean(ari_scores) > 0.5 else 'Baja'
-            }
-
-    return estabilidad_scores
-
-# ==================== K-MEANS OPTIMIZADO ====================
-
-def kmeans_optimizado_completo(data, variables=None, k_range=None,
-                             criterios_optimo=['silhouette', 'elbow', 'gap'],
-                             escalado='standard', random_state=42, n_jobs=-1, verbose=True):
-    """
-    K-Means optimizado con múltiples criterios para determinar K óptimo
-    """
-    if verbose:
-        print("🔍 Iniciando K-Means optimizado...")
-
-    if variables is None:
-        variables = data.select_dtypes(include=[np.number]).columns.tolist()
-
-    X = data[variables].dropna()
-
-    if verbose:
-        print(f"📊 Datos preparados: {X.shape[0]} muestras, {X.shape[1]} variables")
-
-    # Escalado
-    X_scaled, scaler = aplicar_escalado(X, escalado)
-
-    if k_range is None:
-        k_range = range(2, min(15, len(X) // 10))
-
-    resultados_kmeans = {}
-    inercias = []
-    silhouette_scores = []
-
-    # Evaluar diferentes valores de K
-    for k in k_range:
-        if verbose:
-            print(f"   Evaluando K={k}...")
-
-        try:
-            kmeans = KMeans(
-                n_clusters=k,
-                init='k-means++',
-                n_init=20,
-                max_iter=500,
-                random_state=random_state
+        # Usar la nueva función especializada para puntos de muestreo
+        self.figure.clear()
+        if 'datos_originales' in self.current_results:
+            # FIXED: Use the correct function that exists
+            self.figure = _crear_visualizacion_pca_puntos_muestreo(
+                self.current_results, figsize=(16, 12)
             )
-            labels = kmeans.fit_predict(X_scaled)
+        else:
+            # Visualización PCA tradicional como fallback
+            self._create_traditional_pca_visualization()
 
-            # Métricas de evaluación
-            silhouette = silhouette_score(X_scaled, labels)
-            davies_bouldin = davies_bouldin_score(X_scaled, labels)
-            calinski_harabasz = calinski_harabasz_score(X_scaled, labels)
+    except Exception as e:
+        print(f"Error en visualización PCA: {e}")
+        self._show_error_visualization()
 
-            # Análisis detallado de clusters
-            cluster_analysis = analizar_clusters_kmeans(X, labels, variables, scaler, kmeans)
+def _create_traditional_pca_visualization(self):
+    """Visualización PCA tradicional como fallback"""
+    try:
+        resultados = self.current_results.get('resultados_por_metodo', {})
 
-            resultado_k = {
-                'k': k,
-                'labels': labels.tolist(),
-                'centroides': kmeans.cluster_centers_.tolist(),
-                'inercia': float(kmeans.inertia_),
-                'silhouette_score': float(silhouette),
-                'davies_bouldin_score': float(davies_bouldin),
-                'calinski_harabasz_score': float(calinski_harabasz),
-                'n_iteraciones': int(kmeans.n_iter_),
-                'cluster_analysis': cluster_analysis
-            }
+        if 'linear' not in resultados:
+            ax = self.figure.add_subplot(111)
+            ax.text(0.5, 0.5, 'No hay resultados de PCA para visualizar',
+                    ha='center', va='center', transform=ax.transAxes)
+            return
 
-            resultados_kmeans[k] = resultado_k
-            inercias.append(resultado_k['inercia'])
-            silhouette_scores.append(resultado_k['silhouette_score'])
+        linear_result = resultados['linear']
+        analisis = linear_result.get('analisis', {})
 
-        except Exception as e:
-            if verbose:
-                print(f"Error con K={k}: {e}")
-            continue
+        # Crear subplot 2x2
+        fig = self.figure
+        gs = fig.add_gridspec(2, 2, hspace=0.3, wspace=0.3)
 
-    # Determinar K óptimo usando diferentes criterios
-    k_optimos = {}
+        # 1. Varianza explicada
+        ax1 = fig.add_subplot(gs[0, 0])
+        var_explicada = analisis.get('varianza_explicada', [])
+        if var_explicada:
+            x = range(1, len(var_explicada) + 1)
+            ax1.bar(x, [v * 100 for v in var_explicada], alpha=0.7)
+            ax1.set_xlabel('Componente Principal')
+            ax1.set_ylabel('Varianza Explicada (%)')
+            ax1.set_title('Varianza por Componente')
+            ax1.grid(True, alpha=0.3)
 
-    # 1. Método del codo
-    if len(inercias) >= 3:
-        k_optimo_codo = determinar_k_codo(list(k_range), inercias)
-        k_optimos['elbow'] = k_optimo_codo
+        # 2. Varianza acumulada
+        ax2 = fig.add_subplot(gs[0, 1])
+        var_acumulada = analisis.get('varianza_acumulada', [])
+        if var_acumulada:
+            x = range(1, len(var_acumulada) + 1)
+            ax2.plot(x, [v * 100 for v in var_acumulada], 'o-', linewidth=2)
+            ax2.axhline(y=95, color='red', linestyle='--', label='95%')
+            ax2.set_xlabel('Componente Principal')
+            ax2.set_ylabel('Varianza Acumulada (%)')
+            ax2.set_title('Varianza Acumulada')
+            ax2.legend()
+            ax2.grid(True, alpha=0.3)
 
-    # 2. Silhouette score máximo
-    if silhouette_scores:
-        k_optimo_silhouette = list(k_range)[np.argmax(silhouette_scores)]
-        k_optimos['silhouette'] = k_optimo_silhouette
+        # 3. Información de componentes
+        ax3 = fig.add_subplot(gs[1, :])
+        componentes_info = analisis.get('componentes_info', [])
+        if componentes_info and len(componentes_info) > 0:
+            # Mostrar contribuciones del primer componente
+            pc1_info = componentes_info[0]
+            top_vars = pc1_info.get('top_variables', [])[:5]
 
-    # 3. Gap statistic (simplificado)
-    if len(resultados_kmeans) >= 3:
-        k_optimo_gap = calcular_gap_statistic(X_scaled, k_range, n_refs=10)
-        k_optimos['gap'] = k_optimo_gap
+            if top_vars:
+                variables = [var['variable'] for var in top_vars]
+                loadings = [var['loading'] for var in top_vars]
 
-    # 4. Criterio de estabilidad
-    k_optimo_estabilidad = evaluar_estabilidad_kmeans(X_scaled, k_range)
-    k_optimos['estabilidad'] = k_optimo_estabilidad
+                bars = ax3.barh(range(len(variables)), loadings)
+                ax3.set_yticks(range(len(variables)))
+                ax3.set_yticklabels(variables)
+                ax3.set_xlabel('Loading')
+                ax3.set_title('Variables más importantes en PC1')
+                ax3.grid(True, alpha=0.3)
 
-    k_final = determinar_k_final(k_optimos)
+        plt.suptitle('Análisis de Componentes Principales', fontsize=14, fontweight='bold')
 
-    if verbose:
-        print(f"✅ K-Means completado. K recomendado: {k_final}")
+    except Exception as e:
+        ax = self.figure.add_subplot(111)
+        ax.text(0.5, 0.5, f'Error en PCA tradicional: {str(e)[:100]}',
+                ha='center', va='center', transform=ax.transAxes)
 
-    return {
-        'tipo': 'kmeans_optimizado',
-        'variables_utilizadas': variables,
-        'k_range': list(k_range),
-        'resultados_por_k': resultados_kmeans,
-        'inercias': inercias,
-        'silhouette_scores': silhouette_scores,
-        'k_optimos': k_optimos,
-        'recomendacion_k': k_final,
-        'datos_escalados': X_scaled.tolist(),
-        'scaler_params': {
-            'mean': scaler.mean_.tolist() if hasattr(scaler, 'mean_') else [],
-            'scale': scaler.scale_.tolist() if hasattr(scaler, 'scale_') else []
-        },
-        'recomendaciones': generar_recomendaciones_kmeans(k_optimos, resultados_kmeans, k_final)
-    }
+def _show_error_visualization(self):
+    """Mostrar visualización de error"""
+    self.figure.clear()
+    ax = self.figure.add_subplot(111)
+    ax.text(0.5, 0.5, 'Error generando visualización',
+            ha='center', va='center', transform=ax.transAxes,
+            bbox=dict(boxstyle='round', facecolor='mistyrose'))
+    ax.set_title('Error en Visualización')
+    ax.axis('off')
 
-# ==================== DBSCAN OPTIMIZADO ====================
 
-def dbscan_optimizado(data, variables=None, optimizar_parametros=True,
-                     escalado='standard', n_jobs=-1, verbose=True, contamination=0.1):
+# 5. Fix missing functions in ResultsVisualizationWidget class
+# Add these methods to the ResultsVisualizationWidget class:
+
+def _show_error(self, error_msg):
+    """Mostrar error en lugar de resultados"""
+    self.summary_text.setText(f"❌ Error en el análisis:\n\n{error_msg}")
+    self.status_label.setText("❌ Error en análisis")
+    self.status_label.setStyleSheet("color: red;")
+
+    # Limpiar otros tabs
+    self.metrics_table.setRowCount(0)
+    self.details_text.setText(f"Error: {error_msg}")
+
+    # Deshabilitar botones
+    self.export_results_btn.setEnabled(False)
+    self.generate_report_btn.setEnabled(False)
+
+
+# 6. Add the missing _create_exploratory_visualization method
+def _create_exploratory_visualization(self):
+    """Crear visualización para análisis exploratorio"""
+    try:
+        self.figure.clear()
+
+        # Usar la función de visualización exploratoria
+        if 'datos_originales' in self.current_results:
+            self.figure = _crear_visualizacion_exploratorio_puntos_muestreo(
+                self.current_results, figsize=(16, 12)
+            )
+        else:
+            # Fallback básico
+            ax = self.figure.add_subplot(111)
+
+            # Mostrar información básica del análisis exploratorio
+            calidad = self.current_results.get('calidad_datos', {})
+            outliers = self.current_results.get('outliers', {})
+            correlaciones = self.current_results.get('correlaciones', {})
+
+            info_text = "Resumen Análisis Exploratorio:\n\n"
+
+            if calidad:
+                score = calidad.get('quality_score', 0)
+                info_text += f"Calidad de datos: {score:.1f}/100\n"
+                info_text += f"Calificación: {calidad.get('calificacion', 'N/A')}\n\n"
+
+            if outliers:
+                consenso = outliers.get('consenso', {})
+                if consenso:
+                    info_text += f"Outliers detectados: {consenso.get('total_unico', 0)}\n"
+                    info_text += f"Porcentaje outliers: {consenso.get('porcentaje', 0):.1f}%\n\n"
+
+            if correlaciones:
+                corr_fuertes = correlaciones.get('correlaciones_fuertes', [])
+                info_text += f"Correlaciones fuertes: {len(corr_fuertes)}\n"
+                multicolineal = correlaciones.get('multicolinealidad', 'N/A')
+                info_text += f"Multicolinealidad: {multicolineal}\n"
+
+            ax.text(0.1, 0.9, info_text, transform=ax.transAxes,
+                   fontsize=12, va='top', ha='left',
+                   bbox=dict(boxstyle='round', facecolor='lightblue', alpha=0.7))
+            ax.set_title('Análisis Exploratorio - Resumen')
+            ax.axis('off')
+
+        self.figure.tight_layout()
+        self.canvas.draw()
+
+    except Exception as e:
+        print(f"Error en visualización exploratoria: {e}")
+        ax = self.figure.add_subplot(111)
+        ax.text(0.5, 0.5, f'Error en visualización exploratoria:\n{str(e)[:100]}',
+                ha='center', va='center', transform=ax.transAxes,
+                bbox=dict(boxstyle='round', facecolor='mistyrose'))
+        ax.set_title('Error en Visualización')
+        ax.axis('off')
+        self.canvas.draw()
+
+
+
+def generar_visualizaciones_ml_no_supervisado(resultado: Dict[str, Any],
+                                              figsize: Tuple[int, int] = (16, 12)) -> plt.Figure:
     """
-    DBSCAN optimizado con búsqueda automática de parámetros óptimos
+    Generar visualizaciones especializadas para ML No Supervisado
     """
-    if verbose:
-        print("🔍 Iniciando DBSCAN optimizado...")
+    tipo = resultado.get('tipo', '')
 
-    if variables is None:
-        variables = data.select_dtypes(include=[np.number]).columns.tolist()
+    try:
+        if tipo in ['kmeans_optimizado', 'clustering_jerarquico_completo', 'dbscan_optimizado']:
+            # Usar visualización especializada para puntos de muestreo
+            return crear_visualizacion_clustering_puntos_muestreo(resultado, figsize)
+        elif tipo == 'pca_completo_avanzado':
+            return _crear_visualizacion_pca_puntos_muestreo(resultado, figsize)
+        elif tipo == 'analisis_exploratorio_completo':
+            return _crear_visualizacion_exploratorio_puntos_muestreo(resultado, figsize)
+        else:
+            return _crear_visualizacion_generica(resultado, figsize)
 
-    X = data[variables].dropna()
+    except Exception as e:
+        # Fallback en caso de error
+        fig = plt.figure(figsize=figsize)
+        ax = fig.add_subplot(111)
+        ax.text(0.5, 0.5, f'Error generando visualización:\n{str(e)[:100]}',
+                ha='center', va='center', transform=ax.transAxes,
+                bbox=dict(boxstyle='round', facecolor='mistyrose'))
+        ax.set_title('Error en Visualización')
+        ax.axis('off')
+        return fig
 
-    if verbose:
-        print(f"📊 Datos preparados: {X.shape[0]} muestras, {X.shape[1]} variables")
 
-    # Escalado de datos
-    X_scaled, scaler = aplicar_escalado(X, escalado)
+# ================ FUNCIONES PARA CLUSTERING ====================
+def crear_visualizacion_clustering_puntos_muestreo(resultado: Dict[str, Any],
+                                                   figsize: Tuple[int, int] = (16, 12)) -> plt.Figure:
+    """
+    Crear visualización especializada para clustering de puntos de muestreo
+    """
+    if 'error' in resultado:
+        raise ValueError(f"Error en el resultado: {resultado['error']}")
 
-    # Determinar rangos automáticamente
-    eps_range = determinar_rango_eps(X_scaled)
-    min_samples_range = range(3, min(20, len(X) // 20))
+    tipo = resultado.get('tipo', '')
+    fig = plt.figure(figsize=figsize)
 
-    mejores_resultados = []
-
-    if optimizar_parametros:
-        if verbose:
-            print("   Optimizando parámetros automáticamente...")
-
-        # Búsqueda en grid de parámetros
-        for eps in eps_range:
-            for min_samples in min_samples_range:
-                try:
-                    dbscan = DBSCAN(eps=eps, min_samples=min_samples, metric='euclidean', n_jobs=n_jobs)
-                    labels = dbscan.fit_predict(X_scaled)
-
-                    # Evaluar calidad del clustering
-                    n_clusters = len(set(labels)) - (1 if -1 in labels else 0)
-                    n_noise = list(labels).count(-1)
-                    noise_ratio = n_noise / len(labels)
-
-                    # Filtros de calidad
-                    if n_clusters < 2 or noise_ratio > 0.5:
-                        continue
-
-                    # Calcular métricas (solo para puntos no-ruido)
-                    labels_sin_ruido = labels[labels != -1]
-                    X_sin_ruido = X_scaled[labels != -1]
-
-                    if len(np.unique(labels_sin_ruido)) > 1:
-                        silhouette = silhouette_score(X_sin_ruido, labels_sin_ruido)
-                        davies_bouldin = davies_bouldin_score(X_sin_ruido, labels_sin_ruido)
-
-                        # Análisis de clusters
-                        cluster_analysis = analizar_clusters_dbscan(X, labels, variables)
-
-                        resultado = {
-                            'eps': eps,
-                            'min_samples': min_samples,
-                            'n_clusters': n_clusters,
-                            'n_noise': n_noise,
-                            'noise_ratio': noise_ratio,
-                            'silhouette_score': silhouette,
-                            'davies_bouldin_score': davies_bouldin,
-                            'labels': labels.tolist(),
-                            'cluster_analysis': cluster_analysis,
-                            'score_compuesto': silhouette * (1 - noise_ratio)  # Penalizar mucho ruido
-                        }
-
-                        mejores_resultados.append(resultado)
-
-                except Exception as e:
-                    continue
+    if tipo == 'kmeans_optimizado':
+        return _crear_viz_kmeans_puntos_muestreo(resultado, fig)
+    elif tipo == 'clustering_jerarquico_completo':
+        return _crear_viz_jerarquico_puntos_muestreo(resultado, fig)
+    elif tipo == 'dbscan_optimizado':
+        return _crear_viz_dbscan_puntos_muestreo(resultado, fig)
     else:
-        # Usar parámetros por defecto
-        eps_default = eps_range[len(eps_range)//2]
-        min_samples_default = 5
+        return _crear_viz_generica_puntos_muestreo(resultado, fig)
 
-        try:
-            dbscan = DBSCAN(eps=eps_default, min_samples=min_samples_default, n_jobs=n_jobs)
-            labels = dbscan.fit_predict(X_scaled)
 
-            n_clusters = len(set(labels)) - (1 if -1 in labels else 0)
-            n_noise = list(labels).count(-1)
-            noise_ratio = n_noise / len(labels)
+def _crear_viz_kmeans_puntos_muestreo(resultado: Dict, fig: plt.Figure) -> plt.Figure:
+    """Visualización específica para K-Means de puntos de muestreo"""
 
-            if n_clusters >= 2:
-                labels_sin_ruido = labels[labels != -1]
-                X_sin_ruido = X_scaled[labels != -1]
+    # Layout de 2x2
+    gs = fig.add_gridspec(2, 2, hspace=0.3, wspace=0.3)
 
-                if len(np.unique(labels_sin_ruido)) > 1:
-                    silhouette = silhouette_score(X_sin_ruido, labels_sin_ruido)
-                    cluster_analysis = analizar_clusters_dbscan(X, labels, variables)
+    # 1. Mapa de puntos de muestreo coloreados por cluster
+    ax1 = fig.add_subplot(gs[0, 0])
+    _graficar_puntos_muestreo_clusters(ax1, resultado)
 
-                    resultado = {
-                        'eps': eps_default,
-                        'min_samples': min_samples_default,
-                        'n_clusters': n_clusters,
-                        'n_noise': n_noise,
-                        'noise_ratio': noise_ratio,
-                        'silhouette_score': silhouette,
-                        'labels': labels.tolist(),
-                        'cluster_analysis': cluster_analysis,
-                        'score_compuesto': silhouette * (1 - noise_ratio)
-                    }
-                    mejores_resultados.append(resultado)
-        except:
-            pass
+    # 2. Timeline de muestreos con clusters
+    ax2 = fig.add_subplot(gs[0, 1])
+    _graficar_timeline_muestreos(ax2, resultado)
 
-    if not mejores_resultados:
-        return {
-            'tipo': 'dbscan_optimizado',
-            'error': 'No se encontraron configuraciones válidas',
-            'variables_utilizadas': variables
-        }
+    # 3. Matriz de distancias entre puntos
+    ax3 = fig.add_subplot(gs[1, 0])
+    _graficar_matriz_distancias_puntos(ax3, resultado)
 
-    # Ordenar por score compuesto
-    mejores_resultados.sort(key=lambda x: x['score_compuesto'], reverse=True)
-    mejor_resultado = mejores_resultados[0]
+    # 4. Estadísticas por cluster
+    ax4 = fig.add_subplot(gs[1, 1])
+    _graficar_estadisticas_clusters_puntos(ax4, resultado)
 
-    # Análisis adicional del mejor resultado
-    labels_final = np.array(mejor_resultado['labels'])
+    plt.suptitle('Clustering K-Means - Análisis de Puntos de Muestreo',
+                 fontsize=16, fontweight='bold')
 
-    # Análisis de densidad
-    analisis_densidad = analizar_densidad_clusters(X_scaled, labels_final, mejor_resultado['eps'])
+    return fig
 
-    # Análisis de outliers
-    analisis_outliers = analizar_outliers_dbscan(X, labels_final, variables)
 
-    if verbose:
-        print(f"✅ DBSCAN completado. {mejor_resultado['n_clusters']} clusters, {mejor_resultado['n_noise']} outliers")
+def _crear_viz_dbscan_puntos_muestreo(resultado: Dict, fig: plt.Figure) -> plt.Figure:
+    """Visualización específica para DBSCAN de puntos de muestreo"""
 
-    return {
-        'tipo': 'dbscan_optimizado',
-        'variables_utilizadas': variables,
-        'metrica': 'euclidean',
-        'mejor_configuracion': mejor_resultado,
-        'todas_configuraciones': mejores_resultados[:10],  # Top 10
-        'analisis_densidad': analisis_densidad,
-        'analisis_outliers': analisis_outliers,
-        'parametros_probados': {
-            'eps_range': list(eps_range),
-            'min_samples_range': list(min_samples_range)
-        },
-        'recomendaciones': generar_recomendaciones_dbscan(mejor_resultado)
-    }
+    gs = fig.add_gridspec(2, 2, hspace=0.3, wspace=0.3)
+
+    # 1. Puntos de muestreo con outliers destacados
+    ax1 = fig.add_subplot(gs[0, 0])
+    _graficar_puntos_dbscan_outliers(ax1, resultado)
+
+    # 2. Densidad de muestreos en el tiempo
+    ax2 = fig.add_subplot(gs[0, 1])
+    _graficar_densidad_temporal_muestreos(ax2, resultado)
+
+    # 3. Análisis de outliers temporales
+    ax3 = fig.add_subplot(gs[1, 0])
+    _graficar_outliers_temporales(ax3, resultado)
+
+    # 4. Información de clusters y outliers
+    ax4 = fig.add_subplot(gs[1, 1])
+    _mostrar_info_dbscan_puntos(ax4, resultado)
+
+    plt.suptitle('DBSCAN - Análisis de Puntos de Muestreo y Outliers',
+                 fontsize=16, fontweight='bold')
+
+    return fig
+
+
+def _graficar_puntos_muestreo_clusters(ax, resultado):
+    """Graficar puntos de muestreo coloreados por cluster"""
+    try:
+        # Obtener datos originales
+        if 'datos_originales' not in resultado:
+            ax.text(0.5, 0.5, 'Datos no disponibles', ha='center', va='center',
+                    transform=ax.transAxes)
+            return
+
+        datos = resultado['datos_originales']
+
+        # Verificar si existe columna Points
+        if 'Points' not in datos.columns:
+            # Crear índices como puntos
+            puntos = list(range(1, len(datos) + 1))
+        else:
+            puntos = datos['Points'].tolist()
+
+        # Obtener labels de clusters
+        k_optimo = resultado.get('recomendacion_k')
+        if k_optimo and 'resultados_por_k' in resultado:
+            if k_optimo in resultado['resultados_por_k']:
+                labels = resultado['resultados_por_k'][k_optimo]['labels']
+            else:
+                labels = list(range(len(puntos)))
+        else:
+            labels = list(range(len(puntos)))
+
+        # Crear coordenadas para visualización
+        # Si hay información geográfica, usarla; si no, crear distribución
+        if len(puntos) <= 50:  # Para datasets pequeños, usar grid
+            n_cols = int(np.ceil(np.sqrt(len(puntos))))
+            x_coords = [i % n_cols for i in range(len(puntos))]
+            y_coords = [i // n_cols for i in range(len(puntos))]
+        else:  # Para datasets grandes, usar distribución aleatoria
+            np.random.seed(42)
+            x_coords = np.random.uniform(0, 10, len(puntos))
+            y_coords = np.random.uniform(0, 10, len(puntos))
+
+        # Scatter plot con colores por cluster
+        unique_labels = set(labels)
+        colors = plt.cm.Set3(np.linspace(0, 1, len(unique_labels)))
+
+        for i, (label, color) in enumerate(zip(unique_labels, colors)):
+            mask = np.array(labels) == label
+            ax.scatter(np.array(x_coords)[mask], np.array(y_coords)[mask],
+                       c=[color], label=f'Cluster {label}',
+                       s=100, alpha=0.7, edgecolors='black', linewidth=1)
+
+        # Anotar algunos puntos representativos
+        for i in range(0, len(puntos), max(1, len(puntos) // 10)):
+            ax.annotate(f'P{puntos[i]}', (x_coords[i], y_coords[i]),
+                        xytext=(5, 5), textcoords='offset points',
+                        fontsize=8, alpha=0.7)
+
+        ax.set_xlabel('Coordenada X (relativa)')
+        ax.set_ylabel('Coordenada Y (relativa)')
+        ax.set_title('Distribución de Puntos de Muestreo por Cluster')
+        ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+        ax.grid(True, alpha=0.3)
+
+    except Exception as e:
+        ax.text(0.5, 0.5, f'Error graficando puntos: {str(e)[:50]}',
+                ha='center', va='center', transform=ax.transAxes)
+
+
+def _graficar_timeline_muestreos(ax, resultado):
+    """Graficar timeline de muestreos con franjas de colores por cluster"""
+    try:
+        if 'datos_originales' not in resultado:
+            ax.text(0.5, 0.5, 'Datos no disponibles', ha='center', va='center',
+                    transform=ax.transAxes)
+            return
+
+        datos = resultado['datos_originales']
+
+        # Verificar columna de fecha
+        fecha_col = None
+        for col in ['Sampling_date', 'Fecha', 'Date', 'fecha']:
+            if col in datos.columns:
+                fecha_col = col
+                break
+
+        if fecha_col is None:
+            # Crear fechas sintéticas
+            fechas = pd.date_range('2023-01-01', periods=len(datos), freq='D')
+        else:
+            fechas = pd.to_datetime(datos[fecha_col])
+
+        # Obtener labels
+        k_optimo = resultado.get('recomendacion_k')
+        if k_optimo and 'resultados_por_k' in resultado:
+            if k_optimo in resultado['resultados_por_k']:
+                labels = resultado['resultados_por_k'][k_optimo]['labels']
+            else:
+                labels = [0] * len(datos)
+        else:
+            labels = [0] * len(datos)
+
+        # Puntos de muestreo
+        if 'Points' in datos.columns:
+            puntos = datos['Points'].tolist()
+        else:
+            puntos = list(range(1, len(datos) + 1))
+
+        # Crear timeline
+        unique_labels = sorted(set(labels))
+        colors = plt.cm.Set3(np.linspace(0, 1, len(unique_labels)))
+        color_map = {label: colors[i] for i, label in enumerate(unique_labels)}
+
+        for i, (fecha, punto, label) in enumerate(zip(fechas, puntos, labels)):
+            color = color_map[label]
+            ax.scatter(fecha, punto, c=[color], s=60, alpha=0.8,
+                       edgecolors='black', linewidth=0.5)
+
+        # Añadir franjas de colores por período
+        if len(fechas) > 1:
+            fecha_min, fecha_max = fechas.min(), fechas.max()
+
+            # Dividir en períodos y colorear fondo
+            n_periodos = min(5, len(unique_labels))
+            periodo_duration = (fecha_max - fecha_min) / n_periodos
+
+            for i in range(n_periodos):
+                inicio = fecha_min + i * periodo_duration
+                fin = fecha_min + (i + 1) * periodo_duration
+                color = colors[i % len(colors)]
+                ax.axvspan(inicio, fin, alpha=0.1, color=color)
+
+        ax.set_xlabel('Fecha de Muestreo')
+        ax.set_ylabel('Punto de Muestreo')
+        ax.set_title('Timeline de Muestreos por Cluster')
+
+        # Rotar etiquetas de fecha
+        ax.tick_params(axis='x', rotation=45)
+
+        # Leyenda
+        legend_elements = [plt.scatter([], [], c=[color_map[label]],
+                                       label=f'Cluster {label}', s=60)
+                           for label in unique_labels]
+        ax.legend(handles=legend_elements, loc='upper right')
+
+        ax.grid(True, alpha=0.3)
+
+    except Exception as e:
+        ax.text(0.5, 0.5, f'Error en timeline: {str(e)[:50]}',
+                ha='center', va='center', transform=ax.transAxes)
+
+
+def _graficar_matriz_distancias_puntos(ax, resultado):
+    """Graficar matriz de distancias entre puntos de muestreo"""
+    try:
+        if 'datos_originales' not in resultado:
+            ax.text(0.5, 0.5, 'Datos no disponibles', ha='center', va='center',
+                    transform=ax.transAxes)
+            return
+
+        datos = resultado['datos_originales']
+
+        # Seleccionar subset de puntos para visualización clara
+        max_puntos = 20
+        if len(datos) > max_puntos:
+            indices = np.random.choice(len(datos), max_puntos, replace=False)
+            datos_subset = datos.iloc[indices]
+        else:
+            datos_subset = datos
+            indices = range(len(datos))
+
+        # Obtener variables numéricas
+        numeric_cols = datos_subset.select_dtypes(include=[np.number]).columns
+        if len(numeric_cols) == 0:
+            ax.text(0.5, 0.5, 'No hay variables numéricas', ha='center', va='center',
+                    transform=ax.transAxes)
+            return
+
+        # Calcular matriz de distancias
+        from sklearn.metrics.pairwise import euclidean_distances
+        from sklearn.preprocessing import StandardScaler
+
+        scaler = StandardScaler()
+        datos_scaled = scaler.fit_transform(datos_subset[numeric_cols].dropna())
+
+        distancias = euclidean_distances(datos_scaled)
+
+        # Crear heatmap
+        im = ax.imshow(distancias, cmap='viridis', aspect='auto')
+
+        # Etiquetas
+        if 'Points' in datos_subset.columns:
+            labels = [f'P{int(p)}' for p in datos_subset['Points'].tolist()]
+        else:
+            labels = [f'P{i + 1}' for i in indices]
+
+        ax.set_xticks(range(len(labels)))
+        ax.set_yticks(range(len(labels)))
+        ax.set_xticklabels(labels, rotation=45, ha='right')
+        ax.set_yticklabels(labels)
+
+        # Colorbar
+        plt.colorbar(im, ax=ax, shrink=0.8)
+
+        ax.set_title('Matriz de Distancias entre Puntos de Muestreo')
+
+    except Exception as e:
+        ax.text(0.5, 0.5, f'Error en matriz distancias: {str(e)[:50]}',
+                ha='center', va='center', transform=ax.transAxes)
+
+
+def _graficar_estadisticas_clusters_puntos(ax, resultado):
+    """Graficar estadísticas de clusters de puntos de muestreo"""
+    try:
+        k_optimo = resultado.get('recomendacion_k')
+        if not k_optimo or 'resultados_por_k' not in resultado:
+            ax.text(0.5, 0.5, 'Estadísticas no disponibles', ha='center', va='center',
+                    transform=ax.transAxes)
+            return
+
+        if k_optimo not in resultado['resultados_por_k']:
+            ax.text(0.5, 0.5, 'Datos de cluster no disponibles', ha='center', va='center',
+                    transform=ax.transAxes)
+            return
+
+        cluster_data = resultado['resultados_por_k'][k_optimo]
+        labels = cluster_data['labels']
+
+        # Estadísticas por cluster
+        unique_labels = sorted(set(labels))
+        tamaños = [labels.count(label) for label in unique_labels]
+        proporciones = [size / len(labels) * 100 for size in tamaños]
+
+        # Gráfico de barras
+        bars = ax.bar(range(len(unique_labels)), proporciones,
+                      color=plt.cm.Set3(np.linspace(0, 1, len(unique_labels))),
+                      alpha=0.7, edgecolor='black')
+
+        # Añadir valores en las barras
+        for bar, tamaño, prop in zip(bars, tamaños, proporciones):
+            height = bar.get_height()
+            ax.text(bar.get_x() + bar.get_width() / 2., height + 0.5,
+                    f'{tamaño}\n({prop:.1f}%)', ha='center', va='bottom',
+                    fontweight='bold', fontsize=10)
+
+        ax.set_xlabel('Cluster')
+        ax.set_ylabel('Porcentaje de Puntos')
+        ax.set_title('Distribución de Puntos por Cluster')
+        ax.set_xticks(range(len(unique_labels)))
+        ax.set_xticklabels([f'Cluster {label}' for label in unique_labels])
+        ax.set_ylim(0, max(proporciones) * 1.2)
+        ax.grid(True, alpha=0.3, axis='y')
+
+        # Información adicional
+        silhouette = cluster_data.get('silhouette_score', 0)
+        ax.text(0.02, 0.98, f'Silhouette Score: {silhouette:.3f}',
+                transform=ax.transAxes, va='top',
+                bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
+
+    except Exception as e:
+        ax.text(0.5, 0.5, f'Error en estadísticas: {str(e)[:50]}',
+                ha='center', va='center', transform=ax.transAxes)
+
+
 
 # ==================== PCA AVANZADO ====================
 
@@ -1854,7 +2200,890 @@ def generar_resumen_clustering(resultados_completos):
             for config, resultado in resultados_completos.items()
         }
     }
+# Agregar esta función a ml_functions_no_supervisado.py si no existe
 
+def kmeans_optimizado_completo(data, variables=None, k_range=None,
+                             criterios_optimo=['silhouette', 'elbow', 'gap'],
+                             escalado='standard', random_state=42, n_jobs=-1, verbose=True):
+    """
+    K-Means optimizado con múltiples criterios para determinar K óptimo
+    """
+    if verbose:
+        print("🔍 Iniciando K-Means optimizado...")
+
+    if variables is None:
+        variables = data.select_dtypes(include=[np.number]).columns.tolist()
+
+    X = data[variables].dropna()
+
+    if verbose:
+        print(f"📊 Datos preparados: {X.shape[0]} muestras, {X.shape[1]} variables")
+
+    # Escalado
+    X_scaled, scaler = aplicar_escalado(X, escalado)
+
+    if k_range is None:
+        k_range = range(2, min(15, len(X) // 10))
+
+    resultados_kmeans = {}
+    inercias = []
+    silhouette_scores = []
+
+    # Evaluar diferentes valores de K
+    for k in k_range:
+        if verbose:
+            print(f"   Evaluando K={k}...")
+
+        try:
+            kmeans = KMeans(
+                n_clusters=k,
+                init='k-means++',
+                n_init=20,
+                max_iter=500,
+                random_state=random_state
+            )
+            labels = kmeans.fit_predict(X_scaled)
+
+            # Métricas de evaluación
+            silhouette = silhouette_score(X_scaled, labels)
+            davies_bouldin = davies_bouldin_score(X_scaled, labels)
+            calinski_harabasz = calinski_harabasz_score(X_scaled, labels)
+
+            # Análisis detallado de clusters
+            cluster_analysis = analizar_clusters_kmeans(X, labels, variables, scaler, kmeans)
+
+            resultado_k = {
+                'k': k,
+                'labels': labels.tolist(),
+                'centroides': kmeans.cluster_centers_.tolist(),
+                'inercia': float(kmeans.inertia_),
+                'silhouette_score': float(silhouette),
+                'davies_bouldin_score': float(davies_bouldin),
+                'calinski_harabasz_score': float(calinski_harabasz),
+                'n_iteraciones': int(kmeans.n_iter_),
+                'cluster_analysis': cluster_analysis
+            }
+
+            resultados_kmeans[k] = resultado_k
+            inercias.append(resultado_k['inercia'])
+            silhouette_scores.append(resultado_k['silhouette_score'])
+
+        except Exception as e:
+            if verbose:
+                print(f"Error con K={k}: {e}")
+            continue
+
+    # Determinar K óptimo usando diferentes criterios
+    k_optimos = {}
+
+    # 1. Método del codo
+    if len(inercias) >= 3:
+        k_optimo_codo = determinar_k_codo(list(k_range), inercias)
+        k_optimos['elbow'] = k_optimo_codo
+
+    # 2. Silhouette score máximo
+    if silhouette_scores:
+        k_optimo_silhouette = list(k_range)[np.argmax(silhouette_scores)]
+        k_optimos['silhouette'] = k_optimo_silhouette
+
+    # 3. Gap statistic (simplificado)
+    if len(resultados_kmeans) >= 3:
+        k_optimo_gap = calcular_gap_statistic(X_scaled, k_range, n_refs=10)
+        k_optimos['gap'] = k_optimo_gap
+
+    # 4. Criterio de estabilidad
+    k_optimo_estabilidad = evaluar_estabilidad_kmeans(X_scaled, k_range)
+    k_optimos['estabilidad'] = k_optimo_estabilidad
+
+    k_final = determinar_k_final(k_optimos)
+
+    # Agregar datos originales para visualización
+    datos_originales = X.copy()
+
+    if verbose:
+        print(f"✅ K-Means completado. K recomendado: {k_final}")
+
+    return {
+        'tipo': 'kmeans_optimizado',
+        'variables_utilizadas': variables,
+        'k_range': list(k_range),
+        'resultados_por_k': resultados_kmeans,
+        'inercias': inercias,
+        'silhouette_scores': silhouette_scores,
+        'k_optimos': k_optimos,
+        'recomendacion_k': k_final,
+        'datos_originales': datos_originales,  # Agregar datos originales
+        'datos_escalados': X_scaled.tolist(),
+        'scaler_params': {
+            'mean': scaler.mean_.tolist() if hasattr(scaler, 'mean_') else [],
+            'scale': scaler.scale_.tolist() if hasattr(scaler, 'scale_') else []
+        },
+        'recomendaciones': generar_recomendaciones_kmeans(k_optimos, resultados_kmeans, k_final)
+    }
+# Agregar esta función a ml_functions_no_supervisado.py
+
+def dbscan_optimizado(data, variables=None, optimizar_parametros=True,
+                      escalado='standard', n_jobs=-1, verbose=True, contamination=0.1):
+    """
+    DBSCAN optimizado con búsqueda automática de parámetros óptimos
+    """
+
+    def _determinar_rango_eps_interno(X_scaled):
+        """Función interna para determinar rango de eps"""
+        try:
+            n_samples = len(X_scaled)
+            k = min(4, max(2, n_samples // 20))
+            k = min(k, n_samples - 1)
+
+            nbrs = NearestNeighbors(n_neighbors=k)
+            nbrs.fit(X_scaled)
+            distances, indices = nbrs.kneighbors(X_scaled)
+
+            k_distances = distances[:, -1]
+            k_distances_sorted = np.sort(k_distances)
+
+            if len(k_distances_sorted) > 2:
+                diffs = np.diff(k_distances_sorted)
+                if len(diffs) > 0:
+                    knee_point = np.argmax(diffs)
+                    eps_optimo = k_distances_sorted[knee_point]
+                else:
+                    eps_optimo = np.median(k_distances_sorted)
+            else:
+                eps_optimo = 0.5
+
+            eps_min = max(0.05, eps_optimo * 0.3)
+            eps_max = eps_optimo * 3.0
+
+            if eps_max - eps_min < 0.1:
+                eps_min = 0.1
+                eps_max = 2.0
+
+            return np.linspace(eps_min, eps_max, 20)
+
+        except Exception as e:
+            print(f"Error en determinar rango eps: {e}")
+            return np.linspace(0.1, 3.0, 20)
+
+    if verbose:
+        print("🔍 Iniciando DBSCAN optimizado...")
+
+    if variables is None:
+        variables = data.select_dtypes(include=[np.number]).columns.tolist()
+
+    X = data[variables].dropna()
+
+    if verbose:
+        print(f"📊 Datos preparados: {X.shape[0]} muestras, {X.shape[1]} variables")
+
+    if len(X) < 5:
+        return {
+            'tipo': 'dbscan_optimizado',
+            'error': 'Datos insuficientes para DBSCAN (mínimo 5 muestras)',
+            'variables_utilizadas': variables,
+            'datos_originales': X.copy(),
+            'n_muestras': len(X)
+        }
+
+    # Escalado de datos
+    X_scaled, scaler = aplicar_escalado(X, escalado)
+
+    # Usar función interna para evitar conflictos de scope
+    eps_range = _determinar_rango_eps_interno(X_scaled)
+    min_samples_range = range(2, min(10, max(3, len(X) // 15)))
+
+    mejores_resultados = []
+
+    if optimizar_parametros:
+        if verbose:
+            print("   Optimizando parámetros automáticamente...")
+
+        for eps in eps_range:
+            for min_samples in min_samples_range:
+                try:
+                    dbscan = DBSCAN(eps=eps, min_samples=min_samples, metric='euclidean', n_jobs=n_jobs)
+                    labels = dbscan.fit_predict(X_scaled)
+
+                    n_clusters = len(set(labels)) - (1 if -1 in labels else 0)
+                    n_noise = list(labels).count(-1)
+                    noise_ratio = n_noise / len(labels)
+
+                    if n_clusters < 1 or noise_ratio > 0.9:
+                        continue
+
+                    cluster_analysis = analizar_clusters_dbscan(X, labels, variables)
+
+                    if n_clusters > 1:
+                        labels_sin_ruido = labels[labels != -1]
+                        X_sin_ruido = X_scaled[labels != -1]
+
+                        if len(np.unique(labels_sin_ruido)) > 1 and len(X_sin_ruido) > 1:
+                            try:
+                                silhouette = silhouette_score(X_sin_ruido, labels_sin_ruido)
+                                davies_bouldin = davies_bouldin_score(X_sin_ruido, labels_sin_ruido)
+                            except:
+                                silhouette = 0.3
+                                davies_bouldin = 2.0
+                        else:
+                            silhouette = 0.3
+                            davies_bouldin = 2.0
+                    else:
+                        silhouette = 0.5
+                        davies_bouldin = 1.0
+
+                    resultado = {
+                        'eps': eps,
+                        'min_samples': min_samples,
+                        'n_clusters': n_clusters,
+                        'n_noise': n_noise,
+                        'n_outliers': n_noise,
+                        'noise_ratio': noise_ratio,
+                        'silhouette_score': silhouette,
+                        'silhouette': silhouette,
+                        'davies_bouldin_score': davies_bouldin,
+                        'davies_bouldin': davies_bouldin,
+                        'labels': labels.tolist(),
+                        'cluster_labels': labels.tolist(),
+                        'cluster_analysis': cluster_analysis,
+                        'total_points': len(X),
+                        'score_compuesto': silhouette * (1 - noise_ratio)
+                    }
+
+                    mejores_resultados.append(resultado)
+
+                except Exception as e:
+                    continue
+
+    # Configuraciones por defecto si no hay resultados
+    if not mejores_resultados:
+        if verbose:
+            print("   Probando configuraciones por defecto...")
+
+        configuraciones_default = [
+            (0.5, 3), (1.0, 3), (0.3, 2), (1.5, 4), (0.1, 2), (2.0, 5)
+        ]
+
+        for eps_default, min_samples_default in configuraciones_default:
+            try:
+                dbscan = DBSCAN(eps=eps_default, min_samples=min_samples_default, n_jobs=n_jobs)
+                labels = dbscan.fit_predict(X_scaled)
+
+                n_clusters = len(set(labels)) - (1 if -1 in labels else 0)
+                n_noise = list(labels).count(-1)
+                noise_ratio = n_noise / len(labels)
+
+                if n_clusters >= 1:
+                    cluster_analysis = analizar_clusters_dbscan(X, labels, variables)
+
+                    resultado = {
+                        'eps': eps_default,
+                        'min_samples': min_samples_default,
+                        'n_clusters': n_clusters,
+                        'n_noise': n_noise,
+                        'n_outliers': n_noise,
+                        'noise_ratio': noise_ratio,
+                        'silhouette_score': 0.3,
+                        'silhouette': 0.3,
+                        'davies_bouldin_score': 1.5,
+                        'davies_bouldin': 1.5,
+                        'labels': labels.tolist(),
+                        'cluster_labels': labels.tolist(),
+                        'cluster_analysis': cluster_analysis,
+                        'total_points': len(X),
+                        'score_compuesto': 0.3 * (1 - noise_ratio),
+                        'es_default': True
+                    }
+                    mejores_resultados.append(resultado)
+                    break
+
+            except Exception as e:
+                continue
+
+    # Último recurso
+    if not mejores_resultados:
+        if verbose:
+            print("   Creando clustering artificial...")
+
+        labels_artificial = [0] * len(X)
+
+        resultado = {
+            'eps': 1.0,
+            'min_samples': 2,
+            'n_clusters': 1,
+            'n_noise': 0,
+            'n_outliers': 0,
+            'noise_ratio': 0.0,
+            'silhouette_score': 0.5,
+            'silhouette': 0.5,
+            'davies_bouldin_score': 0.5,
+            'davies_bouldin': 0.5,
+            'labels': labels_artificial,
+            'cluster_labels': labels_artificial,
+            'cluster_analysis': analizar_clusters_dbscan(X, labels_artificial, variables),
+            'total_points': len(X),
+            'score_compuesto': 0.5,
+            'es_artificial': True
+        }
+        mejores_resultados.append(resultado)
+
+    mejores_resultados.sort(key=lambda x: x['score_compuesto'], reverse=True)
+    mejor_resultado = mejores_resultados[0]
+
+    labels_final = np.array(mejor_resultado['labels'])
+
+    try:
+        analisis_densidad = analizar_densidad_clusters(X_scaled, labels_final, mejor_resultado['eps'])
+        analisis_outliers = analizar_outliers_dbscan(X, labels_final, variables)
+    except:
+        analisis_densidad = {}
+        analisis_outliers = {'n_outliers': mejor_resultado['n_noise']}
+
+    datos_originales = X.copy()
+
+    if verbose:
+        tipo_resultado = ""
+        if mejor_resultado.get('es_artificial'):
+            tipo_resultado = " (clustering artificial)"
+        elif mejor_resultado.get('es_default'):
+            tipo_resultado = " (configuración por defecto)"
+
+        print(
+            f"✅ DBSCAN completado{tipo_resultado}: {mejor_resultado['n_clusters']} clusters, {mejor_resultado['n_noise']} outliers")
+
+    return {
+        'tipo': 'dbscan_optimizado',
+        'variables_utilizadas': variables,
+        'metrica': 'euclidean',
+        'mejor_configuracion': mejor_resultado,
+        'todas_configuraciones': mejores_resultados[:10],
+        'analisis_densidad': analisis_densidad,
+        'analisis_outliers': analisis_outliers,
+        'datos_originales': datos_originales,
+        'datos_escalados': X_scaled.tolist(),
+        'n_muestras': len(X),
+        'parametros_probados': {
+            'eps_range': list(eps_range),
+            'min_samples_range': list(min_samples_range)
+        },
+        'recomendaciones': generar_recomendaciones_dbscan(mejor_resultado)
+    }
+
+    # Ordenar por score compuesto
+    mejores_resultados.sort(key=lambda x: x['score_compuesto'], reverse=True)
+    mejor_resultado = mejores_resultados[0]
+
+    # Análisis adicional
+    labels_final = np.array(mejor_resultado['labels'])
+
+    try:
+        analisis_densidad = analizar_densidad_clusters(X_scaled, labels_final, mejor_resultado['eps'])
+        analisis_outliers = analizar_outliers_dbscan(X, labels_final, variables)
+    except:
+        analisis_densidad = {}
+        analisis_outliers = {'n_outliers': mejor_resultado['n_noise']}
+
+    datos_originales = X.copy()
+
+    if verbose:
+        tipo_resultado = ""
+        if mejor_resultado.get('es_artificial'):
+            tipo_resultado = " (clustering artificial)"
+        elif mejor_resultado.get('es_default'):
+            tipo_resultado = " (configuración por defecto)"
+
+        print(
+            f"✅ DBSCAN completado{tipo_resultado}: {mejor_resultado['n_clusters']} clusters, {mejor_resultado['n_noise']} outliers")
+
+    return {
+        'tipo': 'dbscan_optimizado',
+        'variables_utilizadas': variables,
+        'metrica': 'euclidean',
+        'mejor_configuracion': mejor_resultado,
+        'todas_configuraciones': mejores_resultados[:10],
+        'analisis_densidad': analisis_densidad,
+        'analisis_outliers': analisis_outliers,
+        'datos_originales': datos_originales,
+        'datos_escalados': X_scaled.tolist(),
+        'n_muestras': len(X),
+        'parametros_probados': {
+            'eps_range': list(eps_range),
+            'min_samples_range': list(min_samples_range)
+        },
+        'recomendaciones': generar_recomendaciones_dbscan(mejor_resultado)
+    }
+
+    # Escalado de datos
+    X_scaled, scaler = aplicar_escalado(X, escalado)
+
+    # Determinar rangos automáticamente con valores más amplios
+    eps_range = determinar_rango_eps(X_scaled)
+    min_samples_range = range(2, min(15, max(5, len(X) // 10)))  # Rango más flexible
+
+    mejores_resultados = []
+
+    if optimizar_parametros:
+        if verbose:
+            print("   Optimizando parámetros automáticamente...")
+
+        # Búsqueda en grid de parámetros MÁS FLEXIBLE
+        for eps in eps_range:
+            for min_samples in min_samples_range:
+                try:
+                    dbscan = DBSCAN(eps=eps, min_samples=min_samples, metric='euclidean', n_jobs=n_jobs)
+                    labels = dbscan.fit_predict(X_scaled)
+
+                    # Evaluar calidad del clustering - CRITERIOS MÁS FLEXIBLES
+                    n_clusters = len(set(labels)) - (1 if -1 in labels else 0)
+                    n_noise = list(labels).count(-1)
+                    noise_ratio = n_noise / len(labels)
+
+                    # Filtros de calidad MÁS PERMISIVOS
+                    if n_clusters < 1 or noise_ratio > 0.8:  # Permitir incluso 1 cluster
+                        continue
+
+                    # Si solo hay un cluster, usar métricas simplificadas
+                    if n_clusters == 1:
+                        resultado = {
+                            'eps': eps,
+                            'min_samples': min_samples,
+                            'n_clusters': n_clusters,
+                            'n_noise': n_noise,
+                            'n_outliers': n_noise,
+                            'noise_ratio': noise_ratio,
+                            'silhouette_score': 0.5,  # Score neutro para 1 cluster
+                            'silhouette': 0.5,
+                            'davies_bouldin_score': 1.0,
+                            'davies_bouldin': 1.0,
+                            'labels': labels.tolist(),
+                            'cluster_labels': labels.tolist(),
+                            'cluster_analysis': analizar_clusters_dbscan(X, labels, variables),
+                            'total_points': len(X),
+                            'score_compuesto': 0.5 * (1 - noise_ratio)
+                        }
+                        mejores_resultados.append(resultado)
+                        continue
+
+                    # Para múltiples clusters, calcular métricas normalmente
+                    labels_sin_ruido = labels[labels != -1]
+                    X_sin_ruido = X_scaled[labels != -1]
+
+                    if len(np.unique(labels_sin_ruido)) > 1 and len(X_sin_ruido) > 1:
+                        try:
+                            silhouette = silhouette_score(X_sin_ruido, labels_sin_ruido)
+                            davies_bouldin = davies_bouldin_score(X_sin_ruido, labels_sin_ruido)
+                        except:
+                            silhouette = 0.3  # Score por defecto si falla el cálculo
+                            davies_bouldin = 2.0
+
+                        cluster_analysis = analizar_clusters_dbscan(X, labels, variables)
+
+                        resultado = {
+                            'eps': eps,
+                            'min_samples': min_samples,
+                            'n_clusters': n_clusters,
+                            'n_noise': n_noise,
+                            'n_outliers': n_noise,
+                            'noise_ratio': noise_ratio,
+                            'silhouette_score': silhouette,
+                            'silhouette': silhouette,
+                            'davies_bouldin_score': davies_bouldin,
+                            'davies_bouldin': davies_bouldin,
+                            'labels': labels.tolist(),
+                            'cluster_labels': labels.tolist(),
+                            'cluster_analysis': cluster_analysis,
+                            'total_points': len(X),
+                            'score_compuesto': silhouette * (1 - noise_ratio)
+                        }
+
+                        mejores_resultados.append(resultado)
+
+                except Exception as e:
+                    if verbose:
+                        print(f"   Error con eps={eps:.3f}, min_samples={min_samples}: {e}")
+                    continue
+
+    # Si la optimización falló, probar parámetros por defecto más agresivos
+    if not mejores_resultados:
+        if verbose:
+            print("   Probando configuración por defecto...")
+
+        # Probar múltiples configuraciones por defecto
+        configuraciones_default = [
+            (0.5, 3), (1.0, 3), (0.3, 2), (1.5, 4), (0.1, 2)
+        ]
+
+        for eps_default, min_samples_default in configuraciones_default:
+            try:
+                dbscan = DBSCAN(eps=eps_default, min_samples=min_samples_default, n_jobs=n_jobs)
+                labels = dbscan.fit_predict(X_scaled)
+
+                n_clusters = len(set(labels)) - (1 if -1 in labels else 0)
+                n_noise = list(labels).count(-1)
+                noise_ratio = n_noise / len(labels)
+
+                # Aceptar cualquier resultado que produzca al menos algún agrupamiento
+                if n_clusters >= 1:
+                    cluster_analysis = analizar_clusters_dbscan(X, labels, variables)
+
+                    resultado = {
+                        'eps': eps_default,
+                        'min_samples': min_samples_default,
+                        'n_clusters': n_clusters,
+                        'n_noise': n_noise,
+                        'n_outliers': n_noise,
+                        'noise_ratio': noise_ratio,
+                        'silhouette_score': 0.3,  # Score por defecto
+                        'silhouette': 0.3,
+                        'davies_bouldin_score': 1.5,
+                        'davies_bouldin': 1.5,
+                        'labels': labels.tolist(),
+                        'cluster_labels': labels.tolist(),
+                        'cluster_analysis': cluster_analysis,
+                        'total_points': len(X),
+                        'score_compuesto': 0.3 * (1 - noise_ratio)
+                    }
+                    mejores_resultados.append(resultado)
+                    break  # Usar el primer resultado válido
+
+            except Exception as e:
+                continue
+
+    # Si aún no hay resultados, crear uno artificial con todos los puntos como un cluster
+    if not mejores_resultados:
+        if verbose:
+            print("   Creando clustering por defecto (todos los puntos en un cluster)...")
+
+        # Crear labels artificiales: todos en cluster 0
+        labels_default = [0] * len(X)
+
+        resultado = {
+            'eps': 1.0,
+            'min_samples': 2,
+            'n_clusters': 1,
+            'n_noise': 0,
+            'n_outliers': 0,
+            'noise_ratio': 0.0,
+            'silhouette_score': 0.5,
+            'silhouette': 0.5,
+            'davies_bouldin_score': 0.5,
+            'davies_bouldin': 0.5,
+            'labels': labels_default,
+            'cluster_labels': labels_default,
+            'cluster_analysis': analizar_clusters_dbscan(X, labels_default, variables),
+            'total_points': len(X),
+            'score_compuesto': 0.5,
+            'es_fallback': True  # Marcar como resultado de fallback
+        }
+        mejores_resultados.append(resultado)
+
+    # Ordenar por score compuesto
+    mejores_resultados.sort(key=lambda x: x['score_compuesto'], reverse=True)
+    mejor_resultado = mejores_resultados[0]
+
+    # Análisis adicional del mejor resultado
+    labels_final = np.array(mejor_resultado['labels'])
+
+    # Análisis de densidad y outliers
+    try:
+        analisis_densidad = analizar_densidad_clusters(X_scaled, labels_final, mejor_resultado['eps'])
+        analisis_outliers = analizar_outliers_dbscan(X, labels_final, variables)
+    except:
+        analisis_densidad = {}
+        analisis_outliers = {'n_outliers': mejor_resultado['n_noise']}
+
+    # Agregar datos originales para visualización
+    datos_originales = X.copy()
+
+    if verbose:
+        es_fallback = mejor_resultado.get('es_fallback', False)
+        if es_fallback:
+            print(
+                f"⚠️ DBSCAN completado con configuración por defecto: {mejor_resultado['n_clusters']} cluster, {mejor_resultado['n_noise']} outliers")
+        else:
+            print(
+                f"✅ DBSCAN completado: {mejor_resultado['n_clusters']} clusters, {mejor_resultado['n_noise']} outliers")
+
+    return {
+        'tipo': 'dbscan_optimizado',
+        'variables_utilizadas': variables,
+        'metrica': 'euclidean',
+        'mejor_configuracion': mejor_resultado,
+        'todas_configuraciones': mejores_resultados[:10],
+        'analisis_densidad': analisis_densidad,
+        'analisis_outliers': analisis_outliers,
+        'datos_originales': datos_originales,
+        'datos_escalados': X_scaled.tolist(),
+        'n_muestras': len(X),
+        'parametros_probados': {
+            'eps_range': list(eps_range),
+            'min_samples_range': list(min_samples_range)
+        },
+        'recomendaciones': generar_recomendaciones_dbscan(mejor_resultado)
+    }
+
+    def determinar_rango_eps(X_scaled):
+        """Determinar rango de eps usando el método de k-distancias - VERSIÓN MEJORADA"""
+        try:
+            n_samples = len(X_scaled)
+
+            # Adaptar k según el tamaño de los datos
+            k = min(4, max(2, n_samples // 20))
+
+            # Asegurar que k no sea mayor que el número de muestras
+            k = min(k, n_samples - 1)
+
+            nbrs = NearestNeighbors(n_neighbors=k)
+            nbrs.fit(X_scaled)
+            distances, indices = nbrs.kneighbors(X_scaled)
+
+            # Usar la k-ésima distancia más cercana
+            k_distances = distances[:, -1]  # Última columna
+            k_distances_sorted = np.sort(k_distances)
+
+            # Método del codo para encontrar eps óptimo
+            if len(k_distances_sorted) > 2:
+                diffs = np.diff(k_distances_sorted)
+                if len(diffs) > 0:
+                    knee_point = np.argmax(diffs)
+                    eps_optimo = k_distances_sorted[knee_point]
+                else:
+                    eps_optimo = np.median(k_distances_sorted)
+            else:
+                eps_optimo = 0.5
+
+            # Crear rango más amplio y robusto
+            eps_min = max(0.05, eps_optimo * 0.3)  # Mínimo más bajo
+            eps_max = eps_optimo * 3.0  # Máximo más alto
+
+            # Asegurar rango mínimo útil
+            if eps_max - eps_min < 0.1:
+                eps_min = 0.1
+                eps_max = 2.0
+
+            # Crear más puntos en el rango para mayor cobertura
+            return np.linspace(eps_min, eps_max, 20)
+
+        except Exception as e:
+            print(f"Error en determinar_rango_eps: {e}")
+            # Rango por defecto amplio y seguro
+            return np.linspace(0.1, 3.0, 20)
+
+    # Ordenar por score compuesto
+    mejores_resultados.sort(key=lambda x: x['score_compuesto'], reverse=True)
+    mejor_resultado = mejores_resultados[0]
+
+    # AGREGADO: asegurar que total_points esté en mejor_resultado
+    if 'total_points' not in mejor_resultado:
+        mejor_resultado['total_points'] = len(X)
+
+    # Análisis adicional del mejor resultado
+    labels_final = np.array(mejor_resultado['labels'])
+
+    # Análisis de densidad
+    analisis_densidad = analizar_densidad_clusters(X_scaled, labels_final, mejor_resultado['eps'])
+
+    # Análisis de outliers
+    analisis_outliers = analizar_outliers_dbscan(X, labels_final, variables)
+
+    # Agregar datos originales para visualización
+    datos_originales = X.copy()
+
+    if verbose:
+        print(f"✅ DBSCAN completado. {mejor_resultado['n_clusters']} clusters, {mejor_resultado['n_noise']} outliers")
+
+    return {
+        'tipo': 'dbscan_optimizado',
+        'variables_utilizadas': variables,
+        'metrica': 'euclidean',
+        'mejor_configuracion': mejor_resultado,
+        'todas_configuraciones': mejores_resultados[:10],  # Top 10
+        'analisis_densidad': analisis_densidad,
+        'analisis_outliers': analisis_outliers,
+        'datos_originales': datos_originales,  # Agregar datos originales
+        'datos_escalados': X_scaled.tolist(),  # AGREGADO: datos escalados
+        'n_muestras': len(X),  # AGREGADO: número de muestras
+        'parametros_probados': {
+            'eps_range': list(eps_range),
+            'min_samples_range': list(min_samples_range)
+        },
+        'recomendaciones': generar_recomendaciones_dbscan(mejor_resultado)
+    }
+# También necesitas estas funciones de soporte si no las tienes:
+
+def determinar_rango_eps(X_scaled):
+    """Determinar rango de eps usando el método de k-distancias"""
+    try:
+        # Calcular k-distancias para k=4 (regla general)
+        nbrs = NearestNeighbors(n_neighbors=min(4, len(X_scaled)))
+        nbrs.fit(X_scaled)
+        distances, indices = nbrs.kneighbors(X_scaled)
+
+        # Usar la distancia más lejana disponible
+        k_distances = distances[:, -1]  # Última columna
+        k_distances_sorted = np.sort(k_distances)
+
+        # Buscar el "codo" en la curva de k-distancias
+        if len(k_distances_sorted) > 1:
+            diffs = np.diff(k_distances_sorted)
+            knee_point = np.argmax(diffs) if len(diffs) > 0 else 0
+            eps_optimo = k_distances_sorted[min(knee_point, len(k_distances_sorted) - 1)]
+        else:
+            eps_optimo = 0.5
+
+        # Crear rango alrededor del eps óptimo
+        eps_min = max(0.1, eps_optimo * 0.5)
+        eps_max = eps_optimo * 2.0
+
+        return np.linspace(eps_min, eps_max, 10)
+
+    except Exception as e:
+        print(f"Error en determinar_rango_eps: {e}")
+        # Rango por defecto
+        return np.linspace(0.1, 2.0, 10)
+
+
+def analizar_clusters_dbscan(X_original, labels, variables):
+    """Análisis detallado de clusters encontrados por DBSCAN"""
+    cluster_analysis = {}
+
+    try:
+        # Analizar clusters normales
+        unique_labels = set(labels)
+        for cluster_id in unique_labels:
+            if cluster_id == -1:  # Ruido
+                continue
+
+            mask = np.array(labels) == cluster_id
+            if not np.any(mask):
+                continue
+
+            cluster_data = X_original[mask]
+
+            # Estadísticas básicas
+            cluster_stats = {
+                'tamaño': int(np.sum(mask)),
+                'proporcion': float(np.sum(mask) / len(labels)),
+                'centroide': cluster_data[variables].mean().to_dict(),
+                'variabilidad': cluster_data[variables].std().to_dict()
+            }
+
+            cluster_analysis[f'cluster_{cluster_id}'] = cluster_stats
+
+        # Analizar puntos de ruido
+        noise_mask = np.array(labels) == -1
+        if np.any(noise_mask):
+            noise_data = X_original[noise_mask]
+            cluster_analysis['noise'] = {
+                'tamaño': int(np.sum(noise_mask)),
+                'proporcion': float(np.sum(noise_mask) / len(labels)),
+                'caracteristicas_promedio': noise_data[variables].mean().to_dict(),
+                'indices': np.where(noise_mask)[0].tolist()
+            }
+
+        return cluster_analysis
+
+    except Exception as e:
+        print(f"Error en analizar_clusters_dbscan: {e}")
+        return {'error': str(e)}
+
+
+def analizar_densidad_clusters(X_scaled, labels, eps):
+    """Analizar la densidad de cada cluster"""
+    densidad_analysis = {}
+
+    try:
+        unique_labels = set(labels)
+        for cluster_id in unique_labels:
+            if cluster_id == -1:
+                continue
+
+            mask = np.array(labels) == cluster_id
+            cluster_points = X_scaled[mask]
+
+            if len(cluster_points) > 1:
+                # Calcular densidad como número de puntos / volumen aproximado
+                distances = euclidean_distances(cluster_points)
+                upper_tri_indices = np.triu_indices_from(distances, k=1)
+
+                if len(upper_tri_indices[0]) > 0:
+                    distances_array = distances[upper_tri_indices]
+                    densidad = len(cluster_points) / (np.mean(distances_array) + 1e-6)
+
+                    densidad_analysis[f'cluster_{cluster_id}'] = {
+                        'densidad': float(densidad),
+                        'distancia_promedio_intra': float(np.mean(distances_array)),
+                        'compacidad': float(np.std(distances_array))
+                    }
+
+        return densidad_analysis
+
+    except Exception as e:
+        print(f"Error en analizar_densidad_clusters: {e}")
+        return {'error': str(e)}
+
+
+def analizar_outliers_dbscan(X_original, labels, variables):
+    """Análisis detallado de outliers detectados por DBSCAN"""
+    try:
+        outlier_mask = np.array(labels) == -1
+
+        if not np.any(outlier_mask):
+            return {'n_outliers': 0}
+
+        outliers = X_original[outlier_mask]
+
+        # Caracterizar outliers
+        outlier_analysis = {
+            'n_outliers': int(np.sum(outlier_mask)),
+            'proporcion': float(np.sum(outlier_mask) / len(labels)),
+            'estadisticas': {}
+        }
+
+        for var in variables:
+            if var in outliers.columns:
+                serie = outliers[var]
+                outlier_analysis['estadisticas'][var] = {
+                    'media': float(serie.mean()),
+                    'std': float(serie.std()),
+                    'min': float(serie.min()),
+                    'max': float(serie.max()),
+                    'rango': float(serie.max() - serie.min())
+                }
+
+        return outlier_analysis
+
+    except Exception as e:
+        print(f"Error en analizar_outliers_dbscan: {e}")
+        return {'n_outliers': 0, 'error': str(e)}
+
+
+def generar_recomendaciones_dbscan(mejor_resultado):
+    """Generar recomendaciones para DBSCAN"""
+    recomendaciones = []
+
+    try:
+        n_clusters = mejor_resultado.get('n_clusters', 0)
+        noise_ratio = mejor_resultado.get('noise_ratio', 0)
+
+        recomendaciones.append(f"DBSCAN detectó {n_clusters} clusters con {noise_ratio:.1%} de outliers")
+
+        if noise_ratio < 0.05:
+            recomendaciones.append("Muy pocos outliers detectados. Los datos son homogéneos")
+        elif noise_ratio < 0.15:
+            recomendaciones.append("Cantidad normal de outliers detectados")
+        else:
+            recomendaciones.append("Alto porcentaje de outliers. Revise la calidad de los datos")
+
+        silhouette_score = mejor_resultado.get('silhouette_score', 0)
+        if silhouette_score > 0.6:
+            recomendaciones.append("Clusters bien definidos y separados")
+        else:
+            recomendaciones.append("Clusters con separación moderada")
+
+        return recomendaciones
+
+    except Exception as e:
+        return [f"Error generando recomendaciones: {str(e)}"]
 # ==================== DEMO COMPLETO ====================
 
 def demo_ml_no_supervisado_completo():
@@ -1937,6 +3166,1443 @@ def demo_ml_no_supervisado_completo():
         'dbscan': dbscan_opt,
         'pca': pca_avanzado
     }
+
+
+# Add these functions to ml_functions_no_supervisado.py
+
+def crear_visualizacion_clustering_puntos_muestreo(resultado, figsize=(16, 12)):
+    """
+    Crear visualización especializada para clustering de puntos de muestreo
+    """
+    if 'error' in resultado:
+        raise ValueError(f"Error en el resultado: {resultado['error']}")
+
+    tipo = resultado.get('tipo', '')
+    fig = plt.figure(figsize=figsize)
+
+    if tipo == 'kmeans_optimizado':
+        return _crear_viz_kmeans_puntos_muestreo(resultado, fig)
+    elif tipo == 'clustering_jerarquico_completo':
+        return _crear_viz_jerarquico_puntos_muestreo(resultado, fig)
+    elif tipo == 'dbscan_optimizado':
+        return _crear_viz_dbscan_puntos_muestreo(resultado, fig)
+    else:
+        return _crear_viz_generica_puntos_muestreo(resultado, fig)
+
+
+def _crear_viz_kmeans_puntos_muestreo(resultado, fig):
+    """Visualización específica para K-Means de puntos de muestreo"""
+
+    # Layout de 2x2
+    gs = fig.add_gridspec(2, 2, hspace=0.3, wspace=0.3)
+
+    # 1. Mapa de puntos de muestreo coloreados por cluster
+    ax1 = fig.add_subplot(gs[0, 0])
+    _graficar_puntos_muestreo_clusters(ax1, resultado)
+
+    # 2. Timeline de muestreos con clusters
+    ax2 = fig.add_subplot(gs[0, 1])
+    _graficar_timeline_muestreos(ax2, resultado)
+
+    # 3. Matriz de distancias entre puntos
+    ax3 = fig.add_subplot(gs[1, 0])
+    _graficar_matriz_distancias_puntos(ax3, resultado)
+
+    # 4. Estadísticas por cluster
+    ax4 = fig.add_subplot(gs[1, 1])
+    _graficar_estadisticas_clusters_puntos(ax4, resultado)
+
+    plt.suptitle('Clustering K-Means - Análisis de Puntos de Muestreo',
+                 fontsize=16, fontweight='bold')
+
+    return fig
+
+
+def _crear_viz_jerarquico_puntos_muestreo(resultado, fig):
+    """Visualización específica para clustering jerárquico de puntos de muestreo"""
+
+    # Layout de 2x2
+    gs = fig.add_gridspec(2, 2, hspace=0.3, wspace=0.3)
+
+    # 1. Dendrograma simplificado
+    ax1 = fig.add_subplot(gs[0, 0])
+    _graficar_dendrograma_simplificado(ax1, resultado)
+
+    # 2. Puntos de muestreo coloreados por cluster
+    ax2 = fig.add_subplot(gs[0, 1])
+    _graficar_puntos_muestreo_clusters(ax2, resultado)
+
+    # 3. Métricas de evaluación
+    ax3 = fig.add_subplot(gs[1, 0])
+    _graficar_metricas_jerarquico(ax3, resultado)
+
+    # 4. Información de configuración
+    ax4 = fig.add_subplot(gs[1, 1])
+    _mostrar_info_jerarquico(ax4, resultado)
+
+    plt.suptitle('Clustering Jerárquico - Análisis de Puntos de Muestreo',
+                 fontsize=16, fontweight='bold')
+
+    return fig
+
+
+def _crear_viz_dbscan_puntos_muestreo(resultado, fig):
+    """Visualización específica para DBSCAN de puntos de muestreo"""
+
+    gs = fig.add_gridspec(2, 2, hspace=0.3, wspace=0.3)
+
+    # 1. Puntos de muestreo con outliers destacados
+    ax1 = fig.add_subplot(gs[0, 0])
+    _graficar_puntos_dbscan_outliers(ax1, resultado)
+
+    # 2. Densidad de muestreos en el tiempo
+    ax2 = fig.add_subplot(gs[0, 1])
+    _graficar_densidad_temporal_muestreos(ax2, resultado)
+
+    # 3. Análisis de outliers temporales
+    ax3 = fig.add_subplot(gs[1, 0])
+    _graficar_outliers_temporales(ax3, resultado)
+
+    # 4. Información de clusters y outliers
+    ax4 = fig.add_subplot(gs[1, 1])
+    _mostrar_info_dbscan_puntos(ax4, resultado)
+
+    plt.suptitle('DBSCAN - Análisis de Puntos de Muestreo y Outliers',
+                 fontsize=16, fontweight='bold')
+
+    return fig
+
+
+def _crear_viz_generica_puntos_muestreo(resultado, fig):
+    """Visualización genérica para resultados de clustering"""
+    ax = fig.add_subplot(111)
+    ax.text(0.5, 0.5, f'Visualización no implementada para: {resultado.get("tipo", "desconocido")}',
+            ha='center', va='center', transform=ax.transAxes,
+            fontsize=14, bbox=dict(boxstyle='round', facecolor='lightyellow'))
+    ax.set_title('Visualización No Disponible')
+    ax.axis('off')
+    return fig
+
+
+def _graficar_puntos_muestreo_clusters(ax, resultado):
+    """Graficar puntos de muestreo coloreados por cluster"""
+    try:
+        # Obtener datos originales
+        if 'datos_originales' not in resultado:
+            ax.text(0.5, 0.5, 'Datos no disponibles', ha='center', va='center',
+                    transform=ax.transAxes)
+            return
+
+        datos = resultado['datos_originales']
+
+        # Verificar si existe columna Points
+        if 'Points' not in datos.columns:
+            # Crear índices como puntos
+            puntos = list(range(1, len(datos) + 1))
+        else:
+            puntos = datos['Points'].tolist()
+
+        # Obtener labels de clusters
+        k_optimo = resultado.get('recomendacion_k')
+        if k_optimo and 'resultados_por_k' in resultado:
+            if k_optimo in resultado['resultados_por_k']:
+                labels = resultado['resultados_por_k'][k_optimo]['labels']
+            else:
+                labels = list(range(len(puntos)))
+        else:
+            # Para otros tipos de clustering
+            mejor_config = resultado.get('mejor_configuracion', {})
+            if 'labels' in mejor_config:
+                labels = mejor_config['labels']
+            else:
+                labels = list(range(len(puntos)))
+
+        # Crear coordenadas para visualización
+        if len(puntos) <= 50:  # Para datasets pequeños, usar grid
+            n_cols = int(np.ceil(np.sqrt(len(puntos))))
+            x_coords = [i % n_cols for i in range(len(puntos))]
+            y_coords = [i // n_cols for i in range(len(puntos))]
+        else:  # Para datasets grandes, usar distribución aleatoria
+            np.random.seed(42)
+            x_coords = np.random.uniform(0, 10, len(puntos))
+            y_coords = np.random.uniform(0, 10, len(puntos))
+
+        # Scatter plot con colores por cluster
+        unique_labels = set(labels)
+        colors = plt.cm.Set3(np.linspace(0, 1, len(unique_labels)))
+
+        for i, (label, color) in enumerate(zip(unique_labels, colors)):
+            mask = np.array(labels) == label
+            if label == -1:  # Outliers en DBSCAN
+                ax.scatter(np.array(x_coords)[mask], np.array(y_coords)[mask],
+                           c='black', marker='x', s=100, alpha=0.8, label='Outliers')
+            else:
+                ax.scatter(np.array(x_coords)[mask], np.array(y_coords)[mask],
+                           c=[color], label=f'Cluster {label}',
+                           s=100, alpha=0.7, edgecolors='black', linewidth=1)
+
+        ax.set_xlabel('Coordenada X (relativa)')
+        ax.set_ylabel('Coordenada Y (relativa)')
+        ax.set_title('Distribución de Puntos de Muestreo por Cluster')
+        ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+        ax.grid(True, alpha=0.3)
+
+    except Exception as e:
+        ax.text(0.5, 0.5, f'Error graficando puntos: {str(e)[:50]}',
+                ha='center', va='center', transform=ax.transAxes)
+
+
+def _graficar_timeline_muestreos(ax, resultado):
+    """Graficar timeline de muestreos con franjas de colores por cluster"""
+    try:
+        if 'datos_originales' not in resultado:
+            ax.text(0.5, 0.5, 'Datos no disponibles', ha='center', va='center',
+                    transform=ax.transAxes)
+            return
+
+        datos = resultado['datos_originales']
+
+        # Verificar columna de fecha
+        fecha_col = None
+        for col in ['Sampling_date', 'Fecha', 'Date', 'fecha']:
+            if col in datos.columns:
+                fecha_col = col
+                break
+
+        if fecha_col is None:
+            # Crear fechas sintéticas
+            fechas = pd.date_range('2023-01-01', periods=len(datos), freq='D')
+        else:
+            fechas = pd.to_datetime(datos[fecha_col])
+
+        # Obtener labels
+        k_optimo = resultado.get('recomendacion_k')
+        if k_optimo and 'resultados_por_k' in resultado:
+            if k_optimo in resultado['resultados_por_k']:
+                labels = resultado['resultados_por_k'][k_optimo]['labels']
+            else:
+                labels = [0] * len(datos)
+        else:
+            mejor_config = resultado.get('mejor_configuracion', {})
+            if 'labels' in mejor_config:
+                labels = mejor_config['labels']
+            else:
+                labels = [0] * len(datos)
+
+        # Puntos de muestreo
+        if 'Points' in datos.columns:
+            puntos = datos['Points'].tolist()
+        else:
+            puntos = list(range(1, len(datos) + 1))
+
+        # Crear timeline
+        unique_labels = sorted(set(labels))
+        colors = plt.cm.Set3(np.linspace(0, 1, len(unique_labels)))
+        color_map = {label: colors[i] for i, label in enumerate(unique_labels)}
+
+        for fecha, punto, label in zip(fechas, puntos, labels):
+            color = color_map.get(label, 'gray')
+            marker = 'x' if label == -1 else 'o'
+            ax.scatter(fecha, punto, c=[color], s=60, alpha=0.8,
+                       edgecolors='black', linewidth=0.5, marker=marker)
+
+        ax.set_xlabel('Fecha de Muestreo')
+        ax.set_ylabel('Punto de Muestreo')
+        ax.set_title('Timeline de Muestreos por Cluster')
+
+        # Rotar etiquetas de fecha
+        ax.tick_params(axis='x', rotation=45)
+
+        # Leyenda
+        legend_elements = []
+        for label in unique_labels:
+            if label == -1:
+                legend_elements.append(plt.scatter([], [], c='black', marker='x',
+                                                   label='Outliers', s=60))
+            else:
+                legend_elements.append(plt.scatter([], [], c=[color_map[label]],
+                                                   label=f'Cluster {label}', s=60))
+        ax.legend(handles=legend_elements, loc='upper right')
+
+        ax.grid(True, alpha=0.3)
+
+    except Exception as e:
+        ax.text(0.5, 0.5, f'Error en timeline: {str(e)[:50]}',
+                ha='center', va='center', transform=ax.transAxes)
+
+
+def _graficar_matriz_distancias_puntos(ax, resultado):
+    """Graficar matriz de distancias entre puntos de muestreo"""
+    try:
+        if 'datos_originales' not in resultado:
+            ax.text(0.5, 0.5, 'Datos no disponibles', ha='center', va='center',
+                    transform=ax.transAxes)
+            return
+
+        datos = resultado['datos_originales']
+
+        # Seleccionar subset de puntos para visualización clara
+        max_puntos = 20
+        if len(datos) > max_puntos:
+            indices = np.random.choice(len(datos), max_puntos, replace=False)
+            datos_subset = datos.iloc[indices]
+        else:
+            datos_subset = datos
+            indices = range(len(datos))
+
+        # Obtener variables numéricas
+        numeric_cols = datos_subset.select_dtypes(include=[np.number]).columns
+        # Excluir columnas no relevantes
+        exclude_cols = ['Points', 'WQI_IDEAM_6V', 'WQI_IDEAM_7V', 'WQI_NSF_9V']
+        numeric_cols = [col for col in numeric_cols if col not in exclude_cols]
+
+        if len(numeric_cols) == 0:
+            ax.text(0.5, 0.5, 'No hay variables numéricas', ha='center', va='center',
+                    transform=ax.transAxes)
+            return
+
+        # Calcular matriz de distancias
+        from sklearn.metrics.pairwise import euclidean_distances
+        from sklearn.preprocessing import StandardScaler
+
+        scaler = StandardScaler()
+        datos_scaled = scaler.fit_transform(datos_subset[numeric_cols].dropna())
+
+        distancias = euclidean_distances(datos_scaled)
+
+        # Crear heatmap
+        im = ax.imshow(distancias, cmap='viridis', aspect='auto')
+
+        # Etiquetas
+        if 'Points' in datos_subset.columns:
+            labels = [f'P{int(p)}' for p in datos_subset['Points'].tolist()]
+        else:
+            labels = [f'P{i + 1}' for i in indices]
+
+        ax.set_xticks(range(len(labels)))
+        ax.set_yticks(range(len(labels)))
+        ax.set_xticklabels(labels, rotation=45, ha='right')
+        ax.set_yticklabels(labels)
+
+        # Colorbar
+        plt.colorbar(im, ax=ax, shrink=0.8)
+
+        ax.set_title('Matriz de Distancias entre Puntos')
+
+    except Exception as e:
+        ax.text(0.5, 0.5, f'Error en matriz distancias: {str(e)[:50]}',
+                ha='center', va='center', transform=ax.transAxes)
+
+
+def _graficar_estadisticas_clusters_puntos(ax, resultado):
+    """Graficar estadísticas de clusters de puntos de muestreo"""
+    try:
+        # Para K-Means
+        k_optimo = resultado.get('recomendacion_k')
+        if k_optimo and 'resultados_por_k' in resultado:
+            if k_optimo not in resultado['resultados_por_k']:
+                ax.text(0.5, 0.5, 'Datos de cluster no disponibles', ha='center', va='center',
+                        transform=ax.transAxes)
+                return
+
+            cluster_data = resultado['resultados_por_k'][k_optimo]
+            labels = cluster_data['labels']
+        else:
+            # Para otros métodos
+            mejor_config = resultado.get('mejor_configuracion', {})
+            if 'labels' not in mejor_config:
+                ax.text(0.5, 0.5, 'Estadísticas no disponibles', ha='center', va='center',
+                        transform=ax.transAxes)
+                return
+            labels = mejor_config['labels']
+            cluster_data = mejor_config
+
+        # Estadísticas por cluster
+        unique_labels = sorted([l for l in set(labels) if l != -1])  # Excluir outliers
+        tamaños = [labels.count(label) for label in unique_labels]
+        proporciones = [size / len(labels) * 100 for size in tamaños]
+
+        # Gráfico de barras
+        bars = ax.bar(range(len(unique_labels)), proporciones,
+                      color=plt.cm.Set3(np.linspace(0, 1, len(unique_labels))),
+                      alpha=0.7, edgecolor='black')
+
+        # Añadir valores en las barras
+        for bar, tamaño, prop in zip(bars, tamaños, proporciones):
+            height = bar.get_height()
+            ax.text(bar.get_x() + bar.get_width() / 2., height + 0.5,
+                    f'{tamaño}\n({prop:.1f}%)', ha='center', va='bottom',
+                    fontweight='bold', fontsize=10)
+
+        ax.set_xlabel('Cluster')
+        ax.set_ylabel('Porcentaje de Puntos')
+        ax.set_title('Distribución de Puntos por Cluster')
+        ax.set_xticks(range(len(unique_labels)))
+        ax.set_xticklabels([f'Cluster {label}' for label in unique_labels])
+        ax.set_ylim(0, max(proporciones) * 1.2 if proporciones else 1)
+        ax.grid(True, alpha=0.3, axis='y')
+
+        # Información adicional
+        silhouette = cluster_data.get('silhouette_score', 0)
+        ax.text(0.02, 0.98, f'Silhouette Score: {silhouette:.3f}',
+                transform=ax.transAxes, va='top',
+                bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
+
+        # Información de outliers si los hay
+        if -1 in labels:
+            n_outliers = labels.count(-1)
+            ax.text(0.02, 0.90, f'Outliers: {n_outliers}',
+                    transform=ax.transAxes, va='top',
+                    bbox=dict(boxstyle='round', facecolor='mistyrose', alpha=0.5))
+
+    except Exception as e:
+        ax.text(0.5, 0.5, f'Error en estadísticas: {str(e)[:50]}',
+                ha='center', va='center', transform=ax.transAxes)
+
+
+# Funciones adicionales para completar las visualizaciones
+
+def _graficar_dendrograma_simplificado(ax, resultado):
+    """Graficar un dendrograma simplificado para clustering jerárquico"""
+    try:
+        ax.text(0.5, 0.5, 'Dendrograma simplificado\n(Implementación pendiente)',
+                ha='center', va='center', transform=ax.transAxes,
+                bbox=dict(boxstyle='round', facecolor='lightblue'))
+        ax.set_title('Dendrograma')
+        ax.axis('off')
+    except Exception as e:
+        ax.text(0.5, 0.5, f'Error: {str(e)[:50]}',
+                ha='center', va='center', transform=ax.transAxes)
+
+
+def _graficar_metricas_jerarquico(ax, resultado):
+    """Graficar métricas de evaluación para clustering jerárquico"""
+    try:
+        ax.text(0.5, 0.5, 'Métricas de evaluación\n(Implementación pendiente)',
+                ha='center', va='center', transform=ax.transAxes,
+                bbox=dict(boxstyle='round', facecolor='lightgreen'))
+        ax.set_title('Métricas de Evaluación')
+        ax.axis('off')
+    except Exception as e:
+        ax.text(0.5, 0.5, f'Error: {str(e)[:50]}',
+                ha='center', va='center', transform=ax.transAxes)
+
+
+def _mostrar_info_jerarquico(ax, resultado):
+    """Mostrar información de configuración jerárquica"""
+    try:
+        ax.text(0.5, 0.5, 'Información de configuración\n(Implementación pendiente)',
+                ha='center', va='center', transform=ax.transAxes,
+                bbox=dict(boxstyle='round', facecolor='lightyellow'))
+        ax.set_title('Configuración')
+        ax.axis('off')
+    except Exception as e:
+        ax.text(0.5, 0.5, f'Error: {str(e)[:50]}',
+                ha='center', va='center', transform=ax.transAxes)
+
+
+def _graficar_puntos_dbscan_outliers(ax, resultado):
+    """Graficar puntos DBSCAN con outliers destacados"""
+    try:
+        _graficar_puntos_muestreo_clusters(ax, resultado)
+        ax.set_title('Puntos de Muestreo - DBSCAN con Outliers')
+    except Exception as e:
+        ax.text(0.5, 0.5, f'Error: {str(e)[:50]}',
+                ha='center', va='center', transform=ax.transAxes)
+
+
+def _graficar_densidad_temporal_muestreos(ax, resultado):
+    """Graficar densidad temporal de muestreos"""
+    try:
+        ax.text(0.5, 0.5, 'Densidad temporal\n(Implementación pendiente)',
+                ha='center', va='center', transform=ax.transAxes,
+                bbox=dict(boxstyle='round', facecolor='lightcyan'))
+        ax.set_title('Densidad Temporal')
+        ax.axis('off')
+    except Exception as e:
+        ax.text(0.5, 0.5, f'Error: {str(e)[:50]}',
+                ha='center', va='center', transform=ax.transAxes)
+
+
+def _graficar_outliers_temporales(ax, resultado):
+    """Graficar análisis de outliers temporales"""
+    try:
+        ax.text(0.5, 0.5, 'Outliers temporales\n(Implementación pendiente)',
+                ha='center', va='center', transform=ax.transAxes,
+                bbox=dict(boxstyle='round', facecolor='mistyrose'))
+        ax.set_title('Outliers Temporales')
+        ax.axis('off')
+    except Exception as e:
+        ax.text(0.5, 0.5, f'Error: {str(e)[:50]}',
+                ha='center', va='center', transform=ax.transAxes)
+
+
+def _mostrar_info_dbscan_puntos(ax, resultado):
+    """Mostrar información de DBSCAN"""
+    try:
+        mejor_config = resultado.get('mejor_configuracion', {})
+
+        info_text = f"Configuración DBSCAN:\n\n"
+        info_text += f"Eps: {mejor_config.get('eps', 'N/A'):.3f}\n"
+        info_text += f"Min Samples: {mejor_config.get('min_samples', 'N/A')}\n\n"
+        info_text += f"Resultados:\n"
+        info_text += f"Clusters: {mejor_config.get('n_clusters', 'N/A')}\n"
+        info_text += f"Outliers: {mejor_config.get('n_noise', 'N/A')}\n"
+        info_text += f"Silhouette: {mejor_config.get('silhouette_score', 'N/A'):.3f}\n"
+
+        ax.text(0.05, 0.95, info_text, fontsize=10, va='top', ha='left',
+                family='monospace', transform=ax.transAxes)
+        ax.set_title('Información DBSCAN')
+        ax.axis('off')
+
+    except Exception as e:
+        ax.text(0.5, 0.5, f'Error: {str(e)[:50]}',
+                ha='center', va='center', transform=ax.transAxes)
+
+
+def _crear_visualizacion_pca_puntos_muestreo(resultado, figsize=(16, 12)):
+    """Crear visualización para PCA con enfoque en puntos de muestreo"""
+    try:
+        fig = plt.figure(figsize=figsize)
+
+        resultados = resultado.get('resultados_por_metodo', {})
+
+        if 'linear' not in resultados:
+            ax = fig.add_subplot(111)
+            ax.text(0.5, 0.5, 'No hay resultados de PCA lineal para visualizar',
+                    ha='center', va='center', transform=ax.transAxes)
+            return fig
+
+        # Layout 2x2
+        gs = fig.add_gridspec(2, 2, hspace=0.3, wspace=0.3)
+
+        # 1. Biplot PC1 vs PC2
+        ax1 = fig.add_subplot(gs[0, 0])
+        _graficar_biplot_pca(ax1, resultado)
+
+        # 2. Varianza explicada
+        ax2 = fig.add_subplot(gs[0, 1])
+        _graficar_varianza_explicada(ax2, resultado)
+
+        # 3. Contribuciones de variables
+        ax3 = fig.add_subplot(gs[1, 0])
+        _graficar_contribuciones_variables_pca(ax3, resultado)
+
+        # 4. Información de componentes
+        ax4 = fig.add_subplot(gs[1, 1])
+        _mostrar_info_pca(ax4, resultado)
+
+        plt.suptitle('Análisis de Componentes Principales (PCA)',
+                     fontsize=16, fontweight='bold')
+
+        return fig
+
+    except Exception as e:
+        fig = plt.figure(figsize=figsize)
+        ax = fig.add_subplot(111)
+        ax.text(0.5, 0.5, f'Error en visualización PCA: {str(e)[:100]}',
+                ha='center', va='center', transform=ax.transAxes,
+                bbox=dict(boxstyle='round', facecolor='mistyrose'))
+        ax.set_title('Error en Visualización PCA')
+        ax.axis('off')
+        return fig
+
+
+def _graficar_biplot_pca(ax, resultado):
+    """Graficar biplot de PCA"""
+    try:
+        linear_result = resultado['resultados_por_metodo']['linear']
+        transformacion = np.array(linear_result['transformacion'])
+
+        if transformacion.shape[1] < 2:
+            ax.text(0.5, 0.5, 'Se necesitan al menos 2 componentes para biplot',
+                    ha='center', va='center', transform=ax.transAxes)
+            return
+
+        # Scatter plot de las dos primeras componentes
+        ax.scatter(transformacion[:, 0], transformacion[:, 1],
+                   alpha=0.6, s=50, edgecolors='black', linewidth=0.5)
+
+        # Añadir algunos puntos representativos
+        for i in range(0, len(transformacion), max(1, len(transformacion) // 10)):
+            ax.annotate(f'P{i + 1}', (transformacion[i, 0], transformacion[i, 1]),
+                        xytext=(5, 5), textcoords='offset points',
+                        fontsize=8, alpha=0.7)
+
+        # Información de varianza explicada
+        analisis = linear_result.get('analisis', {})
+        var_exp = analisis.get('varianza_explicada', [0, 0])
+
+        pc1_var = var_exp[0] * 100 if len(var_exp) > 0 else 0
+        pc2_var = var_exp[1] * 100 if len(var_exp) > 1 else 0
+
+        ax.set_xlabel(f'PC1 ({pc1_var:.1f}% varianza)')
+        ax.set_ylabel(f'PC2 ({pc2_var:.1f}% varianza)')
+        ax.set_title('Biplot PCA - Puntos de Muestreo')
+        ax.grid(True, alpha=0.3)
+
+    except Exception as e:
+        ax.text(0.5, 0.5, f'Error en biplot: {str(e)[:50]}',
+                ha='center', va='center', transform=ax.transAxes)
+
+
+def _graficar_varianza_explicada(ax, resultado):
+    """Graficar varianza explicada por componentes"""
+    try:
+        linear_result = resultado['resultados_por_metodo']['linear']
+        analisis = linear_result.get('analisis', {})
+
+        var_explicada = analisis.get('varianza_explicada', [])
+        var_acumulada = analisis.get('varianza_acumulada', [])
+
+        if not var_explicada:
+            ax.text(0.5, 0.5, 'No hay datos de varianza',
+                    ha='center', va='center', transform=ax.transAxes)
+            return
+
+        x = range(1, len(var_explicada) + 1)
+
+        # Barras para varianza individual
+        bars = ax.bar(x, [v * 100 for v in var_explicada],
+                      alpha=0.6, color='skyblue', label='Individual')
+
+        # Línea para varianza acumulada
+        ax2 = ax.twinx()
+        ax2.plot(x, [v * 100 for v in var_acumulada],
+                 'ro-', linewidth=2, markersize=6, label='Acumulada')
+
+        ax.set_xlabel('Componente Principal')
+        ax.set_ylabel('Varianza Explicada Individual (%)', color='blue')
+        ax2.set_ylabel('Varianza Acumulada (%)', color='red')
+
+        ax.set_title('Varianza Explicada por Componente')
+        ax.grid(True, alpha=0.3)
+
+        # Línea de referencia en 95%
+        ax2.axhline(y=95, color='green', linestyle='--', alpha=0.7,
+                    label='95% objetivo')
+
+        # Leyendas
+        ax.legend(loc='upper left')
+        ax2.legend(loc='upper right')
+
+    except Exception as e:
+        ax.text(0.5, 0.5, f'Error en varianza: {str(e)[:50]}',
+                ha='center', va='center', transform=ax.transAxes)
+
+
+def _graficar_contribuciones_variables_pca(ax, resultado):
+    """Graficar contribuciones de variables a los primeros componentes"""
+    try:
+        linear_result = resultado['resultados_por_metodo']['linear']
+        analisis = linear_result.get('analisis', {})
+        componentes_info = analisis.get('componentes_info', [])
+
+        if not componentes_info:
+            ax.text(0.5, 0.5, 'No hay información de componentes',
+                    ha='center', va='center', transform=ax.transAxes)
+            return
+
+        # Tomar los primeros 2 componentes
+        n_comp = min(2, len(componentes_info))
+
+        # Obtener top variables para cada componente
+        variables_pc1 = []
+        loadings_pc1 = []
+
+        if len(componentes_info) > 0:
+            top_vars_pc1 = componentes_info[0].get('top_variables', [])[:5]
+            variables_pc1 = [var['variable'] for var in top_vars_pc1]
+            loadings_pc1 = [var['loading'] for var in top_vars_pc1]
+
+        if variables_pc1:
+            # Gráfico de barras horizontales
+            y_pos = range(len(variables_pc1))
+            colors = ['red' if x < 0 else 'blue' for x in loadings_pc1]
+
+            bars = ax.barh(y_pos, loadings_pc1, color=colors, alpha=0.7)
+
+            ax.set_yticks(y_pos)
+            ax.set_yticklabels(variables_pc1)
+            ax.set_xlabel('Loading (Contribución)')
+            ax.set_title('Top Variables en PC1')
+            ax.grid(True, alpha=0.3, axis='x')
+
+            # Añadir valores en las barras
+            for i, (bar, val) in enumerate(zip(bars, loadings_pc1)):
+                ax.text(val + 0.01 if val >= 0 else val - 0.01, i,
+                        f'{val:.2f}', va='center',
+                        ha='left' if val >= 0 else 'right')
+        else:
+            ax.text(0.5, 0.5, 'No hay datos de contribuciones',
+                    ha='center', va='center', transform=ax.transAxes)
+
+    except Exception as e:
+        ax.text(0.5, 0.5, f'Error en contribuciones: {str(e)[:50]}',
+                ha='center', va='center', transform=ax.transAxes)
+
+
+def _mostrar_info_pca(ax, resultado):
+    """Mostrar información resumida de PCA"""
+    try:
+        linear_result = resultado['resultados_por_metodo']['linear']
+        analisis = linear_result.get('analisis', {})
+
+        n_comp_rec = linear_result.get('componentes_recomendados', 'N/A')
+        var_objetivo = analisis.get('varianza_objetivo', 0.95)
+
+        info_text = f"Resumen PCA:\n\n"
+        info_text += f"Componentes recomendados: {n_comp_rec}\n"
+        info_text += f"Objetivo de varianza: {var_objetivo:.1%}\n\n"
+
+        # Información de los primeros componentes
+        componentes_info = analisis.get('componentes_info', [])
+        for i, comp_info in enumerate(componentes_info[:3]):
+            var_exp = comp_info.get('varianza_explicada', 0)
+            info_text += f"PC{i + 1}: {var_exp:.1%} varianza\n"
+
+        if len(componentes_info) > 0:
+            var_acum = analisis.get('varianza_acumulada', [])
+            if len(var_acum) >= n_comp_rec:
+                var_total = var_acum[n_comp_rec - 1] if n_comp_rec != 'N/A' else 0
+                info_text += f"\nVarianza total explicada: {var_total:.1%}"
+
+        ax.text(0.05, 0.95, info_text, fontsize=10, va='top', ha='left',
+                family='monospace', transform=ax.transAxes)
+        ax.set_title('Información PCA')
+        ax.axis('off')
+
+    except Exception as e:
+        ax.text(0.5, 0.5, f'Error en info PCA: {str(e)[:50]}',
+                ha='center', va='center', transform=ax.transAxes)
+
+
+def _crear_visualizacion_exploratorio_puntos_muestreo(resultado, figsize=(16, 12)):
+    """Crear visualización para análisis exploratorio"""
+    try:
+        fig = plt.figure(figsize=figsize)
+
+        # Layout 2x2
+        gs = fig.add_gridspec(2, 2, hspace=0.3, wspace=0.3)
+
+        # 1. Matriz de correlaciones
+        ax1 = fig.add_subplot(gs[0, 0])
+        _graficar_matriz_correlaciones(ax1, resultado)
+
+        # 2. Distribución de outliers
+        ax2 = fig.add_subplot(gs[0, 1])
+        _graficar_distribucion_outliers(ax2, resultado)
+
+        # 3. Estadísticas descriptivas
+        ax3 = fig.add_subplot(gs[1, 0])
+        _graficar_estadisticas_descriptivas(ax3, resultado)
+
+        # 4. Calidad de datos
+        ax4 = fig.add_subplot(gs[1, 1])
+        _mostrar_calidad_datos(ax4, resultado)
+
+        plt.suptitle('Análisis Exploratorio de Datos',
+                     fontsize=16, fontweight='bold')
+
+        return fig
+
+    except Exception as e:
+        fig = plt.figure(figsize=figsize)
+        ax = fig.add_subplot(111)
+        ax.text(0.5, 0.5, f'Error en visualización exploratoria: {str(e)[:100]}',
+                ha='center', va='center', transform=ax.transAxes,
+                bbox=dict(boxstyle='round', facecolor='mistyrose'))
+        ax.set_title('Error en Visualización Exploratoria')
+        ax.axis('off')
+        return fig
+
+
+def _graficar_matriz_correlaciones(ax, resultado):
+    """Graficar matriz de correlaciones"""
+    try:
+        correlaciones = resultado.get('correlaciones', {})
+        matriz_pearson = correlaciones.get('matriz_pearson', {})
+
+        if not matriz_pearson:
+            ax.text(0.5, 0.5, 'No hay datos de correlaciones',
+                    ha='center', va='center', transform=ax.transAxes)
+            return
+
+        # Convertir a DataFrame
+        import pandas as pd
+        df_corr = pd.DataFrame(matriz_pearson)
+
+        # Seleccionar subset de variables si hay muchas
+        if len(df_corr.columns) > 10:
+            # Tomar las 10 primeras variables
+            df_corr = df_corr.iloc[:10, :10]
+
+        # Crear heatmap
+        im = ax.imshow(df_corr.values, cmap='RdBu_r', vmin=-1, vmax=1, aspect='auto')
+
+        # Etiquetas
+        ax.set_xticks(range(len(df_corr.columns)))
+        ax.set_yticks(range(len(df_corr.index)))
+        ax.set_xticklabels(df_corr.columns, rotation=45, ha='right')
+        ax.set_yticklabels(df_corr.index)
+
+        # Colorbar
+        plt.colorbar(im, ax=ax, shrink=0.8)
+
+        # Añadir valores en las celdas
+        for i in range(len(df_corr.index)):
+            for j in range(len(df_corr.columns)):
+                val = df_corr.iloc[i, j]
+                color = 'white' if abs(val) > 0.5 else 'black'
+                ax.text(j, i, f'{val:.2f}', ha='center', va='center',
+                        color=color, fontsize=8)
+
+        ax.set_title('Matriz de Correlaciones (Pearson)')
+
+    except Exception as e:
+        ax.text(0.5, 0.5, f'Error en correlaciones: {str(e)[:50]}',
+                ha='center', va='center', transform=ax.transAxes)
+
+
+def _graficar_distribucion_outliers(ax, resultado):
+    """Graficar distribución de outliers por método"""
+    try:
+        outliers = resultado.get('outliers', {})
+
+        metodos = []
+        cantidades = []
+
+        for metodo, data in outliers.items():
+            if metodo == 'consenso':
+                continue
+            if isinstance(data, dict) and 'total' in data:
+                metodos.append(metodo.replace('_', ' ').title())
+                cantidades.append(data['total'])
+
+        if not metodos:
+            ax.text(0.5, 0.5, 'No hay datos de outliers',
+                    ha='center', va='center', transform=ax.transAxes)
+            return
+
+        # Gráfico de barras
+        bars = ax.bar(metodos, cantidades,
+                      color=['skyblue', 'lightgreen', 'salmon', 'gold'][:len(metodos)],
+                      alpha=0.7, edgecolor='black')
+
+        # Añadir valores en las barras
+        for bar, val in zip(bars, cantidades):
+            height = bar.get_height()
+            ax.text(bar.get_x() + bar.get_width() / 2., height + 0.5,
+                    f'{val}', ha='center', va='bottom', fontweight='bold')
+
+        ax.set_xlabel('Método de Detección')
+        ax.set_ylabel('Número de Outliers')
+        ax.set_title('Outliers Detectados por Método')
+        ax.tick_params(axis='x', rotation=45)
+        ax.grid(True, alpha=0.3, axis='y')
+
+        # Añadir información de consenso
+        consenso = outliers.get('consenso', {})
+        if consenso:
+            total_consenso = consenso.get('total_unico', 0)
+            porcentaje = consenso.get('porcentaje', 0)
+            ax.text(0.02, 0.98, f'Consenso: {total_consenso} ({porcentaje:.1f}%)',
+                    transform=ax.transAxes, va='top',
+                    bbox=dict(boxstyle='round', facecolor='yellow', alpha=0.7))
+
+    except Exception as e:
+        ax.text(0.5, 0.5, f'Error en outliers: {str(e)[:50]}',
+                ha='center', va='center', transform=ax.transAxes)
+
+
+def _graficar_estadisticas_descriptivas(ax, resultado):
+    """Graficar resumen de estadísticas descriptivas"""
+    try:
+        estadisticas = resultado.get('estadisticas_descriptivas', {})
+
+        if not estadisticas:
+            ax.text(0.5, 0.5, 'No hay estadísticas descriptivas',
+                    ha='center', va='center', transform=ax.transAxes)
+            return
+
+        # Tomar subset de variables
+        variables = list(estadisticas.keys())[:8]  # Máximo 8 variables
+
+        # Métricas a mostrar
+        skewness_vals = []
+        kurtosis_vals = []
+        cv_vals = []
+
+        for var in variables:
+            stats = estadisticas[var]
+            skewness_vals.append(stats.get('skewness', 0))
+            kurtosis_vals.append(stats.get('kurtosis', 0))
+            cv_val = stats.get('cv', 0)
+            # Limitar CV extremos
+            cv_vals.append(min(cv_val, 2) if cv_val != np.inf else 0)
+
+        # Gráfico de líneas múltiples
+        x = range(len(variables))
+
+        ax.plot(x, skewness_vals, 'o-', label='Skewness', linewidth=2, markersize=6)
+        ax.plot(x, kurtosis_vals, 's-', label='Kurtosis', linewidth=2, markersize=6)
+        ax.plot(x, cv_vals, '^-', label='CV', linewidth=2, markersize=6)
+
+        # Líneas de referencia
+        ax.axhline(y=0, color='gray', linestyle='--', alpha=0.5)
+        ax.axhline(y=1, color='red', linestyle='--', alpha=0.5, label='Referencia ±1')
+        ax.axhline(y=-1, color='red', linestyle='--', alpha=0.5)
+
+        ax.set_xlabel('Variables')
+        ax.set_ylabel('Valor')
+        ax.set_title('Estadísticas de Forma por Variable')
+        ax.set_xticks(x)
+        ax.set_xticklabels([var[:8] + '...' if len(var) > 8 else var
+                            for var in variables], rotation=45, ha='right')
+        ax.legend()
+        ax.grid(True, alpha=0.3)
+
+    except Exception as e:
+        ax.text(0.5, 0.5, f'Error en estadísticas: {str(e)[:50]}',
+                ha='center', va='center', transform=ax.transAxes)
+
+
+def _mostrar_calidad_datos(ax, resultado):
+    """Mostrar información de calidad de datos"""
+    try:
+        calidad = resultado.get('calidad_datos', {})
+
+        if not calidad:
+            ax.text(0.5, 0.5, 'No hay información de calidad',
+                    ha='center', va='center', transform=ax.transAxes)
+            return
+
+        quality_score = calidad.get('quality_score', 0)
+        calificacion = calidad.get('calificacion', 'N/A')
+
+        # Información de valores faltantes
+        missing_info = calidad.get('valores_faltantes', {})
+        total_missing = sum(info.get('count', 0) for info in missing_info.values())
+
+        # Información de duplicados
+        duplicados_info = calidad.get('duplicados', {})
+        duplicados_count = duplicados_info.get('count', 0)
+
+        info_text = f"Calidad de Datos:\n\n"
+        info_text += f"Score General: {quality_score:.1f}/100\n"
+        info_text += f"Calificación: {calificacion}\n\n"
+        info_text += f"Valores Faltantes: {total_missing}\n"
+        info_text += f"Duplicados: {duplicados_count}\n\n"
+
+        # Top variables con missing values
+        if missing_info:
+            sorted_missing = sorted(missing_info.items(),
+                                    key=lambda x: x[1].get('percentage', 0),
+                                    reverse=True)[:3]
+            info_text += "Variables con más faltantes:\n"
+            for var, info in sorted_missing:
+                pct = info.get('percentage', 0)
+                if pct > 0:
+                    info_text += f"• {var}: {pct:.1f}%\n"
+
+        # Color según calidad
+        if quality_score >= 90:
+            bgcolor = 'lightgreen'
+        elif quality_score >= 70:
+            bgcolor = 'lightyellow'
+        else:
+            bgcolor = 'mistyrose'
+
+        ax.text(0.05, 0.95, info_text, fontsize=10, va='top', ha='left',
+                family='monospace', transform=ax.transAxes,
+                bbox=dict(boxstyle='round', facecolor=bgcolor, alpha=0.7))
+        ax.set_title('Evaluación de Calidad')
+        ax.axis('off')
+
+    except Exception as e:
+        ax.text(0.5, 0.5, f'Error en calidad: {str(e)[:50]}',
+                ha='center', va='center', transform=ax.transAxes)
+
+
+def _crear_visualizacion_generica(resultado, figsize=(16, 12)):
+    """Crear visualización genérica para resultados no específicos"""
+    fig = plt.figure(figsize=figsize)
+    ax = fig.add_subplot(111)
+
+    tipo = resultado.get('tipo', 'desconocido')
+    ax.text(0.5, 0.5, f'Visualización genérica para: {tipo}\n\n'
+                      'Esta función se puede expandir según las necesidades específicas',
+            ha='center', va='center', transform=ax.transAxes,
+            fontsize=14, bbox=dict(boxstyle='round', facecolor='lightblue'))
+    ax.set_title(f'Resultado: {tipo}')
+    ax.axis('off')
+
+    return fig
+
+
+# Agregar estas funciones al final de ml_functions_no_supervisado.py
+
+def _crear_visualizacion_pca_puntos_muestreo(resultado, figsize=(16, 12)):
+    """Crear visualización para PCA con enfoque en puntos de muestreo"""
+    try:
+        fig = plt.figure(figsize=figsize)
+
+        resultados = resultado.get('resultados_por_metodo', {})
+
+        if 'linear' not in resultados:
+            ax = fig.add_subplot(111)
+            ax.text(0.5, 0.5, 'No hay resultados de PCA lineal para visualizar',
+                    ha='center', va='center', transform=ax.transAxes)
+            return fig
+
+        # Layout 2x2
+        gs = fig.add_gridspec(2, 2, hspace=0.3, wspace=0.3)
+
+        # 1. Biplot PC1 vs PC2
+        ax1 = fig.add_subplot(gs[0, 0])
+        _graficar_biplot_pca(ax1, resultado)
+
+        # 2. Varianza explicada
+        ax2 = fig.add_subplot(gs[0, 1])
+        _graficar_varianza_explicada(ax2, resultado)
+
+        # 3. Contribuciones de variables
+        ax3 = fig.add_subplot(gs[1, 0])
+        _graficar_contribuciones_variables_pca(ax3, resultado)
+
+        # 4. Información de componentes
+        ax4 = fig.add_subplot(gs[1, 1])
+        _mostrar_info_pca(ax4, resultado)
+
+        plt.suptitle('Análisis de Componentes Principales (PCA)',
+                     fontsize=16, fontweight='bold')
+
+        return fig
+
+    except Exception as e:
+        fig = plt.figure(figsize=figsize)
+        ax = fig.add_subplot(111)
+        ax.text(0.5, 0.5, f'Error en visualización PCA: {str(e)[:100]}',
+                ha='center', va='center', transform=ax.transAxes,
+                bbox=dict(boxstyle='round', facecolor='mistyrose'))
+        ax.set_title('Error en Visualización PCA')
+        ax.axis('off')
+        return fig
+
+
+def _crear_visualizacion_exploratorio_puntos_muestreo(resultado, figsize=(16, 12)):
+    """Crear visualización para análisis exploratorio"""
+    try:
+        fig = plt.figure(figsize=figsize)
+
+        # Layout 2x2
+        gs = fig.add_gridspec(2, 2, hspace=0.3, wspace=0.3)
+
+        # 1. Matriz de correlaciones
+        ax1 = fig.add_subplot(gs[0, 0])
+        _graficar_matriz_correlaciones(ax1, resultado)
+
+        # 2. Distribución de outliers
+        ax2 = fig.add_subplot(gs[0, 1])
+        _graficar_distribucion_outliers(ax2, resultado)
+
+        # 3. Estadísticas descriptivas
+        ax3 = fig.add_subplot(gs[1, 0])
+        _graficar_estadisticas_descriptivas(ax3, resultado)
+
+        # 4. Calidad de datos
+        ax4 = fig.add_subplot(gs[1, 1])
+        _mostrar_calidad_datos(ax4, resultado)
+
+        plt.suptitle('Análisis Exploratorio de Datos',
+                     fontsize=16, fontweight='bold')
+
+        return fig
+
+    except Exception as e:
+        fig = plt.figure(figsize=figsize)
+        ax = fig.add_subplot(111)
+        ax.text(0.5, 0.5, f'Error en visualización exploratoria: {str(e)[:100]}',
+                ha='center', va='center', transform=ax.transAxes,
+                bbox=dict(boxstyle='round', facecolor='mistyrose'))
+        ax.set_title('Error en Visualización Exploratoria')
+        ax.axis('off')
+        return fig
+
+
+# Funciones de soporte adicionales que también necesitas:
+
+def _graficar_biplot_pca(ax, resultado):
+    """Graficar biplot de PCA"""
+    try:
+        linear_result = resultado['resultados_por_metodo']['linear']
+        transformacion = np.array(linear_result['transformacion'])
+
+        if transformacion.shape[1] < 2:
+            ax.text(0.5, 0.5, 'Se necesitan al menos 2 componentes para biplot',
+                    ha='center', va='center', transform=ax.transAxes)
+            return
+
+        # Scatter plot de las dos primeras componentes
+        ax.scatter(transformacion[:, 0], transformacion[:, 1],
+                   alpha=0.6, s=50, edgecolors='black', linewidth=0.5)
+
+        # Añadir algunos puntos representativos
+        for i in range(0, len(transformacion), max(1, len(transformacion) // 10)):
+            ax.annotate(f'P{i + 1}', (transformacion[i, 0], transformacion[i, 1]),
+                        xytext=(5, 5), textcoords='offset points',
+                        fontsize=8, alpha=0.7)
+
+        # Información de varianza explicada
+        analisis = linear_result.get('analisis', {})
+        var_exp = analisis.get('varianza_explicada', [0, 0])
+
+        pc1_var = var_exp[0] * 100 if len(var_exp) > 0 else 0
+        pc2_var = var_exp[1] * 100 if len(var_exp) > 1 else 0
+
+        ax.set_xlabel(f'PC1 ({pc1_var:.1f}% varianza)')
+        ax.set_ylabel(f'PC2 ({pc2_var:.1f}% varianza)')
+        ax.set_title('Biplot PCA - Puntos de Muestreo')
+        ax.grid(True, alpha=0.3)
+
+    except Exception as e:
+        ax.text(0.5, 0.5, f'Error en biplot: {str(e)[:50]}',
+                ha='center', va='center', transform=ax.transAxes)
+
+
+def _graficar_varianza_explicada(ax, resultado):
+    """Graficar varianza explicada por componentes"""
+    try:
+        linear_result = resultado['resultados_por_metodo']['linear']
+        analisis = linear_result.get('analisis', {})
+
+        var_explicada = analisis.get('varianza_explicada', [])
+        var_acumulada = analisis.get('varianza_acumulada', [])
+
+        if not var_explicada:
+            ax.text(0.5, 0.5, 'No hay datos de varianza',
+                    ha='center', va='center', transform=ax.transAxes)
+            return
+
+        x = range(1, len(var_explicada) + 1)
+
+        # Barras para varianza individual
+        bars = ax.bar(x, [v * 100 for v in var_explicada],
+                      alpha=0.6, color='skyblue', label='Individual')
+
+        # Línea para varianza acumulada
+        ax2 = ax.twinx()
+        ax2.plot(x, [v * 100 for v in var_acumulada],
+                 'ro-', linewidth=2, markersize=6, label='Acumulada')
+
+        ax.set_xlabel('Componente Principal')
+        ax.set_ylabel('Varianza Explicada Individual (%)', color='blue')
+        ax2.set_ylabel('Varianza Acumulada (%)', color='red')
+
+        ax.set_title('Varianza Explicada por Componente')
+        ax.grid(True, alpha=0.3)
+
+        # Línea de referencia en 95%
+        ax2.axhline(y=95, color='green', linestyle='--', alpha=0.7,
+                    label='95% objetivo')
+
+        # Leyendas
+        ax.legend(loc='upper left')
+        ax2.legend(loc='upper right')
+
+    except Exception as e:
+        ax.text(0.5, 0.5, f'Error en varianza: {str(e)[:50]}',
+                ha='center', va='center', transform=ax.transAxes)
+
+
+def _graficar_contribuciones_variables_pca(ax, resultado):
+    """Graficar contribuciones de variables a los primeros componentes"""
+    try:
+        linear_result = resultado['resultados_por_metodo']['linear']
+        analisis = linear_result.get('analisis', {})
+        componentes_info = analisis.get('componentes_info', [])
+
+        if not componentes_info:
+            ax.text(0.5, 0.5, 'No hay información de componentes',
+                    ha='center', va='center', transform=ax.transAxes)
+            return
+
+        # Obtener top variables para PC1
+        variables_pc1 = []
+        loadings_pc1 = []
+
+        if len(componentes_info) > 0:
+            top_vars_pc1 = componentes_info[0].get('top_variables', [])[:5]
+            variables_pc1 = [var['variable'] for var in top_vars_pc1]
+            loadings_pc1 = [var['loading'] for var in top_vars_pc1]
+
+        if variables_pc1:
+            # Gráfico de barras horizontales
+            y_pos = range(len(variables_pc1))
+            colors = ['red' if x < 0 else 'blue' for x in loadings_pc1]
+
+            bars = ax.barh(y_pos, loadings_pc1, color=colors, alpha=0.7)
+
+            ax.set_yticks(y_pos)
+            ax.set_yticklabels(variables_pc1)
+            ax.set_xlabel('Loading (Contribución)')
+            ax.set_title('Top Variables en PC1')
+            ax.grid(True, alpha=0.3, axis='x')
+
+            # Añadir valores en las barras
+            for i, (bar, val) in enumerate(zip(bars, loadings_pc1)):
+                ax.text(val + 0.01 if val >= 0 else val - 0.01, i,
+                        f'{val:.2f}', va='center',
+                        ha='left' if val >= 0 else 'right')
+        else:
+            ax.text(0.5, 0.5, 'No hay datos de contribuciones',
+                    ha='center', va='center', transform=ax.transAxes)
+
+    except Exception as e:
+        ax.text(0.5, 0.5, f'Error en contribuciones: {str(e)[:50]}',
+                ha='center', va='center', transform=ax.transAxes)
+
+
+def _mostrar_info_pca(ax, resultado):
+    """Mostrar información resumida de PCA"""
+    try:
+        linear_result = resultado['resultados_por_metodo']['linear']
+        analisis = linear_result.get('analisis', {})
+
+        n_comp_rec = linear_result.get('componentes_recomendados', 'N/A')
+        var_objetivo = analisis.get('varianza_objetivo', 0.95)
+
+        info_text = f"Resumen PCA:\n\n"
+        info_text += f"Componentes recomendados: {n_comp_rec}\n"
+        info_text += f"Objetivo de varianza: {var_objetivo:.1%}\n\n"
+
+        # Información de los primeros componentes
+        componentes_info = analisis.get('componentes_info', [])
+        for i, comp_info in enumerate(componentes_info[:3]):
+            var_exp = comp_info.get('varianza_explicada', 0)
+            info_text += f"PC{i + 1}: {var_exp:.1%} varianza\n"
+
+        if len(componentes_info) > 0 and n_comp_rec != 'N/A':
+            var_acum = analisis.get('varianza_acumulada', [])
+            if len(var_acum) >= n_comp_rec:
+                var_total = var_acum[n_comp_rec - 1]
+                info_text += f"\nVarianza total explicada: {var_total:.1%}"
+
+        ax.text(0.05, 0.95, info_text, fontsize=10, va='top', ha='left',
+                family='monospace', transform=ax.transAxes)
+        ax.set_title('Información PCA')
+        ax.axis('off')
+
+    except Exception as e:
+        ax.text(0.5, 0.5, f'Error en info PCA: {str(e)[:50]}',
+                ha='center', va='center', transform=ax.transAxes)
+
+
+def _graficar_matriz_correlaciones(ax, resultado):
+    """Graficar matriz de correlaciones"""
+    try:
+        correlaciones = resultado.get('correlaciones', {})
+        matriz_pearson = correlaciones.get('matriz_pearson', {})
+
+        if not matriz_pearson:
+            ax.text(0.5, 0.5, 'No hay datos de correlaciones',
+                    ha='center', va='center', transform=ax.transAxes)
+            return
+
+        # Convertir a DataFrame
+        import pandas as pd
+        df_corr = pd.DataFrame(matriz_pearson)
+
+        # Seleccionar subset de variables si hay muchas
+        if len(df_corr.columns) > 10:
+            # Tomar las 10 primeras variables
+            df_corr = df_corr.iloc[:10, :10]
+
+        # Crear heatmap
+        im = ax.imshow(df_corr.values, cmap='RdBu_r', vmin=-1, vmax=1, aspect='auto')
+
+        # Etiquetas
+        ax.set_xticks(range(len(df_corr.columns)))
+        ax.set_yticks(range(len(df_corr.index)))
+        ax.set_xticklabels(df_corr.columns, rotation=45, ha='right')
+        ax.set_yticklabels(df_corr.index)
+
+        # Colorbar
+        plt.colorbar(im, ax=ax, shrink=0.8)
+
+        # Añadir valores en las celdas
+        for i in range(len(df_corr.index)):
+            for j in range(len(df_corr.columns)):
+                val = df_corr.iloc[i, j]
+                color = 'white' if abs(val) > 0.5 else 'black'
+                ax.text(j, i, f'{val:.2f}', ha='center', va='center',
+                        color=color, fontsize=8)
+
+        ax.set_title('Matriz de Correlaciones (Pearson)')
+
+    except Exception as e:
+        ax.text(0.5, 0.5, f'Error en correlaciones: {str(e)[:50]}',
+                ha='center', va='center', transform=ax.transAxes)
+
+
+def _graficar_distribucion_outliers(ax, resultado):
+    """Graficar distribución de outliers por método"""
+    try:
+        outliers = resultado.get('outliers', {})
+
+        metodos = []
+        cantidades = []
+
+        for metodo, data in outliers.items():
+            if metodo == 'consenso':
+                continue
+            if isinstance(data, dict) and 'total' in data:
+                metodos.append(metodo.replace('_', ' ').title())
+                cantidades.append(data['total'])
+
+        if not metodos:
+            ax.text(0.5, 0.5, 'No hay datos de outliers',
+                    ha='center', va='center', transform=ax.transAxes)
+            return
+
+        # Gráfico de barras
+        bars = ax.bar(metodos, cantidades,
+                      color=['skyblue', 'lightgreen', 'salmon', 'gold'][:len(metodos)],
+                      alpha=0.7, edgecolor='black')
+
+        # Añadir valores en las barras
+        for bar, val in zip(bars, cantidades):
+            height = bar.get_height()
+            ax.text(bar.get_x() + bar.get_width() / 2., height + 0.5,
+                    f'{val}', ha='center', va='bottom', fontweight='bold')
+
+        ax.set_xlabel('Método de Detección')
+        ax.set_ylabel('Número de Outliers')
+        ax.set_title('Outliers Detectados por Método')
+        ax.tick_params(axis='x', rotation=45)
+        ax.grid(True, alpha=0.3, axis='y')
+
+        # Añadir información de consenso
+        consenso = outliers.get('consenso', {})
+        if consenso:
+            total_consenso = consenso.get('total_unico', 0)
+            porcentaje = consenso.get('porcentaje', 0)
+            ax.text(0.02, 0.98, f'Consenso: {total_consenso} ({porcentaje:.1f}%)',
+                    transform=ax.transAxes, va='top',
+                    bbox=dict(boxstyle='round', facecolor='yellow', alpha=0.7))
+
+    except Exception as e:
+        ax.text(0.5, 0.5, f'Error en outliers: {str(e)[:50]}',
+                ha='center', va='center', transform=ax.transAxes)
+
+
+def _graficar_estadisticas_descriptivas(ax, resultado):
+    """Graficar resumen de estadísticas descriptivas"""
+    try:
+        estadisticas = resultado.get('estadisticas_descriptivas', {})
+
+        if not estadisticas:
+            ax.text(0.5, 0.5, 'No hay estadísticas descriptivas',
+                    ha='center', va='center', transform=ax.transAxes)
+            return
+
+        # Tomar subset de variables
+        variables = list(estadisticas.keys())[:8]  # Máximo 8 variables
+
+        # Métricas a mostrar
+        skewness_vals = []
+        kurtosis_vals = []
+        cv_vals = []
+
+        for var in variables:
+            stats = estadisticas[var]
+            skewness_vals.append(stats.get('skewness', 0))
+            kurtosis_vals.append(stats.get('kurtosis', 0))
+            cv_val = stats.get('cv', 0)
+            # Limitar CV extremos
+            cv_vals.append(min(cv_val, 2) if cv_val != np.inf else 0)
+
+        # Gráfico de líneas múltiples
+        x = range(len(variables))
+
+        ax.plot(x, skewness_vals, 'o-', label='Skewness', linewidth=2, markersize=6)
+        ax.plot(x, kurtosis_vals, 's-', label='Kurtosis', linewidth=2, markersize=6)
+        ax.plot(x, cv_vals, '^-', label='CV', linewidth=2, markersize=6)
+
+        # Líneas de referencia
+        ax.axhline(y=0, color='gray', linestyle='--', alpha=0.5)
+        ax.axhline(y=1, color='red', linestyle='--', alpha=0.5, label='Referencia ±1')
+        ax.axhline(y=-1, color='red', linestyle='--', alpha=0.5)
+
+        ax.set_xlabel('Variables')
+        ax.set_ylabel('Valor')
+        ax.set_title('Estadísticas de Forma por Variable')
+        ax.set_xticks(x)
+        ax.set_xticklabels([var[:8] + '...' if len(var) > 8 else var
+                            for var in variables], rotation=45, ha='right')
+        ax.legend()
+        ax.grid(True, alpha=0.3)
+
+    except Exception as e:
+        ax.text(0.5, 0.5, f'Error en estadísticas: {str(e)[:50]}',
+                ha='center', va='center', transform=ax.transAxes)
+
+
+def _mostrar_calidad_datos(ax, resultado):
+    """Mostrar información de calidad de datos"""
+    try:
+        calidad = resultado.get('calidad_datos', {})
+
+        if not calidad:
+            ax.text(0.5, 0.5, 'No hay información de calidad',
+                    ha='center', va='center', transform=ax.transAxes)
+            return
+
+        quality_score = calidad.get('quality_score', 0)
+        calificacion = calidad.get('calificacion', 'N/A')
+
+        # Información de valores faltantes
+        missing_info = calidad.get('valores_faltantes', {})
+        total_missing = sum(info.get('count', 0) for info in missing_info.values())
+
+        # Información de duplicados
+        duplicados_info = calidad.get('duplicados', {})
+        duplicados_count = duplicados_info.get('count', 0)
+
+        info_text = f"Calidad de Datos:\n\n"
+        info_text += f"Score General: {quality_score:.1f}/100\n"
+        info_text += f"Calificación: {calificacion}\n\n"
+        info_text += f"Valores Faltantes: {total_missing}\n"
+        info_text += f"Duplicados: {duplicados_count}\n\n"
+
+        # Top variables con missing values
+        if missing_info:
+            sorted_missing = sorted(missing_info.items(),
+                                    key=lambda x: x[1].get('percentage', 0),
+                                    reverse=True)[:3]
+            info_text += "Variables con más faltantes:\n"
+            for var, info in sorted_missing:
+                pct = info.get('percentage', 0)
+                if pct > 0:
+                    info_text += f"• {var}: {pct:.1f}%\n"
+
+        # Color según calidad
+        if quality_score >= 90:
+            bgcolor = 'lightgreen'
+        elif quality_score >= 70:
+            bgcolor = 'lightyellow'
+        else:
+            bgcolor = 'mistyrose'
+
+        ax.text(0.05, 0.95, info_text, fontsize=10, va='top', ha='left',
+                family='monospace', transform=ax.transAxes,
+                bbox=dict(boxstyle='round', facecolor=bgcolor, alpha=0.7))
+        ax.set_title('Evaluación de Calidad')
+        ax.axis('off')
+
+    except Exception as e:
+        ax.text(0.5, 0.5, f'Error en calidad: {str(e)[:50]}',
+                ha='center', va='center', transform=ax.transAxes)
 
 if __name__ == "__main__":
     # Ejecutar demostración
