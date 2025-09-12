@@ -4,8 +4,11 @@ Versión mejorada con mejor rendimiento, manejo de errores y funcionalidad exten
 """
 
 import numpy as np
+import seaborn as sns  # Para los estilos de color
 import pandas as pd
 import matplotlib.pyplot as plt
+from sklearn.tree import export_text, plot_tree  # Ya existe export_text, solo agregar plot_tree
+import matplotlib.patches as patches  # Nueva importación
 from sklearn.model_selection import (
     train_test_split, cross_val_score, GridSearchCV,
     RandomizedSearchCV, KFold, StratifiedKFold, validation_curve,
@@ -1664,6 +1667,497 @@ def _entrenar_neural_network(prep_data: Dict, optimize: bool = True) -> Dict[str
     }
 
 # ==================== FUNCIONES DE VISUALIZACIÓN ====================
+def visualizar_arbol_decision(resultado_arbol: Dict[str, Any],
+                                  max_depth: Optional[int] = 3,
+                                  figsize: Tuple[int, int] = (20, 12),
+                                  font_size: int = 10,
+                                  mostrar_valores: bool = True,
+                                  mostrar_probabilidades: bool = True,
+                                  estilo_color: str = 'viridis') -> plt.Figure:
+        """
+        Genera una visualización gráfica del árbol de decisiones usando matplotlib
+
+        Args:
+            resultado_arbol: Diccionario resultado de la función arbol_decision()
+            max_depth: Profundidad máxima a mostrar (None para mostrar todo)
+            figsize: Tamaño de la figura (ancho, alto)
+            font_size: Tamaño de fuente
+            mostrar_valores: Si mostrar valores en los nodos
+            mostrar_probabilidades: Si mostrar probabilidades (solo clasificación)
+            estilo_color: Esquema de colores ('viridis', 'plasma', 'coolwarm', etc.)
+
+        Returns:
+            Figure de matplotlib con la visualización del árbol
+        """
+
+        if 'error' in resultado_arbol:
+            raise ValueError(f"Error en el resultado del árbol: {resultado_arbol['error']}")
+
+        modelo = resultado_arbol['modelo']
+        feature_names = resultado_arbol['feature_columns']
+        is_classification = resultado_arbol['es_clasificacion']
+
+        # Configurar el estilo
+        plt.style.use('default')
+        sns.set_palette(estilo_color)
+
+        # Crear figura y subplot
+        fig, ax = plt.subplots(figsize=figsize)
+
+        # Configurar parámetros para la visualización
+        if is_classification:
+            class_names = [str(i) for i in range(len(np.unique(modelo.classes_)))]
+            filled = True
+
+            # Mostrar probabilidades solo si es clasificación
+            proportion = mostrar_probabilidades
+        else:
+            class_names = None
+            filled = True
+            proportion = False
+
+        # Generar el gráfico del árbol
+        plot_tree(modelo,
+                  ax=ax,
+                  feature_names=feature_names,
+                  class_names=class_names,
+                  filled=filled,
+                  rounded=True,
+                  fontsize=font_size,
+                  max_depth=max_depth,
+                  impurity=True,
+                  values=mostrar_valores,
+                  proportion=proportion)
+
+        # Personalizar el título
+        tipo_problema = "Clasificación" if is_classification else "Regresión"
+        n_nodes = resultado_arbol['tree_info']['n_nodes']
+        max_depth_real = resultado_arbol['tree_info']['max_depth']
+
+        titulo = f'Árbol de Decisión - {tipo_problema}\n'
+        titulo += f'Nodos: {n_nodes}, Profundidad máxima: {max_depth_real}'
+
+        if max_depth is not None:
+            titulo += f' (Mostrando hasta profundidad {max_depth})'
+
+        ax.set_title(titulo, fontsize=font_size+4, fontweight='bold', pad=20)
+
+        # Eliminar ejes
+        ax.set_xticks([])
+        ax.set_yticks([])
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        ax.spines['bottom'].set_visible(False)
+        ax.spines['left'].set_visible(False)
+
+        plt.tight_layout()
+
+        return fig
+
+def visualizar_importancia_features(resultado_arbol: Dict[str, Any],
+                                        top_n: int = 10,
+                                        figsize: Tuple[int, int] = (10, 8)) -> plt.Figure:
+        """
+        Visualiza la importancia de las características del árbol de decisión
+
+        Args:
+            resultado_arbol: Diccionario resultado de la función arbol_decision()
+            top_n: Número de características más importantes a mostrar
+            figsize: Tamaño de la figura
+
+        Returns:
+            Figure de matplotlib con el gráfico de importancia
+        """
+
+        if 'error' in resultado_arbol:
+            raise ValueError(f"Error en el resultado del árbol: {resultado_arbol['error']}")
+
+        importancia = resultado_arbol['importancia_features']
+
+        # Ordenar por importancia
+        features_sorted = sorted(importancia.items(), key=lambda x: x[1], reverse=True)
+        features_sorted = features_sorted[:top_n]
+
+        # Extraer nombres y valores
+        nombres = [item[0] for item in features_sorted]
+        valores = [item[1] for item in features_sorted]
+
+        # Crear gráfico
+        fig, ax = plt.subplots(figsize=figsize)
+
+        # Crear barras horizontales
+        bars = ax.barh(range(len(nombres)), valores, color='skyblue', alpha=0.8)
+
+        # Personalizar
+        ax.set_yticks(range(len(nombres)))
+        ax.set_yticklabels(nombres)
+        ax.set_xlabel('Importancia de la Característica', fontweight='bold')
+        ax.set_title(f'Top {len(nombres)} Características más Importantes\nÁrbol de Decisión',
+                     fontweight='bold', fontsize=12)
+
+        # Invertir orden del eje Y para mostrar la más importante arriba
+        ax.invert_yaxis()
+
+        # Agregar valores en las barras
+        for i, (bar, valor) in enumerate(zip(bars, valores)):
+            ax.text(valor + max(valores)*0.01, i, f'{valor:.3f}',
+                    va='center', fontweight='bold')
+
+        # Agregar grilla
+        ax.grid(axis='x', alpha=0.3)
+        ax.set_axisbelow(True)
+
+        plt.tight_layout()
+
+        return fig
+
+
+def crear_dashboard_random_forest(resultado: Dict[str, Any],
+                                  figsize: Tuple[int, int] = (20, 15)) -> plt.Figure:
+    """
+    Dashboard especializado para Random Forest
+    """
+    if 'error' in resultado:
+        raise ValueError(f"Error en el resultado: {resultado['error']}")
+
+    fig = plt.figure(figsize=figsize)
+    gs = fig.add_gridspec(2, 3, hspace=0.3, wspace=0.3)
+
+    # 1. Importancia de características
+    ax1 = fig.add_subplot(gs[0, 0])
+    if 'importancia_features' in resultado:
+        features = list(resultado['importancia_features'].keys())[:15]
+        importances = [resultado['importancia_features'][f] for f in features]
+
+        ax1.barh(features, importances, color='forestgreen', alpha=0.8)
+        ax1.set_xlabel('Importancia')
+        ax1.set_title('Top 15 Características Importantes')
+        ax1.invert_yaxis()
+        ax1.grid(axis='x', alpha=0.3)
+
+    # 2. Matriz de confusión (si es clasificación)
+    if resultado.get('es_clasificacion') and 'confusion_matrix' in resultado:
+        ax2 = fig.add_subplot(gs[0, 1])
+        cm = np.array(resultado['confusion_matrix'])
+        im = ax2.imshow(cm, cmap='Blues', aspect='auto')
+
+        # Añadir números en las celdas
+        for i in range(cm.shape[0]):
+            for j in range(cm.shape[1]):
+                ax2.text(j, i, str(cm[i, j]), ha="center", va="center",
+                         color="white" if cm[i, j] > cm.max() / 2 else "black",
+                         fontsize=12, fontweight='bold')
+
+        plt.colorbar(im, ax=ax2)
+        ax2.set_xlabel('Predicción')
+        ax2.set_ylabel('Real')
+        ax2.set_title('Matriz de Confusión')
+
+    # 3. Métricas de rendimiento
+    ax3 = fig.add_subplot(gs[0, 2])
+    ax3.axis('off')
+
+    metricas = resultado['metricas']['test']
+    forest_info = resultado.get('forest_info', {})
+
+    metrics_text = "MÉTRICAS DE RENDIMIENTO:\n\n"
+
+    if resultado.get('es_clasificacion'):
+        metrics_text += f"• Accuracy: {metricas.get('accuracy', 'N/A'):.3f}\n"
+        metrics_text += f"• Precision: {metricas.get('precision', 'N/A'):.3f}\n"
+        metrics_text += f"• Recall: {metricas.get('recall', 'N/A'):.3f}\n"
+        metrics_text += f"• F1-Score: {metricas.get('f1_score', 'N/A'):.3f}\n"
+    else:
+        metrics_text += f"• R²: {metricas.get('r2', 'N/A'):.3f}\n"
+        metrics_text += f"• RMSE: {metricas.get('rmse', 'N/A'):.3f}\n"
+        metrics_text += f"• MAE: {metricas.get('mae', 'N/A'):.3f}\n"
+
+    metrics_text += f"\nINFO DEL BOSQUE:\n"
+    metrics_text += f"• Árboles: {forest_info.get('n_estimators', 'N/A')}\n"
+    metrics_text += f"• Características: {forest_info.get('n_features', 'N/A')}\n"
+    if forest_info.get('oob_score'):
+        metrics_text += f"• OOB Score: {forest_info['oob_score']:.3f}\n"
+
+    ax3.text(0.1, 0.9, metrics_text, transform=ax3.transAxes,
+             fontsize=11, verticalalignment='top',
+             bbox=dict(boxstyle="round,pad=0.3", facecolor="lightgreen", alpha=0.5))
+
+    # 4. Estabilidad del modelo (si existe)
+    if 'stability_scores' in resultado and resultado['stability_scores']:
+        ax4 = fig.add_subplot(gs[1, 0])
+        stability = resultado['stability_scores']
+
+        scores = [stability['mean_score'], stability['std_score'],
+                  stability['cv_stability']]
+        labels = ['Score Promedio', 'Desv. Estándar', 'CV Estabilidad']
+
+        ax4.bar(labels, scores, color=['skyblue', 'orange', 'red'], alpha=0.7)
+        ax4.set_ylabel('Valor')
+        ax4.set_title('Análisis de Estabilidad')
+        ax4.tick_params(axis='x', rotation=45)
+
+    # 5. Información de parámetros
+    ax5 = fig.add_subplot(gs[1, 1:])
+    ax5.axis('off')
+
+    params_text = "PARÁMETROS ÓPTIMOS:\n"
+    for key, value in resultado.get('parametros', {}).items():
+        params_text += f"• {key}: {value}\n"
+
+    ax5.text(0.1, 0.5, params_text, transform=ax5.transAxes,
+             fontsize=10, verticalalignment='center',
+             bbox=dict(boxstyle="round,pad=0.3", facecolor="lightyellow", alpha=0.5))
+
+    tipo_problema = "Clasificación" if resultado.get('es_clasificacion') else "Regresión"
+    plt.suptitle(f'Random Forest - {tipo_problema}', fontsize=16, fontweight='bold')
+
+    return fig
+
+
+def crear_dashboard_svm(resultado: Dict[str, Any],
+                        figsize: Tuple[int, int] = (16, 12)) -> plt.Figure:
+    """
+    Dashboard especializado para SVM
+    """
+    if 'error' in resultado:
+        raise ValueError(f"Error en el resultado: {resultado['error']}")
+
+    fig = plt.figure(figsize=figsize)
+    gs = fig.add_gridspec(2, 2, hspace=0.3, wspace=0.3)
+
+    # 1. Información de SVM
+    ax1 = fig.add_subplot(gs[0, 0])
+    ax1.axis('off')
+
+    svm_info = resultado.get('svm_info', {})
+    info_text = "INFORMACIÓN DEL SVM:\n\n"
+    info_text += f"• Kernel: {svm_info.get('kernel', 'N/A')}\n"
+    info_text += f"• C (regularización): {svm_info.get('C', 'N/A')}\n"
+    info_text += f"• Gamma: {svm_info.get('gamma', 'N/A')}\n"
+    info_text += f"• Support Vectors: {svm_info.get('n_support_vectors', 'N/A')}\n"
+    if svm_info.get('support_vector_ratio'):
+        info_text += f"• Ratio SV: {svm_info['support_vector_ratio']:.3f}\n"
+
+    ax1.text(0.1, 0.5, info_text, transform=ax1.transAxes,
+             fontsize=12, verticalalignment='center',
+             bbox=dict(boxstyle="round,pad=0.3", facecolor="lightcyan", alpha=0.5))
+
+    # 2. Métricas de rendimiento
+    ax2 = fig.add_subplot(gs[0, 1])
+    ax2.axis('off')
+
+    metricas = resultado['metricas']['test']
+    metrics_text = "MÉTRICAS DE RENDIMIENTO:\n\n"
+
+    if resultado.get('es_clasificacion'):
+        metrics_text += f"• Accuracy: {metricas.get('accuracy', 'N/A'):.3f}\n"
+        metrics_text += f"• Precision: {metricas.get('precision', 'N/A'):.3f}\n"
+        metrics_text += f"• Recall: {metricas.get('recall', 'N/A'):.3f}\n"
+        metrics_text += f"• F1-Score: {metricas.get('f1_score', 'N/A'):.3f}\n"
+        if 'roc_auc' in metricas:
+            metrics_text += f"• ROC AUC: {metricas['roc_auc']:.3f}\n"
+    else:
+        metrics_text += f"• R²: {metricas.get('r2', 'N/A'):.3f}\n"
+        metrics_text += f"• RMSE: {metricas.get('rmse', 'N/A'):.3f}\n"
+        metrics_text += f"• MAE: {metricas.get('mae', 'N/A'):.3f}\n"
+        metrics_text += f"• Explained Var: {metricas.get('explained_variance', 'N/A'):.3f}\n"
+
+    ax2.text(0.1, 0.5, metrics_text, transform=ax2.transAxes,
+             fontsize=12, verticalalignment='center',
+             bbox=dict(boxstyle="round,pad=0.3", facecolor="lightblue", alpha=0.5))
+
+    # 3. Comparación Train vs Test
+    ax3 = fig.add_subplot(gs[1, 0])
+
+    train_metrics = resultado['metricas']['train']
+    test_metrics = resultado['metricas']['test']
+
+    if resultado.get('es_clasificacion'):
+        metric_names = ['accuracy', 'precision', 'recall', 'f1_score']
+        metric_labels = ['Accuracy', 'Precision', 'Recall', 'F1-Score']
+    else:
+        metric_names = ['r2', 'mae']
+        metric_labels = ['R²', 'MAE']
+
+    train_values = [train_metrics.get(m, 0) for m in metric_names]
+    test_values = [test_metrics.get(m, 0) for m in metric_names]
+
+    x = np.arange(len(metric_labels))
+    width = 0.35
+
+    ax3.bar(x - width / 2, train_values, width, label='Train', alpha=0.8, color='lightgreen')
+    ax3.bar(x + width / 2, test_values, width, label='Test', alpha=0.8, color='lightcoral')
+
+    ax3.set_xlabel('Métricas')
+    ax3.set_ylabel('Valor')
+    ax3.set_title('Comparación Train vs Test')
+    ax3.set_xticks(x)
+    ax3.set_xticklabels(metric_labels)
+    ax3.legend()
+    ax3.grid(axis='y', alpha=0.3)
+
+    # 4. Parámetros utilizados
+    ax4 = fig.add_subplot(gs[1, 1])
+    ax4.axis('off')
+
+    params_text = "PARÁMETROS UTILIZADOS:\n\n"
+    for key, value in resultado.get('parametros', {}).items():
+        params_text += f"• {key}: {value}\n"
+
+    ax4.text(0.1, 0.5, params_text, transform=ax4.transAxes,
+             fontsize=11, verticalalignment='center',
+             bbox=dict(boxstyle="round,pad=0.3", facecolor="lightyellow", alpha=0.5))
+
+    tipo_problema = "Clasificación" if resultado.get('es_clasificacion') else "Regresión"
+    plt.suptitle(f'Support Vector Machine - {tipo_problema}', fontsize=16, fontweight='bold')
+
+    return fig
+
+def crear_dashboard_arbol(resultado_arbol: Dict[str, Any],
+                              max_depth_visual: Optional[int] = 3,
+                              figsize: Tuple[int, int] = (20, 15)) -> plt.Figure:
+        """
+        Crea un dashboard completo con múltiples visualizaciones del árbol
+
+        Args:
+            resultado_arbol: Diccionario resultado de la función arbol_decision()
+            max_depth_visual: Profundidad máxima para la visualización del árbol
+            figsize: Tamaño total de la figura
+
+        Returns:
+            Figure de matplotlib con el dashboard completo
+        """
+
+        if 'error' in resultado_arbol:
+            raise ValueError(f"Error en el resultado del árbol: {resultado_arbol['error']}")
+
+        # Crear figura con subplots
+        fig = plt.figure(figsize=figsize)
+
+        # Layout: árbol arriba, importancia y métricas abajo
+        gs = fig.add_gridspec(3, 2, height_ratios=[2, 1, 0.3], width_ratios=[2, 1],
+                              hspace=0.3, wspace=0.2)
+
+        # 1. Árbol de decisión (ocupa toda la fila superior)
+        ax_tree = fig.add_subplot(gs[0, :])
+
+        modelo = resultado_arbol['modelo']
+        feature_names = resultado_arbol['feature_columns']
+        is_classification = resultado_arbol['es_clasificacion']
+
+        if is_classification:
+            class_names = [str(i) for i in range(len(np.unique(modelo.classes_)))]
+        else:
+            class_names = None
+
+        plot_tree(modelo,
+                  ax=ax_tree,
+                  feature_names=feature_names,
+                  class_names=class_names,
+                  filled=True,
+                  rounded=True,
+                  fontsize=8,
+                  max_depth=max_depth_visual,
+                  impurity=True)
+
+        tipo_problema = "Clasificación" if is_classification else "Regresión"
+        ax_tree.set_title(f'Árbol de Decisión - {tipo_problema}',
+                          fontsize=14, fontweight='bold')
+        ax_tree.set_xticks([])
+        ax_tree.set_yticks([])
+
+        # 2. Importancia de características
+        ax_imp = fig.add_subplot(gs[1, 0])
+
+        importancia = resultado_arbol['importancia_features']
+        features_sorted = sorted(importancia.items(), key=lambda x: x[1], reverse=True)[:8]
+
+        nombres = [item[0] for item in features_sorted]
+        valores = [item[1] for item in features_sorted]
+
+        bars = ax_imp.barh(range(len(nombres)), valores, color='lightcoral', alpha=0.8)
+        ax_imp.set_yticks(range(len(nombres)))
+        ax_imp.set_yticklabels(nombres, fontsize=9)
+        ax_imp.set_xlabel('Importancia', fontweight='bold')
+        ax_imp.set_title('Importancia de Características', fontweight='bold', fontsize=11)
+        ax_imp.invert_yaxis()
+        ax_imp.grid(axis='x', alpha=0.3)
+
+        # 3. Información del árbol
+        ax_info = fig.add_subplot(gs[1, 1])
+        ax_info.axis('off')
+
+        tree_info = resultado_arbol['tree_info']
+        metricas_test = resultado_arbol['metricas']['test']
+
+        info_text = f"""
+        INFORMACIÓN DEL ÁRBOL:
+        • Total de nodos: {tree_info['n_nodes']}
+        • Profundidad máxima: {tree_info['max_depth']}
+        • Número de hojas: {tree_info['n_leaves']}
+        • Características usadas: {tree_info['n_features']}
+
+        RENDIMIENTO (Test):
+        """
+
+        if is_classification:
+            info_text += f"• Accuracy: {metricas_test.get('accuracy', 'N/A'):.3f}\n"
+            info_text += f"• Precision: {metricas_test.get('precision_macro', 'N/A'):.3f}\n"
+            info_text += f"• Recall: {metricas_test.get('recall_macro', 'N/A'):.3f}\n"
+            info_text += f"• F1-Score: {metricas_test.get('f1_macro', 'N/A'):.3f}"
+        else:
+            info_text += f"• R²: {metricas_test.get('r2', 'N/A'):.3f}\n"
+            info_text += f"• RMSE: {metricas_test.get('rmse', 'N/A'):.3f}\n"
+            info_text += f"• MAE: {metricas_test.get('mae', 'N/A'):.3f}"
+
+        ax_info.text(0.1, 0.9, info_text, transform=ax_info.transAxes,
+                     fontsize=10, verticalalignment='top',
+                     bbox=dict(boxstyle="round,pad=0.3", facecolor="lightblue", alpha=0.5))
+
+        # 4. Parámetros utilizados (fila inferior)
+        ax_params = fig.add_subplot(gs[2, :])
+        ax_params.axis('off')
+
+        parametros = resultado_arbol['parametros']
+        params_text = "Parámetros utilizados: "
+        for key, value in parametros.items():
+            params_text += f"{key}={value}, "
+        params_text = params_text.rstrip(', ')
+
+        ax_params.text(0.5, 0.5, params_text, transform=ax_params.transAxes,
+                       fontsize=10, ha='center', va='center',
+                       bbox=dict(boxstyle="round,pad=0.3", facecolor="lightyellow", alpha=0.5))
+
+        plt.suptitle('Dashboard del Árbol de Decisión', fontsize=16, fontweight='bold')
+
+        return fig
+
+    # Ejemplo de uso
+def ejemplo_uso():
+        """
+        Ejemplo de cómo usar las funciones de visualización
+        """
+        # Supongamos que ya tienes el resultado de arbol_decision()
+        # resultado = arbol_decision(data, 'target_column')
+
+        # Visualización básica del árbol
+        # fig1 = visualizar_arbol_decision(resultado, max_depth=3)
+        # plt.show()
+
+        # Importancia de características
+        # fig2 = visualizar_importancia_features(resultado, top_n=10)
+        # plt.show()
+
+        # Dashboard completo
+        # fig3 = crear_dashboard_arbol(resultado, max_depth_visual=3)
+        # plt.show()
+
+        print("Funciones de visualización creadas exitosamente!")
+        print("\nFunciones disponibles:")
+        print("1. visualizar_arbol_decision() - Visualiza el árbol como grafo")
+        print("2. visualizar_importancia_features() - Gráfico de importancia de características")
+        print("3. crear_dashboard_arbol() - Dashboard completo con múltiples visualizaciones")
+
 
 def generar_visualizaciones_ml(resultado: Dict[str, Any], figsize: Tuple[int, int] = (12, 8)) -> plt.Figure:
     """
@@ -1675,18 +2169,21 @@ def generar_visualizaciones_ml(resultado: Dict[str, Any], figsize: Tuple[int, in
         return _plot_regresion_simple(resultado, figsize)
     elif tipo == 'regresion_lineal_multiple':
         return _plot_regresion_multiple(resultado, figsize)
-    elif tipo in ['arbol_decision', 'random_forest', 'gradient_boosting']:
+    elif tipo == 'arbol_decision':
+        return crear_dashboard_arbol(resultado, max_depth_visual=3, figsize=figsize)
+    elif tipo == 'random_forest':
+        return crear_dashboard_random_forest(resultado, figsize=figsize)
+    elif tipo == 'svm':
+        return crear_dashboard_svm(resultado, figsize=figsize)
+    elif tipo in ['gradient_boosting']:
         if resultado.get('es_clasificacion'):
             return _plot_clasificacion(resultado, figsize)
         else:
             return _plot_regresion_tree(resultado, figsize)
-    elif tipo == 'svm':
-        return _plot_svm(resultado, figsize)
     elif tipo == 'comparar_modelos':
         return _plot_comparacion(resultado, figsize)
     else:
         return _plot_generico(resultado, figsize)
-
 
 def _plot_regresion_simple(resultado: Dict, figsize: Tuple) -> plt.Figure:
     """Visualización para regresión lineal simple"""

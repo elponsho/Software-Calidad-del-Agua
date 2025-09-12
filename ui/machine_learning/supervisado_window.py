@@ -1,6 +1,6 @@
 """
-supervisado_window.py - Interfaz GUI Optimizada para Machine Learning Supervisado
-Sistema mejorado con mejor gestión de datos y conexión con el sistema principal
+supervisado_window.py - Interfaz GUI Mejorada para Machine Learning Supervisado
+Versión con tamaño fijo, botón de limpiar gráficas y visualizaciones completas
 """
 
 import sys
@@ -19,7 +19,7 @@ from PyQt5.QtWidgets import (
     QCheckBox, QTableWidget, QTableWidgetItem, QDialog,
     QDialogButtonBox, QFormLayout, QFileDialog, QListWidget,
     QListWidgetItem, QSlider, QDoubleSpinBox, QScrollArea,
-    QButtonGroup, QRadioButton
+    QButtonGroup, QRadioButton, QDesktopWidget
 )
 from PyQt5.QtCore import Qt, QThread, pyqtSignal, QTimer, pyqtSlot
 from PyQt5.QtGui import QFont, QIcon, QPalette, QColor
@@ -33,7 +33,6 @@ except ImportError as e:
     DATA_MANAGER_AVAILABLE = False
     print(f"⚠️ DataManager no disponible: {e}")
 
-    # Fallback para testing
     def get_data_manager():
         return None
     def has_shared_data():
@@ -54,12 +53,14 @@ try:
         svm_modelo,
         comparar_modelos_supervisado,
         generar_visualizaciones_ml,
+        visualizar_arbol_decision,
+        visualizar_importancia_features,
+        crear_dashboard_arbol,
         exportar_modelo,
         cargar_modelo,
         limpiar_memoria
     )
 
-    # Importaciones de matplotlib
     import matplotlib
     matplotlib.use('Qt5Agg')
     import matplotlib.pyplot as plt
@@ -101,7 +102,6 @@ class MLAnalysisWorker(QThread):
 
             result = None
 
-            # Mapear tipos de análisis a funciones
             if self.analysis_type == 'regresion_simple':
                 result = self._run_regresion_simple()
             elif self.analysis_type == 'regresion_multiple':
@@ -137,7 +137,6 @@ class MLAnalysisWorker(QThread):
     def _run_regresion_simple(self):
         self.status.emit("Ejecutando regresión lineal simple...")
         self.progress.emit(30)
-        # Filtrar parámetros para regresión simple
         filtered_kwargs = {k: v for k, v in self.kwargs.items()
                           if k in ['x_column', 'y_column', 'optimize_params']}
         return regresion_lineal_simple(self.data, **filtered_kwargs)
@@ -145,7 +144,6 @@ class MLAnalysisWorker(QThread):
     def _run_regresion_multiple(self):
         self.status.emit("Ejecutando regresión lineal múltiple...")
         self.progress.emit(30)
-        # Filtrar parámetros para regresión múltiple
         filtered_kwargs = {k: v for k, v in self.kwargs.items()
                           if k in ['target_column', 'feature_columns', 'regularization',
                                    'alpha', 'optimize_params']}
@@ -154,7 +152,6 @@ class MLAnalysisWorker(QThread):
     def _run_arbol_decision(self):
         self.status.emit("Entrenando árbol de decisión...")
         self.progress.emit(30)
-        # Filtrar parámetros para árbol de decisión
         filtered_kwargs = {k: v for k, v in self.kwargs.items()
                           if k in ['target_column', 'feature_columns', 'max_depth',
                                    'min_samples_split', 'min_samples_leaf', 'optimize_params']}
@@ -163,7 +160,6 @@ class MLAnalysisWorker(QThread):
     def _run_random_forest(self):
         self.status.emit("Entrenando Random Forest...")
         self.progress.emit(30)
-        # Filtrar parámetros para random forest
         filtered_kwargs = {k: v for k, v in self.kwargs.items()
                           if k in ['target_column', 'feature_columns', 'n_estimators',
                                    'max_depth', 'max_features', 'optimize_params', 'n_jobs']}
@@ -172,7 +168,6 @@ class MLAnalysisWorker(QThread):
     def _run_svm(self):
         self.status.emit("Entrenando SVM...")
         self.progress.emit(30)
-        # Filtrar parámetros para SVM
         filtered_kwargs = {k: v for k, v in self.kwargs.items()
                           if k in ['target_column', 'feature_columns', 'kernel',
                                    'C', 'gamma', 'optimize_params']}
@@ -181,16 +176,15 @@ class MLAnalysisWorker(QThread):
     def _run_comparar_modelos(self):
         self.status.emit("Comparando modelos...")
         self.progress.emit(20)
-        # Filtrar parámetros para comparación
         filtered_kwargs = {k: v for k, v in self.kwargs.items()
                           if k in ['target_column', 'feature_columns', 'modelos',
                                    'optimize_all', 'cv_folds', 'n_jobs']}
         return comparar_modelos_supervisado(self.data, **filtered_kwargs)
 
-# ==================== WIDGET DE SELECCIÓN DE VARIABLES ====================
+# ==================== WIDGET DE SELECCIÓN DE VARIABLES MEJORADO ====================
 
 class VariableSelectionWidget(QWidget):
-    """Widget para selección de variables"""
+    """Widget mejorado para selección de variables con etiquetas Y/X"""
     variables_changed = pyqtSignal()
 
     def __init__(self):
@@ -200,52 +194,85 @@ class VariableSelectionWidget(QWidget):
 
     def setup_ui(self):
         layout = QVBoxLayout()
-        layout.setSpacing(10)
+        layout.setSpacing(8)
+        layout.setContentsMargins(5, 5, 5, 5)
 
-        # Variable objetivo
-        target_group = QGroupBox("🎯 Variable Objetivo")
+        # Variable dependiente (Y) - Variable Objetivo
+        target_group = QGroupBox("🎯 Variable Dependiente (Y)")
+        target_group.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                color: #2c3e50;
+                font-size: 12px;
+                padding-top: 15px;
+            }
+            QGroupBox::title {
+                padding: 0 8px;
+            }
+        """)
         target_layout = QVBoxLayout()
+        target_layout.setSpacing(5)
 
         self.target_combo = QComboBox()
+        self.target_combo.setMinimumHeight(30)  # Altura mínima para el combo
         self.target_combo.currentTextChanged.connect(self._on_target_changed)
         target_layout.addWidget(self.target_combo)
 
-        self.target_info_label = QLabel("Selecciona una variable objetivo")
-        self.target_info_label.setStyleSheet("color: #666; font-size: 11px;")
+        self.target_info_label = QLabel("Variable a predecir (Y)")
+        self.target_info_label.setStyleSheet("color: #666; font-size: 10px;")
+        self.target_info_label.setWordWrap(True)
         target_layout.addWidget(self.target_info_label)
 
         target_group.setLayout(target_layout)
         layout.addWidget(target_group)
 
-        # Variables predictoras
-        features_group = QGroupBox("📊 Variables Predictoras")
+        # Variables independientes (X) - Variables Predictoras
+        features_group = QGroupBox("📊 Variables Independientes (X)")
+        features_group.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                color: #2c3e50;
+                font-size: 12px;
+                padding-top: 15px;
+            }
+            QGroupBox::title {
+                padding: 0 8px;
+            }
+        """)
         features_layout = QVBoxLayout()
+        features_layout.setSpacing(5)
 
-        # Controles de selección
+        # Controles de selección con botones más pequeños
         controls_layout = QHBoxLayout()
+        controls_layout.setSpacing(5)
 
         self.select_all_btn = QPushButton("Todas")
+        self.select_all_btn.setMaximumHeight(25)
         self.select_all_btn.clicked.connect(self._select_all_features)
         controls_layout.addWidget(self.select_all_btn)
 
         self.select_none_btn = QPushButton("Ninguna")
+        self.select_none_btn.setMaximumHeight(25)
         self.select_none_btn.clicked.connect(self._select_none_features)
         controls_layout.addWidget(self.select_none_btn)
 
         self.auto_select_btn = QPushButton("🤖 Auto")
+        self.auto_select_btn.setMaximumHeight(25)
         self.auto_select_btn.clicked.connect(self._auto_select_features)
         controls_layout.addWidget(self.auto_select_btn)
 
         features_layout.addLayout(controls_layout)
 
-        # Lista de características
+        # Lista de características con altura mínima
         self.features_list = QListWidget()
         self.features_list.setSelectionMode(QListWidget.MultiSelection)
+        self.features_list.setMinimumHeight(150)  # Altura mínima para la lista
         self.features_list.itemSelectionChanged.connect(self._on_features_changed)
         features_layout.addWidget(self.features_list)
 
-        self.features_info_label = QLabel("0 variables seleccionadas")
-        self.features_info_label.setStyleSheet("color: #666; font-size: 11px;")
+        self.features_info_label = QLabel("Variables explicativas (X)")
+        self.features_info_label.setStyleSheet("color: #666; font-size: 10px;")
+        self.features_info_label.setWordWrap(True)
         features_layout.addWidget(self.features_info_label)
 
         features_group.setLayout(features_layout)
@@ -271,7 +298,6 @@ class VariableSelectionWidget(QWidget):
         if self.data is None:
             return
 
-        # Limpiar
         self.target_combo.clear()
         self.features_list.clear()
 
@@ -290,7 +316,7 @@ class VariableSelectionWidget(QWidget):
         self.target_combo.addItems(all_cols)
 
         # Seleccionar target por defecto
-        default_targets = ['WQI', 'Calidad', 'Quality', 'Target', 'y', 'Indice_Calidad']
+        default_targets = ['WQI', 'Calidad', 'Quality', 'Target', 'y', 'Y', 'Indice_Calidad']
         for target in default_targets:
             if target in all_cols:
                 self.target_combo.setCurrentText(target)
@@ -348,20 +374,20 @@ class VariableSelectionWidget(QWidget):
         """Actualizar información de target"""
         target = self.target_combo.currentText()
         if not target or self.data is None:
-            self.target_info_label.setText("Selecciona una variable objetivo")
+            self.target_info_label.setText("Selecciona una variable objetivo (Y)")
             return
 
         target_data = self.data[target]
         n_unique = target_data.nunique()
 
         if target_data.dtype in [np.float64, np.float32, np.int64, np.int32]:
-            info = f"Numérica: {n_unique} valores únicos"
+            info = f"Variable Y: Numérica con {n_unique} valores únicos"
             if n_unique <= 10:
                 info += " → Clasificación sugerida"
             else:
                 info += " → Regresión sugerida"
         else:
-            info = f"Categórica: {n_unique} categorías → Clasificación"
+            info = f"Variable Y: Categórica con {n_unique} categorías → Clasificación"
 
         self.target_info_label.setText(info)
 
@@ -369,7 +395,7 @@ class VariableSelectionWidget(QWidget):
         """Actualizar información de características"""
         n_selected = len(self.get_selected_features())
         n_total = self.features_list.count()
-        self.features_info_label.setText(f"{n_selected} de {n_total} variables seleccionadas")
+        self.features_info_label.setText(f"{n_selected} de {n_total} variables X seleccionadas")
 
     def _select_all_features(self):
         """Seleccionar todas"""
@@ -382,7 +408,7 @@ class VariableSelectionWidget(QWidget):
             self.features_list.item(i).setSelected(False)
 
     def _auto_select_features(self):
-        """Selección automática"""
+        """Selección automática basada en correlación"""
         if not ML_AVAILABLE or self.data is None:
             QMessageBox.warning(self, "Error", "Funcionalidad no disponible")
             return
@@ -423,7 +449,7 @@ class VariableSelectionWidget(QWidget):
 
             QMessageBox.information(
                 self, "Selección Automática",
-                f"Se seleccionaron las {selected_count} variables con mayor correlación"
+                f"Se seleccionaron las {selected_count} variables X con mayor correlación con Y"
             )
 
         except Exception as e:
@@ -444,10 +470,10 @@ class VariableSelectionWidget(QWidget):
         """Verificar si la selección es válida"""
         return bool(self.get_target_variable() and self.get_selected_features())
 
-# ==================== WIDGET DE RESULTADOS ====================
+# ==================== WIDGET DE RESULTADOS MEJORADO ====================
 
 class ResultsVisualizationWidget(QWidget):
-    """Widget para visualización de resultados"""
+    """Widget mejorado para visualización de resultados con botón de limpiar"""
 
     def __init__(self):
         super().__init__()
@@ -476,7 +502,7 @@ class ResultsVisualizationWidget(QWidget):
 
         layout.addWidget(self.tabs)
 
-        # Toolbar
+        # Toolbar mejorada
         toolbar = self._create_toolbar()
         layout.addWidget(toolbar)
 
@@ -497,21 +523,27 @@ class ResultsVisualizationWidget(QWidget):
         return widget
 
     def _create_viz_tab(self) -> QWidget:
-        """Crear tab de visualizaciones"""
+        """Crear tab de visualizaciones con botón de limpiar"""
         widget = QWidget()
         layout = QVBoxLayout()
 
-        # Canvas para matplotlib
-        self.figure = Figure(figsize=(10, 8))
-        self.canvas = FigureCanvas(self.figure)
-
-        scroll = QScrollArea()
-        scroll.setWidget(self.canvas)
-        scroll.setWidgetResizable(True)
-        layout.addWidget(scroll)
-
-        # Controles
+        # Controles superiores
         controls_layout = QHBoxLayout()
+
+        self.clear_viz_btn = QPushButton("🗑️ Limpiar Gráficos")
+        self.clear_viz_btn.clicked.connect(self._clear_visualizations)
+        self.clear_viz_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #e74c3c;
+                color: white;
+                font-weight: bold;
+                padding: 8px 16px;
+            }
+            QPushButton:hover {
+                background-color: #c0392b;
+            }
+        """)
+        controls_layout.addWidget(self.clear_viz_btn)
 
         self.save_fig_btn = QPushButton("💾 Guardar Gráfico")
         self.save_fig_btn.clicked.connect(self._save_figure)
@@ -519,6 +551,15 @@ class ResultsVisualizationWidget(QWidget):
 
         controls_layout.addStretch()
         layout.addLayout(controls_layout)
+
+        # Canvas para matplotlib
+        self.figure = Figure(figsize=(16, 12))
+        self.canvas = FigureCanvas(self.figure)
+
+        scroll = QScrollArea()
+        scroll.setWidget(self.canvas)
+        scroll.setWidgetResizable(True)
+        layout.addWidget(scroll)
 
         widget.setLayout(layout)
         return widget
@@ -546,7 +587,7 @@ class ResultsVisualizationWidget(QWidget):
         return widget
 
     def _create_toolbar(self) -> QWidget:
-        """Crear toolbar"""
+        """Crear toolbar mejorada"""
         toolbar = QWidget()
         layout = QHBoxLayout()
 
@@ -566,6 +607,15 @@ class ResultsVisualizationWidget(QWidget):
 
         toolbar.setLayout(layout)
         return toolbar
+
+    def _clear_visualizations(self):
+        """Limpiar todas las visualizaciones"""
+        self.figure.clear()
+        self.canvas.draw()
+        self.status_label.setText("📊 Gráficos limpiados")
+        self.status_label.setStyleSheet("color: #3498db;")
+        QMessageBox.information(self, "Gráficos Limpiados",
+                               "Se han limpiado todas las visualizaciones")
 
     def update_results(self, results: dict, analysis_type: str):
         """Actualizar con nuevos resultados"""
@@ -659,10 +709,10 @@ class ResultsVisualizationWidget(QWidget):
             info_text += f"Problema: {'Clasificación' if results['es_clasificacion'] else 'Regresión'}\n"
 
         if 'target_column' in results:
-            info_text += f"Variable objetivo: {results['target_column']}\n"
+            info_text += f"Variable Y (objetivo): {results['target_column']}\n"
 
         if 'feature_columns' in results:
-            info_text += f"Características: {len(results['feature_columns'])}\n"
+            info_text += f"Variables X (predictoras): {len(results['feature_columns'])}\n"
 
         self.model_info_text.setText(info_text)
 
@@ -677,20 +727,41 @@ class ResultsVisualizationWidget(QWidget):
         self.params_table.resizeColumnsToContents()
 
     def _update_visualization(self):
-        """Actualizar visualización"""
+        """Actualizar visualización con gráficos mejorados"""
         if not self.current_results:
             return
 
         try:
             self.figure.clear()
-            self.figure = generar_visualizaciones_ml(
-                self.current_results,
-                figsize=(12, 10)
-            )
+
+            # Para árboles de decisión, usar las funciones especializadas
+            if self.current_results.get('tipo') == 'arbol_decision':
+                self.figure = crear_dashboard_arbol(
+                    self.current_results,
+                    max_depth_visual=3,
+                    figsize=(16, 12)
+                )
+            else:
+                # Para otros modelos, usar la función general
+                self.figure = generar_visualizaciones_ml(
+                    self.current_results,
+                    figsize=(16, 12)
+                )
+
             self.canvas.figure = self.figure
             self.canvas.draw()
         except Exception as e:
             print(f"Error en visualización: {e}")
+            # Fallback a visualización básica
+            self._show_basic_visualization()
+
+    def _show_basic_visualization(self):
+        """Visualización básica de respaldo"""
+        self.figure.clear()
+        ax = self.figure.add_subplot(1, 1, 1)
+        ax.text(0.5, 0.5, 'Error en visualización\nVer consola para detalles',
+                ha='center', va='center', transform=ax.transAxes)
+        self.canvas.draw()
 
     def _save_figure(self):
         """Guardar figura"""
@@ -767,10 +838,14 @@ class ResultsVisualizationWidget(QWidget):
         self.status_label.setText("❌ Error en análisis")
         self.status_label.setStyleSheet("color: red;")
 
-# ==================== VENTANA PRINCIPAL ====================
+# ==================== VENTANA PRINCIPAL MEJORADA ====================
 
 class SupervisadoWindow(QWidget):
-    """Ventana principal para ML Supervisado"""
+    """Ventana principal mejorada con tamaño fijo"""
+
+    # Tamaño fijo para todas las pantallas
+    WINDOW_WIDTH = 1600
+    WINDOW_HEIGHT = 900
 
     def __init__(self):
         QWidget.__init__(self)
@@ -786,21 +861,28 @@ class SupervisadoWindow(QWidget):
             if dm is not None:
                 dm.add_observer(self)
                 print("✅ SupervisadoWindow: Registrada como observador del DataManager")
-            else:
-                print("⚠️ SupervisadoWindow: DataManager no disponible")
-        else:
-            print("⚠️ SupervisadoWindow: DataManager no importado")
 
         self.setup_ui()
-
-        # Verificar datos al inicio
+        self.center_window()
         self.check_data_availability()
         print("✅ SupervisadoWindow: Inicialización completada")
 
+    def center_window(self):
+        """Centrar ventana en la pantalla con tamaño mínimo y redimensionable"""
+        # Cambiar de setFixedSize a setMinimumSize
+        self.setMinimumSize(1200, 700)  # Tamaño mínimo
+        self.resize(1600, 900)  # Tamaño inicial
+
+        # Obtener el centro de la pantalla
+        screen = QDesktopWidget().screenGeometry()
+        x = (screen.width() - 1600) // 2
+        y = (screen.height() - 900) // 2
+
+        self.move(x, y)
+
     def setup_ui(self):
-        """Configurar interfaz de usuario"""
+        """Configurar interfaz de usuario redimensionable"""
         self.setWindowTitle("🤖 Machine Learning Supervisado")
-        self.setMinimumSize(1400, 900)
 
         main_layout = QVBoxLayout()
         main_layout.setSpacing(10)
@@ -826,17 +908,29 @@ class SupervisadoWindow(QWidget):
         self.results_widget = ResultsVisualizationWidget()
         content_splitter.addWidget(self.results_widget)
 
-        content_splitter.setSizes([450, 950])
+        # Proporciones responsivas: 30% izquierda, 70% derecha
+        content_splitter.setSizes([400, 1000])
+        content_splitter.setStretchFactor(0, 0)  # Panel izquierdo no se estira mucho
+        content_splitter.setStretchFactor(1, 1)  # Panel derecho se estira más
+
+        # Establecer tamaños mínimos para evitar que se colapsen
+        content_splitter.setChildrenCollapsible(False)
+
         main_layout.addWidget(content_splitter)
 
-        # Log
+        # Log con altura fija pero redimensionable
         log_widget = self.create_log_widget()
         main_layout.addWidget(log_widget)
+
+        # Establecer proporciones del layout principal
+        main_layout.setStretchFactor(header, 0)  # Header fijo
+        main_layout.setStretchFactor(self.progress_bar, 0)  # Progress bar fijo
+        main_layout.setStretchFactor(content_splitter, 1)  # Contenido principal se expande
+        main_layout.setStretchFactor(log_widget, 0)  # Log con altura fija
 
         self.setLayout(main_layout)
         self.apply_styles()
 
-    # ==================== PATRÓN OBSERVER ====================
 
     def update(self, event_type: str = ""):
         """Método llamado por el DataManager cuando los datos cambian"""
@@ -850,29 +944,19 @@ class SupervisadoWindow(QWidget):
             self.enable_analysis_buttons(False)
             self.log("🗑️ Datos limpiados del sistema")
 
-    # ==================== GESTIÓN DE DATOS ====================
-
     def check_data_availability(self):
         """Verificar disponibilidad de datos"""
         if DATA_MANAGER_AVAILABLE:
             if has_shared_data():
                 self.current_data = get_shared_data()
-                print(f"✅ Datos cargados: {self.current_data.shape if self.current_data is not None else 'None'}")
                 self.update_data_info()
                 self.enable_analysis_buttons(True)
                 self.log("✅ Datos cargados desde el sistema")
             else:
-                print("⚠️ No hay datos disponibles en el DataManager")
                 self.current_data = None
                 self.update_data_info()
                 self.enable_analysis_buttons(False)
-                self.log("⚠️ No hay datos disponibles. Carga datos desde el módulo de Cargar Datos")
-        else:
-            print("❌ DataManager no disponible")
-            self.current_data = None
-            self.update_data_info()
-            self.enable_analysis_buttons(False)
-            self.log("❌ Sistema de datos no disponible")
+                self.log("⚠️ No hay datos disponibles")
 
     def update_data_info(self):
         """Actualizar información de datos"""
@@ -898,109 +982,160 @@ class SupervisadoWindow(QWidget):
         for btn in buttons:
             btn.setEnabled(enabled)
 
-    # ==================== CONFIGURACIÓN DE UI ====================
-
     def create_header(self) -> QWidget:
-        """Crear header de la ventana"""
+        """Crear header de la ventana con altura dinámica"""
         header = QFrame()
         header.setFrameStyle(QFrame.Box)
-        header.setMaximumHeight(80)
+        # Cambiar de setMaximumHeight a setMinimumHeight
+        header.setMinimumHeight(100)  # Altura mínima más generosa
+        header.setMaximumHeight(120)  # Permitir un poco más de altura
 
         layout = QHBoxLayout()
+        layout.setContentsMargins(10, 10, 10, 10)  # Añadir márgenes
 
         # Información del título
         title_layout = QVBoxLayout()
 
         title = QLabel("🤖 Machine Learning Supervisado")
-        title.setStyleSheet("font-size: 20px; font-weight: bold; color: #2c3e50;")
+        # Ajustar el estilo del título
+        title.setStyleSheet("""
+            font-size: 18px; 
+            font-weight: bold; 
+            color: #2c3e50;
+            margin: 5px 0px;
+        """)
+        title.setWordWrap(True)  # Permitir que se ajuste el texto
         title_layout.addWidget(title)
 
         self.data_info_label = QLabel("Verificando datos...")
-        self.data_info_label.setStyleSheet("color: #666; font-size: 12px;")
+        self.data_info_label.setStyleSheet("""
+            color: #666; 
+            font-size: 11px;
+            margin: 2px 0px;
+        """)
+        self.data_info_label.setWordWrap(True)  # Permitir ajuste de línea
         title_layout.addWidget(self.data_info_label)
 
         layout.addLayout(title_layout)
         layout.addStretch()
 
-        # Botones de acción
+        # Botones de acción en layout vertical para ahorrar espacio horizontal
+        buttons_layout = QVBoxLayout()
+        buttons_layout.setSpacing(5)
+
+        buttons_row1 = QHBoxLayout()
         self.refresh_btn = QPushButton("🔄 Actualizar")
         self.refresh_btn.clicked.connect(self.check_data_availability)
-        layout.addWidget(self.refresh_btn)
+        buttons_row1.addWidget(self.refresh_btn)
 
         self.history_btn = QPushButton("📜 Historial")
         self.history_btn.clicked.connect(self.show_history)
-        layout.addWidget(self.history_btn)
+        buttons_row1.addWidget(self.history_btn)
 
+        buttons_row2 = QHBoxLayout()
         self.help_btn = QPushButton("❓ Ayuda")
         self.help_btn.clicked.connect(self.show_help)
-        layout.addWidget(self.help_btn)
+        buttons_row2.addWidget(self.help_btn)
+
+        buttons_layout.addLayout(buttons_row1)
+        buttons_layout.addLayout(buttons_row2)
+
+        layout.addLayout(buttons_layout)
 
         header.setLayout(layout)
         return header
 
     def create_left_panel(self) -> QWidget:
-        """Crear panel izquierdo de configuración"""
+        """Crear panel izquierdo de configuración con proporciones mejoradas"""
         panel = QWidget()
-        layout = QVBoxLayout()
-        layout.setSpacing(15)
+        panel.setMinimumWidth(350)  # Ancho mínimo
+        panel.setMaximumWidth(450)  # Ancho máximo
 
-        # Widget de selección de variables
+        layout = QVBoxLayout()
+        layout.setSpacing(10)
+        layout.setContentsMargins(5, 5, 5, 5)
+
+        # Widget de selección de variables (debe ocupar más espacio)
         self.variable_selection = VariableSelectionWidget()
         self.variable_selection.variables_changed.connect(self.on_variables_changed)
-        layout.addWidget(self.variable_selection)
+        layout.addWidget(self.variable_selection, 3)  # Factor de stretch 3
 
-        # Opciones de análisis
+        # Opciones de análisis (compacto)
         options_group = QGroupBox("⚙️ Opciones de Análisis")
+        options_group.setMaximumHeight(120)
         options_layout = QVBoxLayout()
+        options_layout.setSpacing(5)
 
-        # Opciones básicas
         self.optimize_checkbox = QCheckBox("Optimizar hiperparámetros automáticamente")
         self.optimize_checkbox.setChecked(True)
         options_layout.addWidget(self.optimize_checkbox)
 
+        # Layout horizontal para los spinboxes
+        params_layout = QHBoxLayout()
+
         self.cv_folds_spin = QSpinBox()
         self.cv_folds_spin.setRange(3, 10)
         self.cv_folds_spin.setValue(5)
-        self.cv_folds_spin.setPrefix("CV Folds: ")
-        options_layout.addWidget(self.cv_folds_spin)
+        self.cv_folds_spin.setPrefix("CV: ")
+        self.cv_folds_spin.setMaximumWidth(80)
+        params_layout.addWidget(QLabel("Folds:"))
+        params_layout.addWidget(self.cv_folds_spin)
 
         self.test_size_spin = QDoubleSpinBox()
-        self.test_size_spin.setRange(0.1, 0.5)
-        self.test_size_spin.setValue(0.2)
-        self.test_size_spin.setSingleStep(0.05)
-        self.test_size_spin.setPrefix("Test size: ")
+        self.test_size_spin.setRange(10, 50)
+        self.test_size_spin.setValue(20)
+        self.test_size_spin.setSingleStep(5)
         self.test_size_spin.setSuffix("%")
         self.test_size_spin.setDecimals(0)
-        self.test_size_spin.setValue(20)
-        options_layout.addWidget(self.test_size_spin)
+        self.test_size_spin.setMaximumWidth(80)
+        params_layout.addWidget(QLabel("Test:"))
+        params_layout.addWidget(self.test_size_spin)
+
+        params_layout.addStretch()
+        options_layout.addLayout(params_layout)
 
         options_group.setLayout(options_layout)
-        layout.addWidget(options_group)
+        layout.addWidget(options_group, 0)  # Sin stretch
 
         # Botones de análisis
         analysis_group = QGroupBox("🚀 Ejecutar Análisis")
         analysis_layout = QVBoxLayout()
+        analysis_layout.setSpacing(8)
 
-        # Grid de modelos
+        # Grid de modelos con botones más compactos
         models_layout = QGridLayout()
+        models_layout.setSpacing(5)
+
+        button_style = """
+            QPushButton {
+                font-size: 11px;
+                padding: 6px 8px;
+                min-height: 30px;
+            }
+        """
 
         self.reg_simple_btn = QPushButton("📊 Regresión Simple")
+        self.reg_simple_btn.setStyleSheet(button_style)
         self.reg_simple_btn.clicked.connect(lambda: self.run_analysis('regresion_simple'))
         models_layout.addWidget(self.reg_simple_btn, 0, 0)
 
         self.reg_multiple_btn = QPushButton("📈 Regresión Múltiple")
+        self.reg_multiple_btn.setStyleSheet(button_style)
         self.reg_multiple_btn.clicked.connect(lambda: self.run_analysis('regresion_multiple'))
         models_layout.addWidget(self.reg_multiple_btn, 0, 1)
 
         self.tree_btn = QPushButton("🌳 Árbol Decisión")
+        self.tree_btn.setStyleSheet(button_style)
         self.tree_btn.clicked.connect(lambda: self.run_analysis('arbol_decision'))
         models_layout.addWidget(self.tree_btn, 1, 0)
 
         self.forest_btn = QPushButton("🌲 Random Forest")
+        self.forest_btn.setStyleSheet(button_style)
         self.forest_btn.clicked.connect(lambda: self.run_analysis('random_forest'))
         models_layout.addWidget(self.forest_btn, 1, 1)
 
-        self.svm_btn = QPushButton("🔷 SVM")
+        self.svm_btn = QPushButton("📷 SVM")
+        self.svm_btn.setStyleSheet(button_style)
         self.svm_btn.clicked.connect(lambda: self.run_analysis('svm'))
         models_layout.addWidget(self.svm_btn, 2, 0)
 
@@ -1013,14 +1148,12 @@ class SupervisadoWindow(QWidget):
                 background-color: #28a745;
                 color: white;
                 font-weight: bold;
-                padding: 12px;
-                font-size: 14px;
+                padding: 8px;
+                font-size: 12px;
+                min-height: 35px;
             }
             QPushButton:hover {
                 background-color: #218838;
-            }
-            QPushButton:disabled {
-                background-color: #6c757d;
             }
         """)
         self.compare_btn.clicked.connect(self.compare_models)
@@ -1033,9 +1166,9 @@ class SupervisadoWindow(QWidget):
         analysis_layout.addWidget(self.cancel_btn)
 
         analysis_group.setLayout(analysis_layout)
-        layout.addWidget(analysis_group)
+        layout.addWidget(analysis_group, 1)  # Factor de stretch 1
 
-        layout.addStretch()
+        # Eliminar addStretch() para mejor control del espacio
         panel.setLayout(layout)
         return panel
 
@@ -1066,8 +1199,6 @@ class SupervisadoWindow(QWidget):
         widget.setLayout(layout)
         return widget
 
-    # ==================== EJECUCIÓN DE ANÁLISIS ====================
-
     def run_analysis(self, analysis_type: str):
         """Ejecutar análisis específico"""
         if not self.validate_selection():
@@ -1076,28 +1207,24 @@ class SupervisadoWindow(QWidget):
         if not ML_AVAILABLE:
             QMessageBox.critical(
                 self, "Error",
-                "Las librerías de Machine Learning no están disponibles.\n"
-                "Verifica que scikit-learn, matplotlib y seaborn estén instalados."
+                "Las librerías de Machine Learning no están disponibles"
             )
             return
 
-        # Obtener configuración básica
         target = self.variable_selection.get_target_variable()
         features = self.variable_selection.get_selected_features()
 
-        # Configuración base común
         base_kwargs = {
             'target_column': target,
             'feature_columns': features,
             'optimize_params': self.optimize_checkbox.isChecked()
         }
 
-        # Configuración específica por tipo de análisis
         if analysis_type == 'regresion_simple':
             if len(features) != 1:
                 QMessageBox.warning(
                     self, "Error",
-                    "La regresión simple requiere exactamente una variable predictora"
+                    "La regresión simple requiere exactamente una variable X"
                 )
                 return
             kwargs = {
@@ -1105,52 +1232,20 @@ class SupervisadoWindow(QWidget):
                 'y_column': target,
                 'optimize_params': self.optimize_checkbox.isChecked()
             }
-        elif analysis_type == 'regresion_multiple':
-            kwargs = {
-                **base_kwargs,
-                'regularization': 'none',  # Por defecto sin regularización
-                'alpha': 1.0
-            }
-        elif analysis_type == 'arbol_decision':
-            kwargs = {
-                **base_kwargs,
-                'max_depth': None,
-                'min_samples_split': 2,
-                'min_samples_leaf': 1
-            }
-        elif analysis_type == 'random_forest':
-            kwargs = {
-                **base_kwargs,
-                'n_estimators': 100,
-                'max_depth': None,
-                'max_features': 'sqrt',
-                'n_jobs': -1
-            }
-        elif analysis_type == 'svm':
-            kwargs = {
-                **base_kwargs,
-                'kernel': 'rbf',
-                'C': 1.0,
-                'gamma': 'scale'
-            }
         else:
             kwargs = base_kwargs
 
-        # Mostrar progreso
         self.show_progress(True)
         self.log(f"🚀 Iniciando análisis: {analysis_type}")
 
-        # Crear worker
         self.current_worker = MLAnalysisWorker(analysis_type, self.current_data, **kwargs)
 
-        # Conectar señales
         self.current_worker.progress.connect(self.progress_bar.setValue)
         self.current_worker.status.connect(self.log)
         self.current_worker.finished.connect(self.on_analysis_finished)
         self.current_worker.error.connect(self.on_analysis_error)
         self.current_worker.log.connect(self.log)
 
-        # Iniciar
         self.current_worker.start()
 
     def compare_models(self):
@@ -1162,7 +1257,6 @@ class SupervisadoWindow(QWidget):
             QMessageBox.critical(self, "Error", "Funcionalidad ML no disponible")
             return
 
-        # Diálogo de selección
         dialog = QDialog(self)
         dialog.setWindowTitle("Seleccionar Modelos")
         dialog.setModal(True)
@@ -1172,7 +1266,6 @@ class SupervisadoWindow(QWidget):
 
         layout.addWidget(QLabel("Selecciona los modelos a comparar:"))
 
-        # Checkboxes
         model_checks = {}
         models_info = [
             ('linear', 'Regresión Lineal / Logística'),
@@ -1187,7 +1280,6 @@ class SupervisadoWindow(QWidget):
             model_checks[model_id] = check
             layout.addWidget(check)
 
-        # Botones
         buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         buttons.accepted.connect(dialog.accept)
         buttons.rejected.connect(dialog.reject)
@@ -1242,12 +1334,11 @@ class SupervisadoWindow(QWidget):
         if not self.variable_selection.is_valid_selection():
             QMessageBox.warning(
                 self, "Selección Inválida",
-                "Selecciona una variable objetivo y al menos una variable predictora"
+                "Selecciona una variable Y (objetivo) y al menos una variable X (predictora)"
             )
             return False
 
         if ML_AVAILABLE:
-            # Verificar calidad de datos
             target = self.variable_selection.get_target_variable()
             features = self.variable_selection.get_selected_features()
 
@@ -1277,8 +1368,6 @@ class SupervisadoWindow(QWidget):
                 self.log(f"⚠️ Error en verificación: {str(e)}")
 
         return True
-
-    # ==================== CALLBACKS ====================
 
     @pyqtSlot(dict)
     def on_analysis_finished(self, results: dict):
@@ -1312,10 +1401,7 @@ class SupervisadoWindow(QWidget):
 
     def on_variables_changed(self):
         """Cuando cambian las variables seleccionadas"""
-        # Aquí se puede añadir lógica adicional si es necesario
         pass
-
-    # ==================== UTILIDADES ====================
 
     def show_progress(self, show: bool):
         """Mostrar/ocultar progreso"""
@@ -1350,7 +1436,7 @@ class SupervisadoWindow(QWidget):
         history_text = "📜 Historial de Análisis:\n\n"
         for i, entry in enumerate(reversed(self.analysis_history[-10:])):
             history_text += f"{i+1}. {entry['timestamp'].strftime('%H:%M:%S')} - "
-            history_text += f"{entry['type']} (objetivo: {entry['target']})\n"
+            history_text += f"{entry['type']} (Variable Y: {entry['target']})\n"
 
         QMessageBox.information(self, "Historial", history_text)
 
@@ -1359,7 +1445,7 @@ class SupervisadoWindow(QWidget):
         help_dialog = QDialog(self)
         help_dialog.setWindowTitle("Ayuda - Machine Learning Supervisado")
         help_dialog.setModal(True)
-        help_dialog.resize(600, 500)
+        help_dialog.resize(700, 600)
 
         layout = QVBoxLayout()
 
@@ -1368,37 +1454,57 @@ class SupervisadoWindow(QWidget):
         help_text.setHtml("""
         <h2>🤖 Machine Learning Supervisado</h2>
         
-        <h3>📌 Pasos Básicos:</h3>
+        <h3>📌 Conceptos Básicos:</h3>
+        <ul>
+        <li><b>Variable Y (Dependiente/Objetivo):</b> Lo que queremos predecir</li>
+        <li><b>Variables X (Independientes/Predictoras):</b> Las variables que usamos para hacer la predicción</li>
+        </ul>
+        
+        <h3>🔄 Pasos para usar:</h3>
         <ol>
         <li>Asegúrate de que los datos estén cargados desde el módulo "Cargar Datos"</li>
-        <li>Selecciona la variable objetivo (lo que quieres predecir)</li>
-        <li>Selecciona las variables predictoras</li>
-        <li>Configura las opciones de análisis</li>
-        <li>Ejecuta el análisis deseado</li>
+        <li>Selecciona la variable Y (lo que quieres predecir)</li>
+        <li>Selecciona las variables X (predictoras)</li>
+        <li>Configura las opciones de análisis si lo deseas</li>
+        <li>Ejecuta el modelo deseado</li>
         </ol>
-
+        
         <h3>📊 Tipos de Problemas:</h3>
         <ul>
-        <li><b>Regresión:</b> Predecir valores numéricos continuos</li>
-        <li><b>Clasificación:</b> Predecir categorías o clases</li>
+        <li><b>Regresión:</b> Predecir valores numéricos continuos (ej: precio, temperatura)</li>
+        <li><b>Clasificación:</b> Predecir categorías o clases (ej: si/no, alto/medio/bajo)</li>
         </ul>
-
+        
         <h3>🔧 Modelos Disponibles:</h3>
         <ul>
-        <li><b>Regresión Simple:</b> Relación entre dos variables</li>
-        <li><b>Regresión Múltiple:</b> Múltiples predictores</li>
-        <li><b>Árbol de Decisión:</b> Reglas de decisión</li>
-        <li><b>Random Forest:</b> Conjunto de árboles</li>
-        <li><b>SVM:</b> Support Vector Machine</li>
+        <li><b>Regresión Simple:</b> Relación lineal entre una X y una Y</li>
+        <li><b>Regresión Múltiple:</b> Múltiples X predicen una Y</li>
+        <li><b>Árbol de Decisión:</b> Crea reglas de decisión en forma de árbol</li>
+        <li><b>Random Forest:</b> Conjunto de árboles de decisión</li>
+        <li><b>SVM:</b> Support Vector Machine para clasificación/regresión</li>
         </ul>
-
+        
+        <h3>📈 Visualizaciones:</h3>
+        <ul>
+        <li><b>Árbol de Decisión:</b> Muestra la estructura del árbol con nodos</li>
+        <li><b>Random Forest:</b> Muestra matriz de confusión, métricas y comparaciones</li>
+        <li><b>SVM:</b> Muestra importancia aproximada de características</li>
+        <li>Usa el botón "🗑️ Limpiar Gráficos" para limpiar las visualizaciones</li>
+        </ul>
+        
         <h3>💡 Consejos:</h3>
         <ul>
-        <li>Usa "Selección Automática" para elegir variables relevantes</li>
+        <li>Usa "Selección Automática" para elegir las mejores variables X</li>
         <li>Activa "Optimizar hiperparámetros" para mejores resultados</li>
         <li>Compara múltiples modelos para encontrar el mejor</li>
         <li>Revisa las métricas para evaluar el rendimiento</li>
+        <li>Para clasificación: Accuracy, Precision, Recall, F1-Score</li>
+        <li>Para regresión: R², RMSE, MAE</li>
         </ul>
+        
+        <h3>⚠️ Nota sobre el tamaño de ventana:</h3>
+        <p>La ventana tiene un tamaño fijo de 1600x900 píxeles para garantizar
+        una visualización consistente en todas las pantallas.</p>
         """)
 
         layout.addWidget(help_text)
@@ -1413,252 +1519,124 @@ class SupervisadoWindow(QWidget):
     def apply_styles(self):
         """Aplicar estilos personalizados mejorados"""
         style = """
-               /* Estilos generales */
-               QWidget {
-                   font-family: 'Segoe UI', Arial, sans-serif;
-               }
-
-               /* GroupBox styling */
-               QGroupBox {
-                   font-weight: bold;
-                   border: 2px solid #bdc3c7;
-                   border-radius: 8px;
-                   margin-top: 1ex;
-                   padding-top: 10px;
-                   background-color: #fafafa;
-               }
-
-               QGroupBox::title {
-                   subcontrol-origin: margin;
-                   left: 15px;
-                   padding: 0 8px 0 8px;
-                   background-color: white;
-                   border-radius: 4px;
-               }
-
-               /* Botones principales */
-               QPushButton {
-                   background-color: #3498db;
-                   border: none;
-                   color: white;
-                   padding: 8px 16px;
-                   border-radius: 6px;
-                   font-weight: bold;
-                   font-size: 12px;
-               }
-
-               QPushButton:hover {
-                   background-color: #2980b9;
-                   transform: translateY(-1px);
-               }
-
-               QPushButton:pressed {
-                   background-color: #21618c;
-                   transform: translateY(1px);
-               }
-
-               QPushButton:disabled {
-                   background-color: #bdc3c7;
-                   color: #7f8c8d;
-               }
-
-               /* Botones específicos de análisis */
-               QPushButton[text*="K-Means"] {
-                   background-color: #e74c3c;
-               }
-               QPushButton[text*="K-Means"]:hover {
-                   background-color: #c0392b;
-               }
-
-               QPushButton[text*="Jerárquico"] {
-                   background-color: #f39c12;
-               }
-               QPushButton[text*="Jerárquico"]:hover {
-                   background-color: #e67e22;
-               }
-
-               QPushButton[text*="DBSCAN"] {
-                   background-color: #9b59b6;
-               }
-               QPushButton[text*="DBSCAN"]:hover {
-                   background-color: #8e44ad;
-               }
-
-               QPushButton[text*="PCA"] {
-                   background-color: #27ae60;
-               }
-               QPushButton[text*="PCA"]:hover {
-                   background-color: #229954;
-               }
-
-               QPushButton[text*="Exploratorio"] {
-                   background-color: #17a2b8;
-               }
-               QPushButton[text*="Exploratorio"]:hover {
-                   background-color: #138496;
-               }
-
-               /* Progress bar */
-               QProgressBar {
-                   border: 2px solid #bdc3c7;
-                   border-radius: 8px;
-                   text-align: center;
-                   font-weight: bold;
-                   background-color: white;
-               }
-
-               QProgressBar::chunk {
-                   background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-                               stop:0 #3498db, stop:1 #2980b9);
-                   border-radius: 6px;
-               }
-
-               /* Otros estilos para mejorar la apariencia */
-               QTabWidget::pane {
-                   border: 2px solid #bdc3c7;
-                   border-radius: 8px;
-                   background-color: white;
-               }
-
-               QTabBar::tab {
-                   background: #ecf0f1;
-                   border: 1px solid #bdc3c7;
-                   padding: 8px 16px;
-                   margin-right: 2px;
-                   border-top-left-radius: 6px;
-                   border-top-right-radius: 6px;
-               }
-
-               QTabBar::tab:selected {
-                   background: #3498db;
-                   color: white;
-                   font-weight: bold;
-               }
-
-               QTabBar::tab:hover {
-                   background: #d5dbdb;
-               }
-
-               QListWidget {
-                   border: 2px solid #bdc3c7;
-                   border-radius: 6px;
-                   selection-background-color: #3498db;
-                   background-color: white;
-                   alternate-background-color: #f8f9fa;
-               }
-
-               QListWidget::item {
-                   padding: 8px;
-                   border-bottom: 1px solid #ecf0f1;
-               }
-
-               QListWidget::item:hover {
-                   background-color: #e8f4fd;
-               }
-
-               QListWidget::item:selected {
-                   background-color: #3498db;
-                   color: white;
-               }
-
-               QTextEdit {
-                   border: 2px solid #bdc3c7;
-                   border-radius: 6px;
-                   font-family: 'Segoe UI', Arial, sans-serif;
-                   background-color: white;
-                   selection-background-color: #3498db;
-               }
-
-               QTableWidget {
-                   border: 2px solid #bdc3c7;
-                   gridline-color: #ecf0f1;
-                   selection-background-color: #3498db;
-                   alternate-background-color: #f8f9fa;
-                   background-color: white;
-               }
-
-               QTableWidget::item {
-                   padding: 8px;
-                   border-bottom: 1px solid #ecf0f1;
-               }
-
-               QTableWidget::item:selected {
-                   background-color: #3498db;
-                   color: white;
-               }
-
-               QHeaderView::section {
-                   background-color: #34495e;
-                   color: white;
-                   padding: 8px;
-                   border: none;
-                   font-weight: bold;
-               }
-
-               QFrame {
-                   border: 1px solid #bdc3c7;
-                   border-radius: 6px;
-                   background-color: white;
-               }
-
-               QScrollArea {
-                   border: 1px solid #bdc3c7;
-                   border-radius: 6px;
-                   background-color: white;
-               }
-
-               QComboBox {
-                   border: 2px solid #bdc3c7;
-                   border-radius: 4px;
-                   padding: 4px 8px;
-                   background-color: white;
-               }
-
-               QComboBox:hover {
-                   border-color: #3498db;
-               }
-
-               QSpinBox, QDoubleSpinBox {
-                   border: 2px solid #bdc3c7;
-                   border-radius: 4px;
-                   padding: 4px 8px;
-                   background-color: white;
-               }
-
-               QSpinBox:hover, QDoubleSpinBox:hover {
-                   border-color: #3498db;
-               }
-
-               QCheckBox {
-                   spacing: 8px;
-               }
-
-               QCheckBox::indicator {
-                   width: 16px;
-                   height: 16px;
-                   border: 2px solid #bdc3c7;
-                   border-radius: 3px;
-                   background-color: white;
-               }
-
-               QCheckBox::indicator:checked {
-                   background-color: #3498db;
-                   border-color: #3498db;
-               }
-               """
+        /* Estilos generales */
+        QWidget {
+            font-family: 'Segoe UI', Arial, sans-serif;
+        }
+        
+        /* GroupBox styling */
+        QGroupBox {
+            font-weight: bold;
+            border: 2px solid #bdc3c7;
+            border-radius: 8px;
+            margin-top: 1ex;
+            padding-top: 10px;
+            background-color: #fafafa;
+        }
+        
+        QGroupBox::title {
+            subcontrol-origin: margin;
+            left: 15px;
+            padding: 0 8px 0 8px;
+            background-color: white;
+            border-radius: 4px;
+        }
+        
+        /* Botones principales */
+        QPushButton {
+            background-color: #3498db;
+            border: none;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-weight: bold;
+            font-size: 12px;
+        }
+        
+        QPushButton:hover {
+            background-color: #2980b9;
+        }
+        
+        QPushButton:pressed {
+            background-color: #21618c;
+        }
+        
+        QPushButton:disabled {
+            background-color: #bdc3c7;
+            color: #7f8c8d;
+        }
+        
+        /* Progress bar */
+        QProgressBar {
+            border: 2px solid #bdc3c7;
+            border-radius: 8px;
+            text-align: center;
+            font-weight: bold;
+            background-color: white;
+        }
+        
+        QProgressBar::chunk {
+            background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                        stop:0 #3498db, stop:1 #2980b9);
+            border-radius: 6px;
+        }
+        
+        /* Tabs */
+        QTabWidget::pane {
+            border: 2px solid #bdc3c7;
+            border-radius: 8px;
+            background-color: white;
+        }
+        
+        QTabBar::tab {
+            background: #ecf0f1;
+            border: 1px solid #bdc3c7;
+            padding: 8px 16px;
+            margin-right: 2px;
+            border-top-left-radius: 6px;
+            border-top-right-radius: 6px;
+        }
+        
+        QTabBar::tab:selected {
+            background: #3498db;
+            color: white;
+            font-weight: bold;
+        }
+        
+        /* Lists and Tables */
+        QListWidget, QTableWidget {
+            border: 2px solid #bdc3c7;
+            border-radius: 6px;
+            background-color: white;
+            alternate-background-color: #f8f9fa;
+        }
+        
+        QListWidget::item:selected {
+            background-color: #3498db;
+            color: white;
+        }
+        
+        /* Text areas */
+        QTextEdit {
+            border: 2px solid #bdc3c7;
+            border-radius: 6px;
+            background-color: white;
+        }
+        
+        /* Combo boxes and spin boxes */
+        QComboBox, QSpinBox, QDoubleSpinBox {
+            border: 2px solid #bdc3c7;
+            border-radius: 4px;
+            padding: 4px 8px;
+            background-color: white;
+        }
+        
+        QComboBox:hover, QSpinBox:hover, QDoubleSpinBox:hover {
+            border-color: #3498db;
+        }
+        """
 
         self.setStyleSheet(style)
-
-        # Aplicar font-rendering mejorado si está disponible
-        try:
-            from PyQt5.QtGui import QFont
-            font = QFont("Inter")
-            if not font.exactMatch():
-                font = QFont("Segoe UI")
-            font.setHintingPreference(QFont.HintingPreference.PreferFullHinting)
-            self.setFont(font)
-        except:
-            pass
 
     def closeEvent(self, event):
         """Manejar cierre de la ventana"""
@@ -1689,10 +1667,7 @@ def main():
     """Función principal para testing"""
     app = QApplication(sys.argv)
 
-    # Crear datos de prueba si no hay DataManager
-    if not DATA_MANAGER_AVAILABLE:
-        print("⚠️ Ejecutando en modo de prueba sin DataManager")
-
+    # Crear ventana con tamaño fijo
     window = SupervisadoWindow()
     window.show()
 

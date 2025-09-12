@@ -202,6 +202,9 @@ class MenuPrincipal(QWidget):
         self.header = ModernHeader()
         main_layout.addWidget(self.header)
 
+        # Botón de cargar datos
+        self.create_data_button_section(main_layout)
+
         # Tarjetas de estadísticas rápidas
         self.create_stats_section(main_layout)
 
@@ -226,6 +229,37 @@ class MenuPrincipal(QWidget):
         layout.addWidget(scroll)
         self.setLayout(layout)
 
+    def create_data_button_section(self, layout):
+        """Crear sección del botón de cargar datos"""
+        data_container = QFrame()
+        data_container.setObjectName("dataContainer")
+
+        data_layout = QHBoxLayout()
+        data_layout.setAlignment(Qt.AlignCenter)
+        data_layout.setSpacing(15)
+        data_layout.setContentsMargins(20, 15, 20, 15)
+
+        # Información sobre datos
+        data_info = QLabel("📂 Antes de usar los módulos de análisis")
+        data_info.setObjectName("dataInfo")
+        data_layout.addWidget(data_info)
+
+        # Botón principal de cargar datos
+        load_data_btn = QPushButton("Cargar Datos")
+        load_data_btn.setObjectName("loadDataButton")
+        load_data_btn.setMinimumHeight(45)
+        load_data_btn.setMinimumWidth(150)
+        load_data_btn.clicked.connect(self.abrir_carga_datos.emit)
+        data_layout.addWidget(load_data_btn)
+
+        # Información adicional
+        data_hint = QLabel("• CSV, Excel, JSON")
+        data_hint.setObjectName("dataHint")
+        data_layout.addWidget(data_hint)
+
+        data_container.setLayout(data_layout)
+        layout.addWidget(data_container)
+
     def create_stats_section(self, layout):
         """Crear sección de estadísticas rápidas"""
         stats_container = QFrame()
@@ -238,7 +272,7 @@ class MenuPrincipal(QWidget):
 
         # Tarjetas de stats
         stats_cards = [
-            ("🎯", "4", "Módulos"),
+            ("🎯", "5", "Módulos"),
             ("📊", "∞", "Análisis"),
             ("🚀", "Pro", "Versión"),
             ("💡", "AI", "Powered")
@@ -407,6 +441,53 @@ class MenuPrincipal(QWidget):
                 font-weight: 400;
             }
 
+            /* SECCIÓN DE CARGAR DATOS */
+            #dataContainer {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                    stop:0 #e3f2fd, stop:0.5 #f3e5f5, stop:1 #fce4ec);
+                border: 2px solid rgba(33, 150, 243, 0.3);
+                border-radius: 15px;
+                backdrop-filter: blur(10px);
+            }
+
+            #dataInfo {
+                font-size: 16px;
+                font-weight: 600;
+                color: #1565c0;
+                margin: 0px;
+            }
+
+            #loadDataButton {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                    stop:0 #2196f3, stop:1 #1976d2);
+                border: none;
+                border-radius: 12px;
+                color: white;
+                font-size: 16px;
+                font-weight: 600;
+                padding: 0px 25px;
+                text-shadow: 0 1px 2px rgba(0,0,0,0.1);
+            }
+
+            #loadDataButton:hover {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                    stop:0 #1976d2, stop:1 #1565c0);
+                transform: translateY(-2px);
+            }
+
+            #loadDataButton:pressed {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                    stop:0 #1565c0, stop:1 #0d47a1);
+                transform: translateY(0px);
+            }
+
+            #dataHint {
+                font-size: 14px;
+                color: #1976d2;
+                font-weight: 500;
+                margin: 0px;
+            }
+
             /* ESTADÍSTICAS */
             #statsContainer {
                 background: rgba(255, 255, 255, 0.8);
@@ -546,6 +627,10 @@ class MenuPrincipal(QWidget):
                 transform: translateY(-2px);
                 transition: transform 0.2s ease;
             }
+
+            #loadDataButton {
+                transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            }
         """)
 
     def closeEvent(self, event):
@@ -567,13 +652,12 @@ if __name__ == "__main__":
     window = MenuPrincipal()
     window.show()
 
-
     # Conectar señales de prueba
     def test_signal(signal_name):
         print(f"🚀 Módulo seleccionado: {signal_name}")
 
-
     window.abrir_preprocesamiento.connect(lambda: test_signal("Preprocesamiento de Datos"))
+    window.abrir_carga_datos.connect(lambda: test_signal("Cargar Datos"))
     window.abrir_machine_learning.connect(lambda: test_signal("Machine Learning"))
     window.abrir_deep_learning.connect(lambda: test_signal("Deep Learning"))
     window.abrir_wqi.connect(lambda: test_signal("Índice WQI"))
