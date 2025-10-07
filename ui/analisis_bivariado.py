@@ -371,7 +371,7 @@ class AnalisisBivariado(QWidget):
         sections_layout = QHBoxLayout()
         sections_layout.setSpacing(20)
 
-        # SECCIÓN 1: Correlaciones
+        # SECCIÓN 1: Correlaciones (sin cambios)
         corr_group = QGroupBox("📊 Análisis de Correlación")
         corr_group.setStyleSheet("""
             QGroupBox {
@@ -408,7 +408,7 @@ class AnalisisBivariado(QWidget):
 
         corr_group.setLayout(corr_layout)
 
-        # SECCIÓN 2: Diagrama de Dispersión (Variables X e Y)
+        # SECCIÓN 2: Diagrama de Dispersión (sin cambios)
         scatter_group = QGroupBox("🎯 Diagrama de Dispersión")
         scatter_group.setStyleSheet("""
             QGroupBox {
@@ -452,7 +452,7 @@ class AnalisisBivariado(QWidget):
 
         scatter_group.setLayout(scatter_layout)
 
-        # SECCIÓN 3: Serie de Tiempo
+        # SECCIÓN 3: Serie de Tiempo - MEJORADA CON SELECTOR DE PUNTO
         time_group = QGroupBox("📅 Serie de Tiempo")
         time_group.setStyleSheet("""
             QGroupBox {
@@ -475,8 +475,14 @@ class AnalisisBivariado(QWidget):
         time_layout = QVBoxLayout()
         time_layout.setSpacing(8)
 
+        # NUEVO: Selector de punto de muestreo
+        point_label = QLabel("🎯 Punto de Muestreo:")
+        point_label.setProperty("class", "variable-label")
+        self.combo_point = QComboBox()
+        self.combo_point.addItem("Todos los puntos", "ALL")  # Opción por defecto
+
         # Variable para serie de tiempo
-        var_time_label = QLabel("Variable a Analizar:")
+        var_time_label = QLabel("📊 Variable a Analizar:")
         var_time_label.setProperty("class", "variable-label")
         self.combo_time_var = QComboBox()
 
@@ -485,8 +491,21 @@ class AnalisisBivariado(QWidget):
         self.date_info_label.setProperty("class", "date-info")
         self.date_info_label.setVisible(False)
 
+        # Información adicional sobre el punto seleccionado
+        self.point_info_label = QLabel("ℹ️ Seleccione un punto para ver información")
+        self.point_info_label.setStyleSheet("""
+            font-size: 12px;
+            color: #6366f1;
+            font-weight: 600;
+            background-color: #eef2ff;
+            padding: 6px;
+            border-radius: 4px;
+            margin: 5px 0;
+        """)
+        self.point_info_label.setVisible(False)
+
         # Rango de fechas
-        date_range_label = QLabel("Período de Análisis:")
+        date_range_label = QLabel("⏰ Período de Análisis:")
         date_range_label.setProperty("class", "variable-label")
 
         # Layout horizontal para fechas
@@ -514,6 +533,13 @@ class AnalisisBivariado(QWidget):
         self.btn_serie_tiempo.setProperty("class", "time-button")
         self.btn_serie_tiempo.clicked.connect(self.mostrar_serie_tiempo)
 
+        # Conectar señal para actualizar información del punto
+        self.combo_point.currentTextChanged.connect(self.actualizar_info_punto)
+
+        # Agregar widgets al layout
+        time_layout.addWidget(point_label)
+        time_layout.addWidget(self.combo_point)
+        time_layout.addWidget(self.point_info_label)
         time_layout.addWidget(var_time_label)
         time_layout.addWidget(self.combo_time_var)
         time_layout.addWidget(self.date_info_label)
@@ -819,6 +845,63 @@ Para activar la interpretación automática:
         nav_layout.addWidget(btn_ayuda)
         layout.addLayout(nav_layout)
 
+    def detectar_columna_puntos(self, df):
+        """Detecta automáticamente columnas que podrían contener puntos de muestreo"""
+        posibles_nombres = [
+            'punto', 'point', 'station', 'estacion', 'site', 'location',
+            'points', 'puntos', 'sample_point', 'sampling_point', 'codigo',
+            'id', 'estacion_id', 'punto_muestreo', 'sitio'
+        ]
+
+        # Buscar por nombre de columna
+        for col in df.columns:
+            if col.lower() in posibles_nombres:
+                return col
+
+        # Buscar columnas que contengan palabras clave
+        for col in df.columns:
+            col_lower = col.lower()
+            if any(palabra in col_lower for palabra in ['punto', 'point', 'station', 'estacion', 'site']):
+                return col
+
+        # Buscar columnas categóricas con pocos valores únicos (posibles estaciones)
+        for col in df.columns:
+            if df[col].dtype == 'object':
+                unique_values = df[col].nunique()
+                total_rows = len(df)
+                # Si hay entre 5 y 100 valores únicos y representa menos del 10% del total
+                if 5 <= unique_values <= 100 and unique_values < total_rows * 0.1:
+                    return col
+
+        return None
+
+    def actualizar_info_punto(self):
+        """Actualiza la información cuando se selecciona un punto diferente"""
+        if not hasattr(self, 'combo_point') or not self.df is not None or not self.columna_puntos:
+            return
+
+        punto_seleccionado = self.combo_point.currentData()
+
+        if punto_seleccionado == "ALL":
+            total_muestras = len(self.df)
+            self.point_info_label.setText(f"📊 Mostrando TODOS los puntos | {total_muestras:,} muestras totales")
+        else:
+            df_punto = self.df[self.df[self.columna_puntos] == punto_seleccionado]
+            muestras_punto = len(df_punto)
+
+            # Obtener rango de fechas para este punto si hay fecha
+            if self.columna_fecha:
+                try:
+                    fechas_punto = pd.to_datetime(df_punto[self.columna_fecha])
+                    fecha_min = fechas_punto.min().strftime('%Y-%m-%d')
+                    fecha_max = fechas_punto.max().strftime('%Y-%m-%d')
+                    self.point_info_label.setText(
+                        f"📍 Punto: {punto_seleccionado} | {muestras_punto} muestras | {fecha_min} a {fecha_max}")
+                except:
+                    self.point_info_label.setText(f"📍 Punto: {punto_seleccionado} | {muestras_punto} muestras")
+            else:
+                self.point_info_label.setText(f"📍 Punto: {punto_seleccionado} | {muestras_punto} muestras")
+
     def detectar_columna_fecha(self, df):
         """Detecta automáticamente columnas que podrían contener fechas"""
         posibles_nombres = [
@@ -865,6 +948,9 @@ Para activar la interpretación automática:
         # Obtener solo columnas numéricas
         columnas = df.select_dtypes(include='number').columns.tolist()
 
+        # NUEVO: Detectar columna de puntos de muestreo
+        self.columna_puntos = self.detectar_columna_puntos(df)
+
         # Actualizar ComboBoxes para dispersión
         self.combo_x.clear()
         self.combo_y.clear()
@@ -874,6 +960,24 @@ Para activar la interpretación automática:
         # Actualizar ComboBox para serie de tiempo
         self.combo_time_var.clear()
         self.combo_time_var.addItems(columnas)
+
+        # NUEVO: Actualizar ComboBox de puntos de muestreo
+        self.combo_point.clear()
+        self.combo_point.addItem("Todos los puntos", "ALL")
+
+        if self.columna_puntos:
+            puntos_unicos = sorted(df[self.columna_puntos].unique())
+            for punto in puntos_unicos:
+                # Contar muestras por punto
+                count = len(df[df[self.columna_puntos] == punto])
+                self.combo_point.addItem(f"{punto} ({count} muestras)", punto)
+
+            self.point_info_label.setText(
+                f"📍 Columna detectada: {self.columna_puntos} | {len(puntos_unicos)} puntos disponibles")
+            self.point_info_label.setVisible(True)
+        else:
+            self.point_info_label.setText("⚠️ No se detectó columna de puntos de muestreo")
+            self.point_info_label.setVisible(True)
 
         # Actualizar información de fecha y configurar fechas
         if self.columna_fecha:
@@ -910,8 +1014,10 @@ Para activar la interpretación automática:
         # Actualizar mensaje informativo
         filas, cols = df.shape
         fecha_info = f" | Fecha: {self.columna_fecha}" if self.columna_fecha else " | Sin fecha"
+        puntos_info = f" | Puntos: {len(df[self.columna_puntos].unique())}" if self.columna_puntos else " | Sin puntos"
+
         self.info_label.setText(
-            f"✅ Datos cargados: {filas:,} muestras, {len(columnas)} variables numéricas{fecha_info} - Listo para análisis")
+            f"✅ Datos cargados: {filas:,} muestras, {len(columnas)} variables numéricas{fecha_info}{puntos_info} - Listo para análisis")
         self.graph_info_label.setText(
             f"✅ {len(columnas)} variables disponibles - Configure las secciones correspondientes para generar visualizaciones")
 
@@ -1076,7 +1182,7 @@ Para activar la interpretación automática:
             self.mostrar_mensaje_grafico(f"❌ Error al generar dispersión: {str(e)}")
 
     def mostrar_serie_tiempo(self):
-        """Genera serie de tiempo - Funcionalidad simulada"""
+        """Genera serie de tiempo - MEJORADA con filtrado por punto"""
         if self.df is None:
             self.mostrar_mensaje_grafico("⚠️ No hay datos cargados")
             return
@@ -1090,17 +1196,35 @@ Para activar la interpretación automática:
             self.mostrar_mensaje_grafico("⚠️ Seleccione variable para la serie temporal")
             return
 
+        # NUEVO: Obtener punto seleccionado
+        punto_seleccionado = self.combo_point.currentData()
+
         try:
-            self.graph_info_label.setText(f"📅 Generando serie temporal: {variable} por {self.columna_fecha}...")
+            # Filtrar por punto si no es "ALL"
+            if punto_seleccionado == "ALL":
+                df_filtrado = self.df.copy()
+                titulo_punto = "Todos los Puntos"
+            else:
+                if not self.columna_puntos:
+                    self.mostrar_mensaje_grafico("⚠️ No se detectó columna de puntos de muestreo")
+                    return
+                df_filtrado = self.df[self.df[self.columna_puntos] == punto_seleccionado].copy()
+                titulo_punto = f"Punto {punto_seleccionado}"
+
+            if df_filtrado.empty:
+                self.mostrar_mensaje_grafico(f"⚠️ No hay datos para el punto seleccionado: {punto_seleccionado}")
+                return
+
+            self.graph_info_label.setText(f"📅 Generando serie temporal: {variable} | {titulo_punto}...")
 
             # Obtener fechas seleccionadas
             fecha_desde = self.date_from.date().toPyDate()
             fecha_hasta = self.date_to.date().toPyDate()
 
-            # Filtrar DataFrame por rango de fechas
-            df_filtrado = self.df.copy()
+            # Convertir columna de fecha
             df_filtrado[self.columna_fecha] = pd.to_datetime(df_filtrado[self.columna_fecha])
 
+            # Filtrar por rango de fechas
             mask = (df_filtrado[self.columna_fecha].dt.date >= fecha_desde) & \
                    (df_filtrado[self.columna_fecha].dt.date <= fecha_hasta)
             df_filtrado = df_filtrado[mask]
@@ -1109,32 +1233,45 @@ Para activar la interpretación automática:
                 self.mostrar_mensaje_grafico("⚠️ No hay datos en el rango de fechas seleccionado")
                 return
 
+            # Ordenar por fecha para serie temporal coherente
+            df_filtrado = df_filtrado.sort_values(self.columna_fecha)
+
             # Crear serie temporal usando matplotlib
             import matplotlib.pyplot as plt
             import matplotlib
             matplotlib.use('Agg')
 
-            plt.figure(figsize=(12, 6))
-            plt.plot(df_filtrado[self.columna_fecha], df_filtrado[variable], marker='o', linewidth=1, markersize=3)
-            plt.xlabel(self.columna_fecha)
-            plt.ylabel(variable)
-            plt.title(f'Serie Temporal: {variable}')
+            plt.figure(figsize=(14, 8))
+
+            # Configurar el gráfico
+            plt.plot(df_filtrado[self.columna_fecha], df_filtrado[variable],
+                     marker='o', linewidth=2, markersize=4, alpha=0.8)
+
+            plt.xlabel(f'Fecha ({self.columna_fecha})', fontsize=12)
+            plt.ylabel(f'{variable}', fontsize=12)
+
+            # Título mejorado con información del punto
+            plt.title(f'Serie Temporal: {variable}\n{titulo_punto}', fontsize=14, fontweight='bold')
+
             plt.grid(True, alpha=0.3)
             plt.xticks(rotation=45)
+
+            # Ajustar diseño
+            plt.tight_layout()
 
             # Guardar y mostrar
             import io
 
             buffer = io.BytesIO()
-            plt.savefig(buffer, format='png', dpi=100, bbox_inches='tight')
+            plt.savefig(buffer, format='png', dpi=120, bbox_inches='tight')
             buffer.seek(0)
 
             pixmap = QPixmap()
             pixmap.loadFromData(buffer.getvalue())
 
             if not pixmap.isNull():
-                max_width = 1200
-                max_height = 800
+                max_width = 1400
+                max_height = 900
 
                 if pixmap.width() > max_width or pixmap.height() > max_height:
                     pixmap = pixmap.scaled(max_width, max_height, Qt.KeepAspectRatio, Qt.SmoothTransformation)
@@ -1154,7 +1291,8 @@ Para activar la interpretación automática:
                 self.image_container.setMinimumSize(container_width, container_height)
 
                 self.graph_info_label.setText(
-                    f"✅ Serie Temporal: {variable} | Período: {fecha_desde} a {fecha_hasta} | "
+                    f"✅ Serie Temporal: {variable} | {titulo_punto} | "
+                    f"Período: {fecha_desde} a {fecha_hasta} | "
                     f"Puntos: {len(df_filtrado)} | Visualización optimizada")
 
                 self.tabs.setCurrentIndex(1)

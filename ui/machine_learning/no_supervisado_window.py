@@ -1,3 +1,9 @@
+"""
+no_supervisado_window.py - Compatible con PyInstaller
+Ventana principal para Machine Learning No Supervisado
+Versión optimizada para empaquetado, sin dependencias problemáticas
+"""
+
 import sys
 import traceback
 import numpy as np
@@ -13,12 +19,14 @@ from PyQt5.QtWidgets import (
     QProgressBar, QTextEdit, QSplitter, QComboBox, QSpinBox,
     QCheckBox, QTableWidget, QTableWidgetItem, QDialog,
     QDialogButtonBox, QFormLayout, QFileDialog, QListWidget,
-    QListWidgetItem, QScrollArea, QSlider, QDoubleSpinBox
+    QListWidgetItem, QScrollArea, QDoubleSpinBox
 )
-from PyQt5.QtCore import Qt, QThread, pyqtSignal, QTimer, pyqtSlot
+from PyQt5.QtCore import Qt, QThread, pyqtSignal, pyqtSlot
 from PyQt5.QtGui import QFont, QColor
 
-# Importar gestor de datos compartido
+from ui.machine_learning.parallel_plotting import ParallelPlotter
+
+# Importar gestor de datos con manejo de errores robusto
 try:
     from .data_manager import get_data_manager, has_shared_data, get_shared_data
     DATA_MANAGER_AVAILABLE = True
@@ -37,75 +45,169 @@ except ImportError as e:
     def get_shared_data():
         return None
 
-# Importar funciones ML No Supervisado
-ML_AVAILABLE = False
+# Importar funciones ML No Supervisado optimizadas
+ML_AVAILABLE = True
 try:
     from .ml_functions_no_supervisado import (
-        clustering_jerarquico_completo,
+        generar_datos_agua_realistas,
         kmeans_optimizado_completo,
         dbscan_optimizado,
-        pca_completo_avanzado,
         analisis_exploratorio_completo,
-        generar_datos_agua_realistas, _crear_visualizacion_pca_puntos_muestreo,
-        _crear_visualizacion_exploratorio_puntos_muestreo
-    )
+        pca_completo_avanzado,
+        clustering_jerarquico_completo,
+        generar_visualizaciones_ml_no_supervisado, plot_dendrogram_manual_mejorado, aplicar_escalado, manual_pca
+)
 
-    # Importaciones de matplotlib
+    # Importar matplotlib con configuración optimizada
     import matplotlib
     matplotlib.use('Qt5Agg')
     import matplotlib.pyplot as plt
     from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
     from matplotlib.figure import Figure
-    import seaborn as sns
-
-    # Configurar estilo de seaborn
-    sns.set_style("whitegrid")
-
-    # Importar scipy para dendrogramas
-    def manual_linkage(X, method='ward'):
-        """Implementación manual básica de linkage"""
-        n = len(X)
-        if n < 2:
-            return np.array([])
-
-        # Calcular matriz de distancias
-        distances = np.zeros((n, n))
-        for i in range(n):
-            for j in range(i + 1, n):
-                distances[i, j] = distances[j, i] = np.linalg.norm(X[i] - X[j])
-
-        # Linkage simplificado - devolver matriz básica
-        linkage_matrix = []
-        for i in range(n - 1):
-            min_dist = np.inf
-            merge_i, merge_j = 0, 1
-            for ii in range(n):
-                for jj in range(ii + 1, n):
-                    if distances[ii, jj] < min_dist:
-                        min_dist = distances[ii, jj]
-                        merge_i, merge_j = ii, jj
-
-            linkage_matrix.append([merge_i, merge_j, min_dist, 2])
-            # Actualizar distancias (simplificado)
-            for k in range(n):
-                if k != merge_i and k != merge_j:
-                    distances[merge_i, k] = (distances[merge_i, k] + distances[merge_j, k]) / 2
-                    distances[k, merge_i] = distances[merge_i, k]
-
-            # Marcar merge_j como usado
-            distances[merge_j, :] = np.inf
-            distances[:, merge_j] = np.inf
-
-        return np.array(linkage_matrix)
 
     ML_AVAILABLE = True
     print("✅ Librerías ML No Supervisado cargadas correctamente")
 
 except ImportError as e:
     ML_AVAILABLE = False
-    print(f"❌ Error cargando ML No Supervisado: {e}")
+    print(f"⚠️ Librerías ML No Supervisado no disponibles: {e}")
 
-# Importar sistema de temas
+    # Crear mocks para evitar errores
+    try:
+        import matplotlib
+        matplotlib.use('Qt5Agg')
+        import matplotlib.pyplot as plt
+        from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+        from matplotlib.figure import Figure
+    except ImportError:
+        # Mocks básicos si matplotlib no está disponible
+        class Figure:
+            def __init__(self, *args, **kwargs):
+                pass
+
+            def clear(self):
+                pass
+
+            def add_subplot(self, *args, **kwargs):
+                return MockAxes()
+
+            def tight_layout(self):
+                pass
+
+            def savefig(self, *args, **kwargs):
+                pass
+
+            def add_gridspec(self, *args, **kwargs):
+                return MockGridSpec()
+
+            def suptitle(self, *args, **kwargs):
+                pass
+
+        class FigureCanvas:
+            def __init__(self, figure):
+                self.figure = figure
+
+            def draw(self):
+                pass
+
+            def draw_idle(self):
+                pass
+
+        class MockAxes:
+            def text(self, *args, **kwargs):
+                pass
+
+            def set_title(self, *args, **kwargs):
+                pass
+
+            def axis(self, *args, **kwargs):
+                pass
+
+            def scatter(self, *args, **kwargs):
+                return None
+
+            def plot(self, *args, **kwargs):
+                return []
+
+            def bar(self, *args, **kwargs):
+                return []
+
+            def barh(self, *args, **kwargs):
+                return []
+
+            def pie(self, *args, **kwargs):
+                pass
+
+            def imshow(self, *args, **kwargs):
+                return None
+
+            def set_xlabel(self, *args, **kwargs):
+                pass
+
+            def set_ylabel(self, *args, **kwargs):
+                pass
+
+            def legend(self, *args, **kwargs):
+                pass
+
+            def grid(self, *args, **kwargs):
+                pass
+
+            def axhline(self, *args, **kwargs):
+                pass
+
+            def set_xticks(self, *args, **kwargs):
+                pass
+
+            def set_yticks(self, *args, **kwargs):
+                pass
+
+            def set_xticklabels(self, *args, **kwargs):
+                pass
+
+            def set_yticklabels(self, *args, **kwargs):
+                pass
+
+            @property
+            def transAxes(self):
+                return None
+
+        class MockGridSpec:
+            def __init__(self, *args, **kwargs):
+                pass
+
+        plt = type('MockPlt', (), {
+            'cm': type('MockCm', (), {
+                'tab10': lambda x: ['blue'] * len(x) if hasattr(x, '__len__') else ['blue'],
+                'Spectral': lambda x: ['blue'] * len(x) if hasattr(x, '__len__') else ['blue']
+            })(),
+            'colorbar': lambda *args, **kwargs: None,
+            'close': lambda *args, **kwargs: None
+        })()
+
+    # Crear funciones mock para las funciones ML
+    def kmeans_optimizado_completo(*args, **kwargs):
+        return {'error': 'ML no disponible', 'tipo': 'kmeans_optimizado'}
+
+    def dbscan_optimizado(*args, **kwargs):
+        return {'error': 'ML no disponible', 'tipo': 'dbscan_optimizado'}
+
+    def pca_completo_avanzado(*args, **kwargs):
+        return {'error': 'ML no disponible', 'tipo': 'pca_completo_avanzado'}
+
+    def analisis_exploratorio_completo(*args, **kwargs):
+        return {'error': 'ML no disponible', 'tipo': 'analisis_exploratorio_completo'}
+
+    def clustering_jerarquico_completo(*args, **kwargs):
+        return {'error': 'ML no disponible', 'tipo': 'clustering_jerarquico_completo'}
+
+    def generar_datos_agua_realistas(*args, **kwargs):
+        return pd.DataFrame(np.random.randn(10, 5), columns=['A', 'B', 'C', 'D', 'E'])
+
+    def generar_visualizaciones_ml_no_supervisado(*args, **kwargs):
+        return Figure()
+
+# Sistema de temas simplificado
 try:
     class ThemedWidget:
         def __init__(self):
@@ -113,34 +215,134 @@ try:
 
         def apply_theme(self):
             pass
-
-    class ThemeManager:
-        def __init__(self):
-            pass
 except ImportError:
     class ThemedWidget(QWidget):
         def __init__(self, *args, **kwargs):
             super().__init__(*args, **kwargs)
 
-    class ThemeManager:
-        @staticmethod
-        def toggle_theme():
-            pass
 
-        @staticmethod
-        def is_dark_theme():
-            return False
+class ThreadMonitorWidget(QWidget):
+    """Widget para monitorear hilos en tiempo real"""
 
+    def __init__(self, max_threads=12):
+        super().__init__()
+        self.max_threads = max_threads
+        self.thread_states = [0] * max_threads  # 0: inactivo, 1: activo
+        self.setup_ui()
+
+    def setup_ui(self):
+        layout = QVBoxLayout()
+        layout.setContentsMargins(5, 5, 5, 5)
+
+        # Título
+        title = QLabel("Monitor de Hilos de Procesamiento")
+        title.setStyleSheet("font-weight: bold; color: #2c3e50; font-size: 11px;")
+        layout.addWidget(title)
+
+        # Grid para los hilos
+        self.threads_layout = QGridLayout()
+        self.threads_layout.setSpacing(3)
+
+        self.thread_indicators = []
+        cols = 6  # 6 columnas
+
+        for i in range(self.max_threads):
+            row = i // cols
+            col = i % cols
+
+            # Contenedor para cada hilo
+            thread_frame = QFrame()
+            thread_frame.setFixedSize(70, 35)
+            thread_layout = QVBoxLayout()
+            thread_layout.setContentsMargins(2, 2, 2, 2)
+            thread_layout.setSpacing(1)
+
+            # Label del número
+            label = QLabel(f"Hilo {i + 1}")
+            label.setStyleSheet("font-size: 8px; color: #666;")
+            label.setAlignment(Qt.AlignCenter)
+
+            # Indicador visual
+            indicator = QLabel()
+            indicator.setFixedSize(60, 10)
+            indicator.setStyleSheet("""
+                background-color: #95a5a6;
+                border-radius: 3px;
+            """)
+
+            thread_layout.addWidget(label)
+            thread_layout.addWidget(indicator)
+            thread_frame.setLayout(thread_layout)
+
+            self.threads_layout.addWidget(thread_frame, row, col)
+            self.thread_indicators.append((indicator, label))
+
+        layout.addLayout(self.threads_layout)
+
+        # Estadísticas
+        self.stats_label = QLabel("Hilos activos: 0/12 | Eficiencia: 0%")
+        self.stats_label.setStyleSheet("font-size: 9px; color: #34495e;")
+        layout.addWidget(self.stats_label)
+
+        self.setLayout(layout)
+        self.setMaximumHeight(120)
+
+    def update_thread_state(self, thread_id, active):
+        """Actualizar estado de un hilo específico"""
+        if 0 <= thread_id < self.max_threads:
+            self.thread_states[thread_id] = 1 if active else 0
+            self._update_display()
+
+    def update_active_threads(self, active_list):
+        """Actualizar lista de hilos activos"""
+        self.thread_states = [0] * self.max_threads
+        for thread_id in active_list:
+            if 0 <= thread_id < self.max_threads:
+                self.thread_states[thread_id] = 1
+        self._update_display()
+
+    def _update_display(self):
+        """Actualizar visualización"""
+        active_count = sum(self.thread_states)
+        efficiency = (active_count / self.max_threads) * 100 if self.max_threads > 0 else 0
+
+        for i, (indicator, label) in enumerate(self.thread_indicators):
+            if self.thread_states[i] == 1:
+                # Hilo activo - verde pulsante
+                indicator.setStyleSheet("""
+                    background-color: #27ae60;
+                    border-radius: 3px;
+                    border: 1px solid #229954;
+                """)
+                label.setStyleSheet("font-size: 8px; color: #27ae60; font-weight: bold;")
+            else:
+                # Hilo inactivo - gris
+                indicator.setStyleSheet("""
+                    background-color: #95a5a6;
+                    border-radius: 3px;
+                """)
+                label.setStyleSheet("font-size: 8px; color: #666;")
+
+        self.stats_label.setText(
+            f"Hilos activos: {active_count}/{self.max_threads} | "
+            f"Eficiencia: {efficiency:.0f}%"
+        )
+
+    def reset(self):
+        """Resetear todos los hilos a inactivo"""
+        self.thread_states = [0] * self.max_threads
+        self._update_display()
 
 # ==================== WORKER THREAD PARA ML NO SUPERVISADO ====================
 
 class MLNoSupervisadoWorker(QThread):
-    """Worker thread para análisis ML No Supervisado"""
+    """Worker thread para análisis ML No Supervisado optimizado"""
     progress = pyqtSignal(int)
     status = pyqtSignal(str)
     finished = pyqtSignal(dict)
     error = pyqtSignal(str)
     log = pyqtSignal(str)
+    thread_activity = pyqtSignal(list)  # NUEVA SEÑAL para monitor de hilos
 
     def __init__(self, analysis_type: str, data: pd.DataFrame, **kwargs):
         super().__init__()
@@ -150,12 +352,12 @@ class MLNoSupervisadoWorker(QThread):
         self._is_cancelled = False
 
     def run(self):
-        """Ejecutar análisis"""
+        """Ejecutar análisis con manejo robusto de errores"""
         try:
             if not ML_AVAILABLE:
                 raise ImportError("Librerías de ML No Supervisado no disponibles")
 
-            self.log.emit(f"🚀 Iniciando {self.analysis_type}")
+            self.log.emit(f"Iniciando {self.analysis_type}")
             self.progress.emit(10)
 
             result = None
@@ -175,16 +377,17 @@ class MLNoSupervisadoWorker(QThread):
                 raise ValueError(f"Tipo de análisis desconocido: {self.analysis_type}")
 
             if self._is_cancelled:
-                self.log.emit("❌ Análisis cancelado")
+                self.log.emit("Análisis cancelado")
                 return
 
             self.progress.emit(100)
-            self.status.emit("✅ Análisis completado")
+            self.status.emit("Análisis completado")
             self.finished.emit(result)
 
         except Exception as e:
             self.error.emit(str(e))
-            self.log.emit(f"❌ Error: {str(e)}")
+            self.log.emit(f"Error: {str(e)}")
+            print(f"Error en worker: {e}")
             print(traceback.format_exc())
 
     def cancel(self):
@@ -192,122 +395,202 @@ class MLNoSupervisadoWorker(QThread):
         self._is_cancelled = True
 
     def _run_clustering_jerarquico(self):
-        """Ejecutar clustering jerárquico"""
-        self.status.emit("Ejecutando clustering jerárquico...")
-        self.progress.emit(30)
+        """Ejecutar clustering jerárquico con monitor de hilos"""
+        try:
+            self.status.emit("Ejecutando clustering jerárquico optimizado...")
+            self.progress.emit(20)
 
-        valid_kwargs = {
-            'variables': self.kwargs.get('variables', []),
-            'metodos': self.kwargs.get('metodos', ['ward']),
-            'metricas': self.kwargs.get('metricas', ['euclidean']),
-            'max_clusters': self.kwargs.get('max_clusters', 10),
-            'escalado': self.kwargs.get('escalado', 'standard'),
-            'verbose': self.kwargs.get('verbose', True)
-        }
+            from .ml_functions_no_supervisado import (
+                ParallelHierarchicalClustering,
+                aplicar_escalado,
+                analizar_clusters_manual,
+                manual_silhouette_score,
+                get_clusters_from_linkage
+            )
 
-        resultado = clustering_jerarquico_completo(self.data, **valid_kwargs)
+            variables = self.kwargs.get('variables', [])
+            X = self.data[variables].dropna()
 
-        # Guardar datos originales para visualización
-        resultado['datos_originales'] = self.data[valid_kwargs['variables']].copy()
+            self.log.emit(f"Preparados: {X.shape[0]} muestras, {X.shape[1]} variables")
 
-        return resultado
+            X_scaled, scaler_info = aplicar_escalado(X, self.kwargs.get('escalado', 'standard'))
+
+            # Crear instancia
+            parallel_cluster = ParallelHierarchicalClustering()
+
+            # Callbacks básicos
+            def emit_progress(value):
+                if not self._is_cancelled:
+                    try:
+                        self.progress.emit(20 + int(value * 0.6))
+                    except:
+                        pass
+
+            def emit_status(message):
+                if not self._is_cancelled:
+                    try:
+                        self.status.emit(message)
+                        self.log.emit(message)
+                    except:
+                        pass
+
+            def emit_thread_activity(active_threads):
+                if not self._is_cancelled:
+                    try:
+                        self.thread_activity.emit(active_threads)
+                    except:
+                        pass
+
+            # Conectar callbacks
+            parallel_cluster.set_callbacks(emit_progress, emit_status, emit_thread_activity)
+
+            self.log.emit(f"Usando {parallel_cluster.max_workers} hilos...")
+
+            # Ejecutar
+            linkage_matrix = parallel_cluster.hierarchical_clustering_optimized(
+                X_scaled.values,
+                method=self.kwargs.get('hierarchical_method', 'ward'),
+                metric=self.kwargs.get('hierarchical_metric', 'euclidean')
+            )
+
+            if self._is_cancelled:
+                return None
+
+            self.progress.emit(80)
+
+            # Evaluar K
+            k_range = range(2, min(self.kwargs.get('hierarchical_max_clusters', 10) + 1, len(X)))
+            resultados_por_k = {}
+
+            for i, k in enumerate(k_range):
+                if self._is_cancelled:
+                    return None
+
+                labels = get_clusters_from_linkage(linkage_matrix, k)
+
+                if len(set(labels)) > 1:
+                    silhouette = manual_silhouette_score(X_scaled.values, np.array(labels))
+                else:
+                    silhouette = 0.0
+
+                cluster_analysis = analizar_clusters_manual(X, labels, variables)
+
+                resultados_por_k[k] = {
+                    'labels': labels,
+                    'silhouette_score': silhouette,
+                    'cluster_stats': cluster_analysis
+                }
+
+                progress = 80 + int((i + 1) / len(k_range) * 15)
+                self.progress.emit(progress)
+
+            mejor_k = max(resultados_por_k.keys(),
+                          key=lambda k: resultados_por_k[k]['silhouette_score'])
+
+            self.progress.emit(95)
+            self.log.emit(f"K óptimo: {mejor_k}")
+
+            # Limpiar monitor
+            try:
+                self.thread_activity.emit([])
+            except:
+                pass
+
+            return {
+                'tipo': 'clustering_jerarquico_completo',
+                'variables_utilizadas': variables,
+                'metodo_escalado': self.kwargs.get('escalado', 'standard'),
+                'linkage_matrix': linkage_matrix.tolist(),
+                'resultados_por_k': resultados_por_k,
+                'mejor_configuracion': {
+                    'metodo': self.kwargs.get('hierarchical_method', 'ward'),
+                    'metrica': self.kwargs.get('hierarchical_metric', 'euclidean'),
+                    'n_clusters_sugeridos': mejor_k,
+                    'silhouette_score': resultados_por_k[mejor_k]['silhouette_score'],
+                    'labels': resultados_por_k[mejor_k]['labels']
+                },
+                'datos_originales': X,
+                'scaler_info': scaler_info,
+                'sample_labels': [f"S{i}" for i in range(len(X))],
+                'recomendaciones': [
+                    f"Mejor: {self.kwargs.get('hierarchical_method', 'ward')}-"
+                    f"{self.kwargs.get('hierarchical_metric', 'euclidean')} con {mejor_k} clusters",
+                    f"Silhouette: {resultados_por_k[mejor_k]['silhouette_score']:.3f}",
+                    f"Hilos: {parallel_cluster.max_workers}",
+                ]
+            }
+
+        except Exception as e:
+            self.log.emit(f"Error crítico: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            raise
 
     def _run_kmeans_optimizado(self):
+        """Ejecutar K-Means optimizado"""
         self.status.emit("Ejecutando K-Means optimizado...")
         self.progress.emit(30)
 
-        valid_kwargs = {
+        kwargs = {
             'variables': self.kwargs.get('variables', []),
-            'k_range': self.kwargs.get('k_range', range(2, 9)),
-            'criterios_optimo': self.kwargs.get('criterios_optimo', ['silhouette']),
+            'k_range': self.kwargs.get('kmeans_k_range', range(2, 9)),
             'escalado': self.kwargs.get('escalado', 'standard'),
             'random_state': self.kwargs.get('random_state', 42),
             'verbose': self.kwargs.get('verbose', True)
         }
 
-        resultado = kmeans_optimizado_completo(self.data, **valid_kwargs)
-
-        # Guardar datos originales para visualización
-        resultado['datos_originales'] = self.data[valid_kwargs['variables']].copy()
-
+        resultado = kmeans_optimizado_completo(self.data, **kwargs)
         return resultado
 
     def _run_dbscan(self):
+        """Ejecutar DBSCAN"""
         self.status.emit("Ejecutando DBSCAN...")
         self.progress.emit(30)
 
-        valid_kwargs = {
+        kwargs = {
             'variables': self.kwargs.get('variables', []),
-            'optimizar_parametros': self.kwargs.get('optimizar_parametros', True),
+            'optimizar_parametros': self.kwargs.get('dbscan_optimize', True),
             'escalado': self.kwargs.get('escalado', 'standard'),
             'verbose': self.kwargs.get('verbose', True)
         }
 
-        if 'contamination' in self.kwargs:
-            valid_kwargs['contamination'] = self.kwargs['contamination']
-
-        resultado = dbscan_optimizado(self.data, **valid_kwargs)
-
-        # Guardar datos originales para visualización
-        resultado['datos_originales'] = self.data[valid_kwargs['variables']].copy()
-
+        resultado = dbscan_optimizado(self.data, **kwargs)
         return resultado
 
     def _run_pca_avanzado(self):
+        """Ejecutar PCA avanzado"""
         self.status.emit("Ejecutando PCA avanzado...")
         self.progress.emit(30)
 
-        valid_kwargs = {
+        kwargs = {
             'variables': self.kwargs.get('variables', []),
-            'metodos': self.kwargs.get('metodos', ['linear']),
-            'explicar_varianza_objetivo': self.kwargs.get('explicar_varianza_objetivo', 0.95),
+            'explicar_varianza_objetivo': self.kwargs.get('pca_variance_threshold', 0.95),
             'escalado': self.kwargs.get('escalado', 'standard'),
-            'random_state': self.kwargs.get('random_state', 42),
             'verbose': self.kwargs.get('verbose', True)
         }
 
-        if 'max_components' in self.kwargs:
-            valid_kwargs['max_components'] = self.kwargs['max_components']
-        if 'kernel_type' in self.kwargs:
-            valid_kwargs['kernel_type'] = self.kwargs['kernel_type']
-        if 'gamma' in self.kwargs:
-            valid_kwargs['gamma'] = self.kwargs['gamma']
-
-        resultado = pca_completo_avanzado(self.data, **valid_kwargs)
-
-        # Guardar datos originales para visualización
-        resultado['datos_originales'] = self.data[valid_kwargs['variables']].copy()
-
+        resultado = pca_completo_avanzado(self.data, **kwargs)
         return resultado
 
     def _run_analisis_exploratorio(self):
+        """Ejecutar análisis exploratorio"""
         self.status.emit("Ejecutando análisis exploratorio...")
         self.progress.emit(30)
 
-        valid_kwargs = {
+        kwargs = {
             'variables': self.kwargs.get('variables', []),
             'escalado': self.kwargs.get('escalado', 'standard'),
             'handle_outliers': self.kwargs.get('handle_outliers', True),
             'verbose': self.kwargs.get('verbose', True)
         }
 
-        if 'outlier_method' in self.kwargs:
-            valid_kwargs['outlier_method'] = self.kwargs['outlier_method']
-        if 'random_state' in self.kwargs:
-            valid_kwargs['random_state'] = self.kwargs['random_state']
-
-        resultado = analisis_exploratorio_completo(self.data, **valid_kwargs)
-
-        # Guardar datos originales para visualización
-        resultado['datos_originales'] = self.data[valid_kwargs['variables']].copy()
-
+        resultado = analisis_exploratorio_completo(self.data, **kwargs)
         return resultado
-
 
 # ==================== WIDGET DE SELECCIÓN DE VARIABLES ====================
 
 class VariableSelectionWidget(QWidget):
-    """Widget para selección de variables para análisis no supervisado"""
+    """Widget para selección de variables optimizado"""
     variables_changed = pyqtSignal()
 
     def __init__(self):
@@ -377,7 +660,7 @@ class VariableSelectionWidget(QWidget):
         # Limpiar
         self.variables_list.clear()
 
-        # Obtener columnas numéricas, excluyendo las no relevantes para análisis
+        # Obtener columnas numéricas, excluyendo las no relevantes
         exclude_cols = ['Points', 'Sampling_date', 'Classification_6V', 'Classification_7V', 'Classification_9V']
         numeric_cols = self.data.select_dtypes(include=[np.number]).columns.tolist()
         numeric_cols = [col for col in numeric_cols if col not in exclude_cols]
@@ -423,9 +706,7 @@ class VariableSelectionWidget(QWidget):
         # Deseleccionar primero
         self._select_none_variables()
 
-        # Seleccionar variables con:
-        # 1. Menos del 20% de valores faltantes
-        # 2. Varianza suficiente
+        # Seleccionar variables con menos del 20% de valores faltantes y varianza suficiente
         selected_count = 0
 
         for i in range(self.variables_list.count()):
@@ -435,7 +716,7 @@ class VariableSelectionWidget(QWidget):
             col_data = self.data[col_name]
             missing_pct = (col_data.isnull().sum() / len(col_data)) * 100
 
-            # Verificar varianza (evitar variables constantes)
+            # Verificar varianza
             variance = col_data.var()
 
             if missing_pct < 20 and not np.isnan(variance) and variance > 0:
@@ -475,11 +756,10 @@ class VariableSelectionWidget(QWidget):
         """Verificar si la selección es válida"""
         return len(self.get_selected_variables()) >= 2
 
-
-# ==================== WIDGET DE CONFIGURACIÓN MEJORADO ====================
+    # ==================== WIDGET DE CONFIGURACIÓN ====================
 
 class ConfigurationWidget(QWidget):
-    """Widget para configuración de análisis con scroll"""
+    """Widget para configuración de análisis optimizado"""
 
     def __init__(self):
         super().__init__()
@@ -525,44 +805,24 @@ class ConfigurationWidget(QWidget):
         self.kmeans_k_max.setMinimumHeight(30)
         clustering_layout.addRow("K máximo:", self.kmeans_k_max)
 
-        # Separador
-        separator1 = QFrame()
-        separator1.setFrameShape(QFrame.HLine)
-        separator1.setFrameShadow(QFrame.Sunken)
-        clustering_layout.addRow(separator1)
-
         # DBSCAN
-        dbscan_label = QLabel("DBSCAN:")
-        dbscan_label.setStyleSheet("font-weight: bold; color: #34495e;")
-        clustering_layout.addRow(dbscan_label)
-
-        self.dbscan_optimize = QCheckBox("Optimizar parámetros automáticamente")
+        self.dbscan_optimize = QCheckBox("Optimizar parámetros DBSCAN automáticamente")
         self.dbscan_optimize.setChecked(True)
         self.dbscan_optimize.setMinimumHeight(30)
         clustering_layout.addRow("", self.dbscan_optimize)
 
-        # Separador
-        separator2 = QFrame()
-        separator2.setFrameShape(QFrame.HLine)
-        separator2.setFrameShadow(QFrame.Sunken)
-        clustering_layout.addRow(separator2)
-
-        # CLUSTERING JERÁRQUICO
-        hierarchical_label = QLabel("Clustering Jerárquico:")
-        hierarchical_label.setStyleSheet("font-weight: bold; color: #34495e;")
-        clustering_layout.addRow(hierarchical_label)
-
+        # Clustering Jerárquico
         self.hierarchical_method = QComboBox()
         self.hierarchical_method.addItems(['ward', 'complete', 'average', 'single'])
         self.hierarchical_method.setCurrentText('ward')
         self.hierarchical_method.setMinimumHeight(30)
-        clustering_layout.addRow("Método de enlace:", self.hierarchical_method)
+        clustering_layout.addRow("Método jerárquico:", self.hierarchical_method)
 
         self.hierarchical_metric = QComboBox()
-        self.hierarchical_metric.addItems(['euclidean', 'manhattan', 'cosine', 'chebyshev'])
+        self.hierarchical_metric.addItems(['euclidean', 'manhattan', 'cosine'])
         self.hierarchical_metric.setCurrentText('euclidean')
         self.hierarchical_metric.setMinimumHeight(30)
-        clustering_layout.addRow("Métrica de distancia:", self.hierarchical_metric)
+        clustering_layout.addRow("Métrica distancia:", self.hierarchical_metric)
 
         self.hierarchical_max_clusters = QSpinBox()
         self.hierarchical_max_clusters.setRange(2, 20)
@@ -586,27 +846,16 @@ class ConfigurationWidget(QWidget):
         self.pca_variance_threshold.setMinimumHeight(30)
         pca_layout.addRow("Varianza objetivo:", self.pca_variance_threshold)
 
-        self.pca_kernel_methods = QCheckBox("Incluir Kernel PCA (no lineal)")
-        self.pca_kernel_methods.setChecked(False)
-        self.pca_kernel_methods.setMinimumHeight(30)
-        pca_layout.addRow("", self.pca_kernel_methods)
-
-        self.pca_max_components = QSpinBox()
-        self.pca_max_components.setRange(2, 50)
-        self.pca_max_components.setValue(10)
-        self.pca_max_components.setMinimumHeight(30)
-        pca_layout.addRow("Componentes máximos:", self.pca_max_components)
-
         pca_group.setLayout(pca_layout)
         content_layout.addWidget(pca_group)
 
-        # ===== PREPROCESAMIENTO MEJORADO =====
-        preprocessing_group = QGroupBox("⚙️ Preprocesamiento Avanzado")
+        # ===== PREPROCESAMIENTO =====
+        preprocessing_group = QGroupBox("⚙️ Preprocesamiento")
         preprocessing_layout = QFormLayout()
         preprocessing_layout.setSpacing(10)
 
         self.scaling_method = QComboBox()
-        self.scaling_method.addItems(['standard', 'robust', 'minmax', 'quantile', 'none'])
+        self.scaling_method.addItems(['standard', 'robust', 'minmax', 'none'])
         self.scaling_method.setCurrentText('standard')
         self.scaling_method.setMinimumHeight(30)
         preprocessing_layout.addRow("Método de escalado:", self.scaling_method)
@@ -615,20 +864,6 @@ class ConfigurationWidget(QWidget):
         self.handle_outliers.setChecked(True)
         self.handle_outliers.setMinimumHeight(30)
         preprocessing_layout.addRow("", self.handle_outliers)
-
-        self.outlier_method = QComboBox()
-        self.outlier_method.addItems(['isolation_forest', 'zscore', 'iqr', 'local_outlier'])
-        self.outlier_method.setCurrentText('isolation_forest')
-        self.outlier_method.setMinimumHeight(30)
-        preprocessing_layout.addRow("Método detección:", self.outlier_method)
-
-        self.outlier_contamination = QDoubleSpinBox()
-        self.outlier_contamination.setRange(0.01, 0.5)
-        self.outlier_contamination.setValue(0.1)
-        self.outlier_contamination.setSingleStep(0.01)
-        self.outlier_contamination.setDecimals(2)
-        self.outlier_contamination.setMinimumHeight(30)
-        preprocessing_layout.addRow("Contaminación:", self.outlier_contamination)
 
         preprocessing_group.setLayout(preprocessing_layout)
         content_layout.addWidget(preprocessing_group)
@@ -677,31 +912,31 @@ class ConfigurationWidget(QWidget):
 
             # PCA
             'pca_variance_threshold': self.pca_variance_threshold.value(),
-            'pca_include_kernel': self.pca_kernel_methods.isChecked(),
-            'pca_max_components': self.pca_max_components.value(),
 
             # Preprocesamiento
             'scaling_method': self.scaling_method.currentText(),
             'handle_outliers': self.handle_outliers.isChecked(),
-            'outlier_method': self.outlier_method.currentText(),
-            'outlier_contamination': self.outlier_contamination.value(),
 
             # General
             'random_state': self.random_state.value(),
             'verbose': self.verbose_output.isChecked()
         }
 
-
-# ==================== WIDGET DE RESULTADOS CON VISUALIZACIONES IMPLEMENTADAS ====================
-
+# ==================== WIDGET DE RESULTADOS ====================
 class ResultsVisualizationWidget(QWidget):
-    """Widget para visualización de resultados No Supervisado"""
+    """Widget para visualización de resultados con graficación paralela optimizada"""
 
     def __init__(self):
         super().__init__()
         self.current_results = None
         self.current_analysis_type = None
+
+        # Sistema de graficación paralela
+        self.plotter = ParallelPlotter(max_workers=4)
+        self.plot_results = {}
+
         self.setup_ui()
+        self._setup_plotter_callbacks()
 
     def setup_ui(self):
         layout = QVBoxLayout()
@@ -728,11 +963,48 @@ class ResultsVisualizationWidget(QWidget):
 
         layout.addWidget(self.tabs)
 
+        # Barra de progreso para graficación paralela
+        self.plot_progress_bar = QProgressBar()
+        self.plot_progress_bar.setVisible(False)
+        self.plot_progress_bar.setFormat("Generando gráficos: %p%")
+        layout.addWidget(self.plot_progress_bar)
+
+        # Monitor de hilos para graficación
+        self.plot_thread_monitor = ThreadMonitorWidget(max_threads=4)
+        self.plot_thread_monitor.setVisible(False)
+        layout.addWidget(self.plot_thread_monitor)
+
         # Toolbar
         toolbar = self._create_toolbar()
         layout.addWidget(toolbar)
 
         self.setLayout(layout)
+
+    def _setup_plotter_callbacks(self):
+        """Configurar callbacks del sistema de graficación paralela"""
+
+        def on_plot_progress(progress):
+            self.plot_progress_bar.setValue(int(progress))
+
+        def on_plot_status(msg):
+            # Opcional: mostrar en un label de estado
+            pass
+
+        def on_plot_threads(active_threads):
+            self.plot_thread_monitor.update_active_threads(active_threads)
+
+        def on_plot_complete(task_id, result, error):
+            if error:
+                print(f"Error en tarea de graficación {task_id}: {error}")
+            else:
+                self.plot_results[task_id] = result
+
+        self.plotter.set_callbacks(
+            progress_callback=on_plot_progress,
+            status_callback=on_plot_status,
+            thread_monitor_callback=on_plot_threads,
+            task_complete_callback=on_plot_complete
+        )
 
     def _create_summary_tab(self) -> QWidget:
         """Crear tab de resumen"""
@@ -747,418 +1019,71 @@ class ResultsVisualizationWidget(QWidget):
         widget.setLayout(layout)
         return widget
 
-    def _save_figure(self):
-        """Guardar figura actual en PNG."""
-        if not hasattr(self, 'figure'):
-            QMessageBox.warning(self, "Sin figura", "No hay figura para guardar.")
-            return
-
-        file_path, _ = QFileDialog.getSaveFileName(
-            self,
-            "Guardar Figura",
-            "",
-            "Imagen PNG (*.png);;Imagen JPEG (*.jpg)"
-        )
-        if file_path:
-            try:
-                self.figure.savefig(file_path, dpi=300, bbox_inches='tight')
-                QMessageBox.information(self, "Éxito", f"Figura guardada en:\n{file_path}")
-            except Exception as e:
-                QMessageBox.critical(self, "Error", f"No se pudo guardar la figura:\n{e}")
-
-    def _generate_report(self):
-        """Generar reporte de los resultados actuales."""
-        from PyQt5.QtWidgets import QFileDialog, QMessageBox
-        import pandas as pd
-
-        if not hasattr(self, 'current_results') or not self.current_results:
-            QMessageBox.warning(self, "Sin datos", "No hay resultados para generar el reporte.")
-            return
-
-        file_path, _ = QFileDialog.getSaveFileName(
-            self,
-            "Guardar Reporte",
-            "",
-            "Archivo de texto (*.txt);;Archivo CSV (*.csv)"
-        )
-        if not file_path:
-            return
-
-        try:
-            mejor_config = self.current_results.get('mejor_configuracion', {})
-            lines = []
-            lines.append("=== Reporte de Resultados No Supervisado ===\n")
-            if mejor_config:
-                lines.append("Parámetros óptimos:\n")
-                for key, val in mejor_config.items():
-                    lines.append(f"- {key}: {val}\n")
-            else:
-                lines.append("No se encontraron parámetros óptimos.\n")
-
-            with open(file_path, "w", encoding="utf-8") as f:
-                f.writelines(lines)
-
-            QMessageBox.information(self, "Éxito", f"Reporte guardado en:\n{file_path}")
-
-        except Exception as e:
-            QMessageBox.critical(self, "Error", f"No se pudo generar el reporte:\n{e}")
-
-    def _plot_dbscan_clusters_fixed(self, ax, datos, labels):
-        """Graficar clusters DBSCAN con PCA - VERSIÓN CORREGIDA"""
-        try:
-            from sklearn.decomposition import PCA
-            from sklearn.preprocessing import StandardScaler
-
-            # Seleccionar columnas numéricas válidas
-            numeric_cols = datos.select_dtypes(include=[np.number]).columns
-            exclude_cols = ['Points', 'WQI_IDEAM_6V', 'WQI_IDEAM_7V', 'WQI_NSF_9V']
-            valid_cols = [col for col in numeric_cols if col not in exclude_cols]
-
-            if len(valid_cols) < 2:
-                ax.text(0.5, 0.5, 'Insuficientes variables numéricas',
-                        ha='center', va='center', transform=ax.transAxes)
-                return
-
-            # Preparar datos para PCA
-            datos_numeric = datos[valid_cols].dropna()
-
-            # Ajustar labels al tamaño de datos limpios
-            if len(datos_numeric) != len(labels):
-                valid_indices = datos_numeric.index
-                original_indices = datos.index
-                mask = np.isin(original_indices, valid_indices)
-                labels_clean = labels[mask]
-            else:
-                labels_clean = labels
-
-            if len(datos_numeric) != len(labels_clean):
-                ax.text(0.5, 0.5, 'Incompatibilidad en dimensiones de datos',
-                        ha='center', va='center', transform=ax.transAxes)
-                return
-
-            # Aplicar PCA para reducir a 2D
-            scaler = StandardScaler()
-            datos_scaled = scaler.fit_transform(datos_numeric)
-
-            pca = PCA(n_components=2)
-            datos_2d = pca.fit_transform(datos_scaled)
-
-            # Colores por cluster
-            unique_labels = set(labels_clean)
-            colors = plt.cm.Spectral(np.linspace(0, 1, len(unique_labels)))
-
-            for k, col in zip(unique_labels, colors):
-                if k == -1:
-                    # Outliers en negro
-                    col = 'black'
-                    marker = 'x'
-                    label = 'Outliers'
-                    s = 100
-                    alpha = 0.8
-                else:
-                    marker = 'o'
-                    label = f'Cluster {k}'
-                    s = 60
-                    alpha = 0.7
-
-                class_member_mask = (labels_clean == k)
-                xy = datos_2d[class_member_mask]
-
-                if len(xy) > 0:  # Solo graficar si hay puntos
-                    ax.scatter(xy[:, 0], xy[:, 1], c=[col], marker=marker,
-                               s=s, label=label, alpha=alpha, edgecolors='black', linewidth=0.5)
-
-            var_exp = pca.explained_variance_ratio_
-            ax.set_xlabel(f'PC1 ({var_exp[0] * 100:.1f}%)')
-            ax.set_ylabel(f'PC2 ({var_exp[1] * 100:.1f}%)')
-            ax.set_title('Clusters DBSCAN (PCA)')
-            ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
-            ax.grid(True, alpha=0.3)
-
-        except Exception as e:
-            ax.text(0.5, 0.5, f'Error: {str(e)[:50]}',
-                    ha='center', va='center', transform=ax.transAxes)
-
-    def _plot_dbscan_info_fixed(self, ax, mejor_config):
-        """Mostrar información de parámetros DBSCAN"""
-        try:
-            info_text = f"Parámetros DBSCAN:\n\n"
-            info_text += f"Eps: {mejor_config.get('eps', 0):.3f}\n"
-            info_text += f"Min Samples: {mejor_config.get('min_samples', 0)}\n\n"
-            info_text += f"Resultados:\n"
-            info_text += f"Clusters: {mejor_config.get('n_clusters', 0)}\n"
-            info_text += f"Outliers: {mejor_config.get('n_noise', 0)}\n"
-            info_text += f"Silhouette: {mejor_config.get('silhouette_score', 0):.3f}\n"
-
-            ax.text(0.05, 0.95, info_text, fontsize=11, va='top', ha='left',
-                    family='monospace', transform=ax.transAxes,
-                    bbox=dict(boxstyle='round', facecolor='lightblue', alpha=0.7))
-            ax.set_title('Configuración DBSCAN')
-            ax.axis('off')
-
-        except Exception as e:
-            ax.text(0.5, 0.5, f'Error: {str(e)[:30]}',
-                    ha='center', va='center', transform=ax.transAxes)
-
-    def _plot_dbscan_distribution_fixed(self, ax, labels):
-        """Graficar distribución de puntos por cluster"""
-        try:
-            unique_labels = sorted([l for l in set(labels) if l != -1])
-            outliers_count = list(labels).count(-1)
-
-            # Contar puntos por cluster
-            cluster_counts = [list(labels).count(label) for label in unique_labels]
-            cluster_names = [f'Cluster {label}' for label in unique_labels]
-
-            if outliers_count > 0:
-                cluster_counts.append(outliers_count)
-                cluster_names.append('Outliers')
-
-            if cluster_counts:
-                colors = ['red' if name == 'Outliers' else 'skyblue' for name in cluster_names]
-                bars = ax.bar(cluster_names, cluster_counts, color=colors, alpha=0.7, edgecolor='black')
-
-                # Añadir valores en barras
-                for bar, count in zip(bars, cluster_counts):
-                    height = bar.get_height()
-                    ax.text(bar.get_x() + bar.get_width() / 2., height + 0.5,
-                            f'{count}', ha='center', va='bottom', fontweight='bold')
-
-                ax.set_ylabel('Número de Puntos')
-                ax.set_title('Distribución por Cluster')
-                ax.tick_params(axis='x', rotation=45)
-                ax.grid(True, alpha=0.3, axis='y')
-            else:
-                ax.text(0.5, 0.5, 'Sin datos de distribución',
-                        ha='center', va='center', transform=ax.transAxes)
-
-        except Exception as e:
-            ax.text(0.5, 0.5, f'Error: {str(e)[:30]}',
-                    ha='center', va='center', transform=ax.transAxes)
-
-    def _plot_dbscan_stats_fixed(self, ax, mejor_config):
-        """Mostrar estadísticas adicionales"""
-        try:
-            n_clusters = mejor_config.get('n_clusters', 0)
-            n_outliers = mejor_config.get('n_noise', 0)
-            total_points = mejor_config.get('total_points', n_clusters * 10 + n_outliers)
-
-            # Crear gráfico de texto informativo
-            info_text = f"Estadísticas DBSCAN\n"
-            info_text += "=" * 20 + "\n\n"
-            info_text += f"Total de puntos: {total_points}\n"
-            info_text += f"Clusters válidos: {n_clusters}\n"
-            info_text += f"Puntos outliers: {n_outliers}\n\n"
-
-            if total_points > 0:
-                cluster_ratio = (total_points - n_outliers) / total_points * 100
-                outlier_ratio = n_outliers / total_points * 100
-                info_text += f"% en clusters: {cluster_ratio:.1f}%\n"
-                info_text += f"% outliers: {outlier_ratio:.1f}%\n\n"
-
-            # Evaluación de calidad
-            silhouette = mejor_config.get('silhouette_score', 0)
-            if silhouette > 0.7:
-                calidad = "Excelente"
-            elif silhouette > 0.5:
-                calidad = "Buena"
-            else:
-                calidad = "Regular"
-
-            info_text += f"Calidad clustering: {calidad}\n"
-            info_text += f"Silhouette Score: {silhouette:.3f}"
-
-            ax.text(0.05, 0.95, info_text, fontsize=10, va='top', ha='left',
-                    family='monospace', transform=ax.transAxes,
-                    bbox=dict(boxstyle='round', facecolor='lightyellow', alpha=0.8))
-            ax.set_title('Estadísticas Detalladas')
-            ax.axis('off')
-
-        except Exception as e:
-            ax.text(0.5, 0.5, f'Error: {str(e)[:30]}',
-                    ha='center', va='center', transform=ax.transAxes)
-
-    def _create_pca_plots_internal(self):
-        """Crear plots PCA directamente en self.figure - VERSIÓN CORREGIDA"""
-        try:
-            from sklearn.decomposition import PCA
-            from sklearn.preprocessing import StandardScaler
-
-            # Obtener datos originales
-            if 'datos_originales' not in self.current_results:
-                ax = self.figure.add_subplot(111)
-                ax.text(0.5, 0.5, 'No hay datos originales para PCA',
-                        ha='center', va='center', transform=ax.transAxes)
-                return
-
-            datos = self.current_results['datos_originales']
-            resultados = self.current_results.get('resultados_por_metodo', {})
-
-            if 'linear' not in resultados:
-                ax = self.figure.add_subplot(111)
-                ax.text(0.5, 0.5, 'No hay resultados de PCA lineal',
-                        ha='center', va='center', transform=ax.transAxes)
-                return
-
-            # Obtener variables numéricas válidas
-            numeric_cols = datos.select_dtypes(include=[np.number]).columns
-            exclude_cols = ['Points', 'WQI_IDEAM_6V', 'WQI_IDEAM_7V', 'WQI_NSF_9V']
-            variables_pca = [col for col in numeric_cols if col not in exclude_cols]
-
-            if len(variables_pca) < 2:
-                ax = self.figure.add_subplot(111)
-                ax.text(0.5, 0.5, 'Se necesitan al menos 2 variables numéricas para PCA',
-                        ha='center', va='center', transform=ax.transAxes)
-                return
-
-            # Preparar datos - CORREGIDO: manejo seguro de datos
-            datos_pca = datos[variables_pca].dropna()
-
-            if len(datos_pca) < 3:
-                ax = self.figure.add_subplot(111)
-                ax.text(0.5, 0.5, 'Datos insuficientes después de limpiar valores faltantes',
-                        ha='center', va='center', transform=ax.transAxes)
-                return
-
-            # Aplicar PCA
-            scaler = StandardScaler()
-            datos_scaled = scaler.fit_transform(datos_pca)
-
-            pca = PCA(n_components=min(5, len(variables_pca), len(datos_pca) - 1))
-            datos_pca_transformed = pca.fit_transform(datos_scaled)
-
-            # Layout 2x2
-            gs = self.figure.add_gridspec(2, 2, hspace=0.3, wspace=0.3)
-
-            # 1. Biplot PC1 vs PC2
-            ax1 = self.figure.add_subplot(gs[0, 0])
-            if datos_pca_transformed.shape[1] >= 2:
-                scatter = ax1.scatter(datos_pca_transformed[:, 0], datos_pca_transformed[:, 1],
-                                      alpha=0.6, s=50, c='blue', edgecolors='black', linewidth=0.5)
-
-                # Añadir flechas de variables (loadings)
-                loadings = pca.components_[:2, :].T * np.sqrt(pca.explained_variance_[:2])
-
-                for i, (var, loading) in enumerate(zip(variables_pca, loadings)):
-                    if i < 8:  # Solo mostrar las primeras 8 variables para claridad
-                        ax1.arrow(0, 0, loading[0] * 2, loading[1] * 2,
-                                  head_width=0.1, head_length=0.1, fc='red', ec='red', alpha=0.7)
-                        ax1.text(loading[0] * 2.2, loading[1] * 2.2, var[:6],
-                                 fontsize=8, ha='center', va='center')
-
-                ax1.set_xlabel(f'PC1 ({pca.explained_variance_ratio_[0] * 100:.1f}%)')
-                ax1.set_ylabel(f'PC2 ({pca.explained_variance_ratio_[1] * 100:.1f}%)')
-                ax1.set_title('Biplot PCA')
-                ax1.grid(True, alpha=0.3)
-            else:
-                ax1.text(0.5, 0.5, 'Solo 1 componente disponible',
-                         ha='center', va='center', transform=ax1.transAxes)
-
-            # 2. Varianza explicada
-            ax2 = self.figure.add_subplot(gs[0, 1])
-            var_exp = pca.explained_variance_ratio_
-            var_cum = np.cumsum(var_exp)
-
-            x = range(1, len(var_exp) + 1)
-            bars = ax2.bar(x, var_exp * 100, alpha=0.6, color='skyblue', label='Individual')
-
-            ax2_twin = ax2.twinx()
-            ax2_twin.plot(x, var_cum * 100, 'ro-', linewidth=2, markersize=6, label='Acumulada')
-            ax2_twin.axhline(y=95, color='green', linestyle='--', alpha=0.7, label='95%')
-
-            ax2.set_xlabel('Componente Principal')
-            ax2.set_ylabel('Varianza Explicada (%)', color='blue')
-            ax2_twin.set_ylabel('Varianza Acumulada (%)', color='red')
-            ax2.set_title('Varianza Explicada')
-            ax2.legend(loc='upper left')
-            ax2_twin.legend(loc='upper right')
-            ax2.grid(True, alpha=0.3)
-
-            # 3. Contribuciones de variables al PC1
-            ax3 = self.figure.add_subplot(gs[1, 0])
-            if len(pca.components_) > 0:
-                loadings_pc1 = pca.components_[0]
-                # Tomar las variables más importantes
-                abs_loadings = np.abs(loadings_pc1)
-                top_indices = np.argsort(abs_loadings)[-8:][::-1]  # Top 8 variables
-
-                top_vars = [variables_pca[i] for i in top_indices]
-                top_loadings = [loadings_pc1[i] for i in top_indices]
-
-                colors = ['red' if x < 0 else 'blue' for x in top_loadings]
-                bars = ax3.barh(range(len(top_vars)), top_loadings, color=colors, alpha=0.7)
-
-                ax3.set_yticks(range(len(top_vars)))
-                ax3.set_yticklabels([var[:10] for var in top_vars])  # Truncar nombres largos
-                ax3.set_xlabel('Loading')
-                ax3.set_title('Contribuciones Variables PC1')
-                ax3.grid(True, alpha=0.3)
-
-                # Añadir valores
-                for i, (bar, val) in enumerate(zip(bars, top_loadings)):
-                    ax3.text(val + 0.01 if val >= 0 else val - 0.01, i,
-                             f'{val:.2f}', va='center',
-                             ha='left' if val >= 0 else 'right', fontsize=8)
-
-            # 4. Información general
-            ax4 = self.figure.add_subplot(gs[1, 1])
-            n_comp_95 = np.argmax(var_cum >= 0.95) + 1
-
-            info_text = f"Resumen PCA:\n\n"
-            info_text += f"Variables analizadas: {len(variables_pca)}\n"
-            info_text += f"Muestras: {len(datos_pca)}\n"
-            info_text += f"Componentes calculados: {len(var_exp)}\n"
-            info_text += f"Componentes para 95%: {n_comp_95}\n\n"
-            info_text += f"PC1: {var_exp[0] * 100:.1f}% varianza\n"
-            if len(var_exp) > 1:
-                info_text += f"PC2: {var_exp[1] * 100:.1f}% varianza\n"
-            info_text += f"Total PC1+PC2: {var_cum[1] * 100:.1f}%" if len(
-                var_cum) > 1 else f"Solo PC1: {var_cum[0] * 100:.1f}%"
-
-            ax4.text(0.05, 0.95, info_text, fontsize=10, va='top', ha='left',
-                     family='monospace', transform=ax4.transAxes,
-                     bbox=dict(boxstyle='round', facecolor='lightblue', alpha=0.7))
-            ax4.set_title('Información PCA')
-            ax4.axis('off')
-
-            self.figure.suptitle('Análisis de Componentes Principales (PCA)',
-                                 fontsize=16, fontweight='bold')
-
-        except Exception as e:
-            print(f"Error en PCA plots: {e}")
-            import traceback
-            traceback.print_exc()
-
-            ax = self.figure.add_subplot(111)
-            ax.text(0.5, 0.5, f'Error en PCA: {str(e)[:100]}',
-                    ha='center', va='center', transform=ax.transAxes,
-                    bbox=dict(boxstyle='round', facecolor='mistyrose'))
-            ax.set_title('Error en PCA')
-            ax.axis('off')
-
-    def _export_results(self):
-        """Exportar resultados actuales a CSV."""
-        if not hasattr(self, 'current_results') or 'datos_originales' not in self.current_results:
-            QMessageBox.warning(self, "Sin datos", "No hay resultados para exportar.")
-            return
-
-        df = self.current_results['datos_originales'].copy()
-        mejor_config = self.current_results.get('mejor_configuracion', {})
-        if 'cluster_labels' in mejor_config:
-            df['Cluster'] = mejor_config['cluster_labels'][:len(df)]
-
-        file_path, _ = QFileDialog.getSaveFileName(
-            self,
-            "Exportar Resultados",
-            "",
-            "Archivo CSV (*.csv)"
-        )
-        if file_path:
-            try:
-                df.to_csv(file_path, index=False, encoding='utf-8-sig')
-                QMessageBox.information(self, "Éxito", f"Resultados exportados a:\n{file_path}")
-            except Exception as e:
-                QMessageBox.critical(self, "Error", f"No se pudo exportar:\n{e}")
+    def _create_metrics_tab(self) -> QWidget:
+        """Crear tab de métricas"""
+        widget = QWidget()
+        layout = QVBoxLayout()
+
+        self.metrics_table = QTableWidget()
+        self.metrics_table.setAlternatingRowColors(True)
+        layout.addWidget(self.metrics_table)
+
+        widget.setLayout(layout)
+        return widget
+
+    def _create_viz_tab(self) -> QWidget:
+        """Crear tab de visualizaciones"""
+        widget = QWidget()
+        layout = QVBoxLayout()
+
+        # Canvas para matplotlib
+        self.figure = Figure(figsize=(12, 8))
+        self.canvas = FigureCanvas(self.figure)
+
+        scroll = QScrollArea()
+        scroll.setWidget(self.canvas)
+        scroll.setWidgetResizable(True)
+        layout.addWidget(scroll)
+
+        # Selector de gráficos generados
+        plot_selector_layout = QHBoxLayout()
+
+        plot_selector_label = QLabel("Gráfico:")
+        plot_selector_layout.addWidget(plot_selector_label)
+
+        self.plot_selector = QComboBox()
+        self.plot_selector.currentIndexChanged.connect(self._on_plot_selected)
+        plot_selector_layout.addWidget(self.plot_selector)
+
+        plot_selector_layout.addStretch()
+        layout.addLayout(plot_selector_layout)
+
+        # Controles
+        controls_layout = QHBoxLayout()
+
+        self.regenerate_parallel_btn = QPushButton("🚀 Regenerar en Paralelo")
+        self.regenerate_parallel_btn.clicked.connect(self._regenerate_plots_parallel)
+        self.regenerate_parallel_btn.setEnabled(False)
+        controls_layout.addWidget(self.regenerate_parallel_btn)
+
+        self.save_fig_btn = QPushButton("💾 Guardar Gráfico")
+        self.save_fig_btn.clicked.connect(self._save_figure)
+        controls_layout.addWidget(self.save_fig_btn)
+
+        self.save_all_btn = QPushButton("💾 Guardar Todos")
+        self.save_all_btn.clicked.connect(self._save_all_figures)
+        self.save_all_btn.setEnabled(False)
+        controls_layout.addWidget(self.save_all_btn)
+
+        self.clear_fig_btn = QPushButton("🗑️ Limpiar")
+        self.clear_fig_btn.clicked.connect(self._clear_figure)
+        controls_layout.addWidget(self.clear_fig_btn)
+
+        controls_layout.addStretch()
+        layout.addLayout(controls_layout)
+
+        widget.setLayout(layout)
+        return widget
 
     def _create_details_tab(self) -> QWidget:
         """Crear tab de detalles"""
@@ -1215,7 +1140,8 @@ class ResultsVisualizationWidget(QWidget):
         self._update_details(results)
 
         if ML_AVAILABLE:
-            self._update_visualization()
+            # Generar visualizaciones en paralelo
+            self._update_visualization_parallel()
 
         self.status_label.setText(f"✅ {analysis_type} completado")
         self.status_label.setStyleSheet("color: green;")
@@ -1223,13 +1149,810 @@ class ResultsVisualizationWidget(QWidget):
         # Habilitar botones
         self.export_results_btn.setEnabled(True)
         self.generate_report_btn.setEnabled(True)
+        self.regenerate_parallel_btn.setEnabled(True)
+
+    def _update_visualization_parallel(self):
+        """Actualizar visualización usando procesamiento paralelo"""
+        if not self.current_results or not ML_AVAILABLE:
+            return
+
+        # Mostrar controles de progreso
+        self.plot_progress_bar.setVisible(True)
+        self.plot_thread_monitor.setVisible(True)
+        self.plot_thread_monitor.reset()
+
+        # Limpiar tareas previas
+        self.plotter.clear_tasks()
+        self.plot_results.clear()
+        self.plot_selector.clear()
+
+        tipo = self.current_results.get('tipo', '')
+
+        try:
+            # Agregar tareas según el tipo de análisis
+            if tipo == 'kmeans_optimizado':
+                self._add_kmeans_plots()
+            elif tipo == 'dbscan_optimizado':
+                self._add_dbscan_plots()
+            elif tipo == 'pca_completo_avanzado':
+                self._add_pca_plots()
+            elif tipo == 'clustering_jerarquico_completo':
+                self._add_hierarchical_plots()
+            elif tipo == 'analisis_exploratorio_completo':
+                self._add_exploratory_plots()
+            else:
+                # Fallback a visualización tradicional
+                self._update_visualization_traditional()
+                return
+
+            # Ejecutar tareas en paralelo
+            results = self.plotter.execute_all()
+
+            # Actualizar selector de gráficos
+            for task_id in sorted(results.keys()):
+                task = self.plotter.tasks[task_id]
+                self.plot_selector.addItem(task.description, task_id)
+
+            # Mostrar primer gráfico
+            if results:
+                first_fig = list(results.values())[0]
+                self.canvas.figure = first_fig
+                self.canvas.draw()
+
+            self.save_all_btn.setEnabled(len(results) > 0)
+
+        except Exception as e:
+            print(f"Error en visualización paralela: {e}")
+            import traceback
+            traceback.print_exc()
+            self._update_visualization_traditional()
+
+        finally:
+            # Ocultar controles de progreso
+            self.plot_progress_bar.setVisible(False)
+            self.plot_thread_monitor.setVisible(False)
+
+    def _add_kmeans_plots(self):
+        """Agregar tareas de graficación para K-Means"""
+        # Gráfico 1: Evaluación de K
+        self.plotter.add_task(
+            self._plot_kmeans_evaluation,
+            self.current_results,
+            {'figsize': (8, 6)},
+            "K-Means: Evaluación K"
+        )
+
+        # Gráfico 2: Distribución clusters
+        self.plotter.add_task(
+            self._plot_cluster_distribution,
+            self.current_results,
+            {'figsize': (8, 6)},
+            "K-Means: Distribución"
+        )
+
+        # Gráfico 3: Clusters en PCA
+        self.plotter.add_task(
+            self._plot_clusters_pca,
+            self.current_results,
+            {'figsize': (10, 8)},
+            "K-Means: Vista PCA"
+        )
+
+    def _add_dbscan_plots(self):
+        """Agregar tareas de graficación para DBSCAN"""
+        self.plotter.add_task(
+            self._plot_dbscan_info,
+            self.current_results,
+            {'figsize': (8, 6)},
+            "DBSCAN: Información"
+        )
+
+        self.plotter.add_task(
+            self._plot_cluster_distribution,
+            self.current_results,
+            {'figsize': (8, 6)},
+            "DBSCAN: Distribución"
+        )
+
+        self.plotter.add_task(
+            self._plot_clusters_pca,
+            self.current_results,
+            {'figsize': (10, 8)},
+            "DBSCAN: Vista PCA"
+        )
+
+    def _add_pca_plots(self):
+        """Agregar tareas de graficación para PCA"""
+        self.plotter.add_task(
+            self._plot_pca_variance,
+            self.current_results,
+            {'figsize': (8, 6)},
+            "PCA: Varianza Explicada"
+        )
+
+        self.plotter.add_task(
+            self._plot_pca_cumulative,
+            self.current_results,
+            {'figsize': (8, 6)},
+            "PCA: Varianza Acumulada"
+        )
+
+        self.plotter.add_task(
+            self._plot_pca_loadings,
+            self.current_results,
+            {'figsize': (10, 6)},
+            "PCA: Loadings"
+        )
+
+        self.plotter.add_task(
+            self._plot_pca_scree,
+            self.current_results,
+            {'figsize': (8, 6)},
+            "PCA: Scree Plot"
+        )
+
+    def _add_hierarchical_plots(self):
+        """Agregar tareas de graficación para clustering jerárquico"""
+        self.plotter.add_task(
+            self._plot_hierarchical_evaluation,
+            self.current_results,
+            {'figsize': (8, 6)},
+            "Jerárquico: Evaluación K"
+        )
+
+        self.plotter.add_task(
+            self._plot_dendrogram,
+            self.current_results,
+            {'figsize': (12, 6)},
+            "Jerárquico: Dendrograma"
+        )
+
+        self.plotter.add_task(
+            self._plot_clusters_pca,
+            self.current_results,
+            {'figsize': (10, 8)},
+            "Jerárquico: Vista PCA"
+        )
+
+    def _add_exploratory_plots(self):
+        """Agregar tareas de graficación para análisis exploratorio"""
+        self.plotter.add_task(
+            self._plot_correlation_matrix,
+            self.current_results,
+            {'figsize': (10, 8)},
+            "Exploratorio: Correlaciones"
+        )
+
+        self.plotter.add_task(
+            self._plot_outliers_distribution,
+            self.current_results,
+            {'figsize': (8, 6)},
+            "Exploratorio: Outliers"
+        )
+
+        self.plotter.add_task(
+            self._plot_data_quality,
+            self.current_results,
+            {'figsize': (8, 8)},
+            "Exploratorio: Calidad Datos"
+        )
+
+    # ==================== FUNCIONES DE GRAFICACIÓN ====================
+
+    def _plot_kmeans_evaluation(self, fig, data, config, progress_callback):
+        """Gráfico de evaluación de K para K-Means"""
+        if progress_callback:
+            progress_callback(10)
+
+        ax = fig.add_subplot(111)
+
+        k_vals = list(data['resultados_por_k'].keys())
+        silhouette_vals = [data['resultados_por_k'][k]['silhouette_score'] for k in k_vals]
+
+        if progress_callback:
+            progress_callback(50)
+
+        ax.plot(k_vals, silhouette_vals, 'bo-', linewidth=2, markersize=8)
+        ax.set_xlabel('Número de Clusters (K)')
+        ax.set_ylabel('Silhouette Score')
+        ax.set_title('Evaluación de K óptimo')
+        ax.grid(True, alpha=0.3)
+
+        # Marcar K óptimo
+        k_opt = data.get('recomendacion_k')
+        if k_opt in data['resultados_por_k']:
+            best_score = data['resultados_por_k'][k_opt]['silhouette_score']
+            ax.plot(k_opt, best_score, 'ro', markersize=12, label=f'K óptimo = {k_opt}')
+            ax.legend()
+
+        fig.tight_layout()
+
+        if progress_callback:
+            progress_callback(100)
+
+        return fig
+
+    def _plot_cluster_distribution(self, fig, data, config, progress_callback):
+        """Gráfico de distribución por cluster"""
+        if progress_callback:
+            progress_callback(10)
+
+        ax = fig.add_subplot(111)
+
+        tipo = data.get('tipo', '')
+
+        if tipo == 'kmeans_optimizado':
+            k_opt = data.get('recomendacion_k')
+            if k_opt and k_opt in data['resultados_por_k']:
+                labels = data['resultados_por_k'][k_opt]['labels']
+        elif tipo == 'dbscan_optimizado':
+            labels = data['mejor_configuracion']['labels']
+        else:
+            labels = []
+
+        if progress_callback:
+            progress_callback(50)
+
+        if labels:
+            unique_labels = np.unique(labels)
+            tamaños = [labels.count(label) for label in unique_labels]
+
+            bars = ax.bar(range(len(unique_labels)), tamaños, alpha=0.7)
+            ax.set_xlabel('Cluster')
+            ax.set_ylabel('Número de Puntos')
+            ax.set_title('Distribución por Cluster')
+            ax.set_xticks(range(len(unique_labels)))
+            ax.set_xticklabels([f'C{label}' if label != -1 else 'Outliers'
+                                for label in unique_labels])
+
+            # Añadir valores
+            for bar, tamaño in zip(bars, tamaños):
+                height = bar.get_height()
+                ax.text(bar.get_x() + bar.get_width() / 2., height + 0.5,
+                        f'{tamaño}', ha='center', va='bottom')
+
+        fig.tight_layout()
+
+        if progress_callback:
+            progress_callback(100)
+
+        return fig
+
+    def _plot_clusters_pca(self, fig, data, config, progress_callback):
+        """Gráfico de clusters en espacio PCA"""
+        if progress_callback:
+            progress_callback(10)
+
+        ax = fig.add_subplot(111)
+
+        try:
+            datos = data['datos_originales']
+
+            # Obtener labels
+            tipo = data.get('tipo', '')
+            if tipo == 'kmeans_optimizado':
+                k_opt = data.get('recomendacion_k')
+                labels = data['resultados_por_k'][k_opt]['labels'] if k_opt else []
+            elif tipo == 'dbscan_optimizado':
+                labels = data['mejor_configuracion']['labels']
+            elif tipo == 'clustering_jerarquico_completo':
+                labels = data['mejor_configuracion']['labels']
+            else:
+                labels = [0] * len(datos)
+
+            if progress_callback:
+                progress_callback(40)
+
+            # PCA para 2D
+            X_scaled, _ = aplicar_escalado(datos, 'standard')
+            pca_result = manual_pca(X_scaled.values, n_components=2)
+            datos_2d = pca_result['X_transformed']
+
+            if progress_callback:
+                progress_callback(70)
+
+            # Graficar
+            unique_labels = set(labels)
+            colors = plt.cm.tab10(np.linspace(0, 1, len(unique_labels)))
+
+            for label, color in zip(unique_labels, colors):
+                mask = np.array(labels) == label
+
+                if label == -1:
+                    ax.scatter(datos_2d[mask, 0], datos_2d[mask, 1],
+                               c='black', marker='x', s=100, alpha=0.8, label='Outliers')
+                else:
+                    ax.scatter(datos_2d[mask, 0], datos_2d[mask, 1],
+                               c=[color], label=f'Cluster {label}',
+                               s=60, alpha=0.7, edgecolors='black', linewidth=0.5)
+
+            var_exp = pca_result['explained_variance_ratio']
+            ax.set_xlabel(f'PC1 ({var_exp[0] * 100:.1f}%)')
+            ax.set_ylabel(f'PC2 ({var_exp[1] * 100:.1f}%)')
+            ax.set_title('Clusters en Espacio PCA')
+            ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+            ax.grid(True, alpha=0.3)
+
+        except Exception as e:
+            ax.text(0.5, 0.5, f'Error: {str(e)[:50]}',
+                    ha='center', va='center', transform=ax.transAxes)
+
+        fig.tight_layout()
+
+        if progress_callback:
+            progress_callback(100)
+
+        return fig
+
+    def _plot_dbscan_info(self, fig, data, config, progress_callback):
+        """Información de DBSCAN"""
+        if progress_callback:
+            progress_callback(50)
+
+        ax = fig.add_subplot(111)
+
+        mejor_config = data['mejor_configuracion']
+
+        info_text = f"Parámetros DBSCAN:\n\n"
+        info_text += f"Eps: {mejor_config['eps']:.3f}\n"
+        info_text += f"Min Samples: {mejor_config['min_samples']}\n\n"
+        info_text += f"Resultados:\n"
+        info_text += f"Clusters: {mejor_config['n_clusters']}\n"
+        info_text += f"Outliers: {mejor_config['n_noise']}\n"
+        info_text += f"Silhouette: {mejor_config['silhouette_score']:.3f}"
+
+        ax.text(0.05, 0.95, info_text, fontsize=10, va='top', ha='left',
+                transform=ax.transAxes, family='monospace')
+        ax.set_title('Configuración DBSCAN')
+        ax.axis('off')
+
+        fig.tight_layout()
+
+        if progress_callback:
+            progress_callback(100)
+
+        return fig
+
+    def _plot_pca_variance(self, fig, data, config, progress_callback):
+        """Varianza explicada por componente"""
+        if progress_callback:
+            progress_callback(20)
+
+        ax = fig.add_subplot(111)
+
+        linear_result = data['resultados_por_metodo']['linear']
+        analisis = linear_result['analisis']
+        var_exp = analisis['varianza_explicada']
+
+        if progress_callback:
+            progress_callback(60)
+
+        x = range(1, len(var_exp) + 1)
+        bars = ax.bar(x, [v * 100 for v in var_exp], alpha=0.7, color='steelblue')
+
+        ax.set_xlabel('Componente Principal')
+        ax.set_ylabel('Varianza Explicada (%)')
+        ax.set_title('Varianza por Componente')
+        ax.grid(True, alpha=0.3)
+
+        for i, (bar, val) in enumerate(zip(bars, var_exp)):
+            height = bar.get_height()
+            ax.text(bar.get_x() + bar.get_width() / 2., height + 0.5,
+                    f'{val * 100:.1f}%', ha='center', va='bottom', fontsize=9)
+
+        fig.tight_layout()
+
+        if progress_callback:
+            progress_callback(100)
+
+        return fig
+
+    def _plot_pca_cumulative(self, fig, data, config, progress_callback):
+        """Varianza acumulada"""
+        if progress_callback:
+            progress_callback(20)
+
+        ax = fig.add_subplot(111)
+
+        linear_result = data['resultados_por_metodo']['linear']
+        analisis = linear_result['analisis']
+        var_acum = analisis['varianza_acumulada']
+
+        if progress_callback:
+            progress_callback(60)
+
+        x = range(1, len(var_acum) + 1)
+        ax.plot(x, [v * 100 for v in var_acum], 'o-', linewidth=2, markersize=8, color='darkred')
+        ax.axhline(y=95, color='red', linestyle='--', alpha=0.7, label='95%')
+        ax.axhline(y=85, color='orange', linestyle='--', alpha=0.7, label='85%')
+
+        ax.set_xlabel('Componente Principal')
+        ax.set_ylabel('Varianza Acumulada (%)')
+        ax.set_title('Varianza Acumulada')
+        ax.legend()
+        ax.grid(True, alpha=0.3)
+        ax.set_ylim(0, 105)
+
+        fig.tight_layout()
+
+        if progress_callback:
+            progress_callback(100)
+
+        return fig
+
+    def _plot_pca_loadings(self, fig, data, config, progress_callback):
+        """Loadings de variables"""
+        if progress_callback:
+            progress_callback(20)
+
+        ax = fig.add_subplot(111)
+
+        linear_result = data['resultados_por_metodo']['linear']
+        analisis = linear_result['analisis']
+        componentes_info = analisis['componentes_info']
+
+        if progress_callback:
+            progress_callback(40)
+
+        if len(componentes_info) >= 2:
+            pc1_info = componentes_info[0]
+            pc2_info = componentes_info[1]
+            var_exp = analisis['varianza_explicada']
+
+            top_vars_pc1 = pc1_info['top_variables'][:5]
+            top_vars_pc2 = pc2_info['top_variables'][:5]
+
+            all_vars = {}
+            for var in top_vars_pc1:
+                all_vars[var['variable']] = [var['loading'], 0]
+            for var in top_vars_pc2:
+                if var['variable'] in all_vars:
+                    all_vars[var['variable']][1] = var['loading']
+                else:
+                    all_vars[var['variable']] = [0, var['loading']]
+
+            if progress_callback:
+                progress_callback(70)
+
+            if all_vars:
+                variables = list(all_vars.keys())
+                pc1_loadings = [all_vars[var][0] for var in variables]
+                pc2_loadings = [all_vars[var][1] for var in variables]
+
+                x_pos = range(len(variables))
+                width = 0.35
+
+                ax.bar([x - width / 2 for x in x_pos], pc1_loadings, width,
+                       label=f'PC1 ({var_exp[0] * 100:.1f}%)', alpha=0.8, color='steelblue')
+                ax.bar([x + width / 2 for x in x_pos], pc2_loadings, width,
+                       label=f'PC2 ({var_exp[1] * 100:.1f}%)', alpha=0.8, color='coral')
+
+                ax.set_xlabel('Variables')
+                ax.set_ylabel('Loading')
+                ax.set_title('Loadings de Variables en PC1 y PC2')
+                ax.set_xticks(x_pos)
+                ax.set_xticklabels(variables, rotation=45, ha='right')
+                ax.legend()
+                ax.grid(True, alpha=0.3)
+                ax.axhline(y=0, color='black', linewidth=0.8)
+
+        fig.tight_layout()
+
+        if progress_callback:
+            progress_callback(100)
+
+        return fig
+
+    def _plot_pca_scree(self, fig, data, config, progress_callback):
+        """Scree plot"""
+        if progress_callback:
+            progress_callback(20)
+
+        ax = fig.add_subplot(111)
+
+        linear_result = data['resultados_por_metodo']['linear']
+        analisis = linear_result['analisis']
+        eigenvalues = analisis['eigenvalues']
+
+        if progress_callback:
+            progress_callback(60)
+
+        x = range(1, len(eigenvalues) + 1)
+        ax.plot(x, eigenvalues, 'o-', linewidth=2, markersize=8, color='purple')
+
+        ax.set_xlabel('Componente Principal')
+        ax.set_ylabel('Eigenvalue')
+        ax.set_title('Scree Plot - Eigenvalues')
+        ax.grid(True, alpha=0.3)
+
+        if max(eigenvalues) > 1:
+            ax.axhline(y=1, color='red', linestyle='--', alpha=0.7, label='Kaiser criterion (λ=1)')
+            ax.legend()
+
+        fig.tight_layout()
+
+        if progress_callback:
+            progress_callback(100)
+
+        return fig
+
+    def _plot_hierarchical_evaluation(self, fig, data, config, progress_callback):
+        """Evaluación de K para jerárquico"""
+        if progress_callback:
+            progress_callback(20)
+
+        ax = fig.add_subplot(111)
+
+        resultados_por_k = data.get('resultados_por_k', {})
+
+        if resultados_por_k:
+            k_vals = list(resultados_por_k.keys())
+            silhouette_vals = [resultados_por_k[k]['silhouette_score'] for k in k_vals]
+
+            if progress_callback:
+                progress_callback(60)
+
+            ax.plot(k_vals, silhouette_vals, 'o-', linewidth=2, markersize=8, color='darkgreen')
+            ax.set_xlabel('Número de Clusters (K)')
+            ax.set_ylabel('Silhouette Score')
+            ax.set_title('Evaluación de K óptimo')
+            ax.grid(True, alpha=0.3)
+
+            k_opt = data['mejor_configuracion'].get('n_clusters_sugeridos')
+            if k_opt and k_opt in resultados_por_k:
+                best_score = resultados_por_k[k_opt]['silhouette_score']
+                ax.plot(k_opt, best_score, 'ro', markersize=12, label=f'K óptimo = {k_opt}')
+                ax.legend()
+
+        fig.tight_layout()
+
+        if progress_callback:
+            progress_callback(100)
+
+        return fig
+
+    def _plot_dendrogram(self, fig, data, config, progress_callback):
+        """Dendrograma"""
+        if progress_callback:
+            progress_callback(10)
+
+        ax = fig.add_subplot(111)
+
+        linkage_matrix = data.get('linkage_matrix')
+        sample_labels = data.get('sample_labels', [])
+
+        if progress_callback:
+            progress_callback(50)
+
+        if linkage_matrix and len(linkage_matrix) > 0:
+            try:
+                linkage_np = np.array(linkage_matrix)
+
+                if progress_callback:
+                    progress_callback(70)
+
+                # Usar función de dendrograma mejorado
+                plot_dendrogram_manual_mejorado(linkage_np, labels=sample_labels,
+                                               ax=ax, max_display=30)
+
+            except Exception as e:
+                ax.text(0.5, 0.5, f'Error: {str(e)[:100]}',
+                       ha='center', va='center', transform=ax.transAxes,
+                       bbox=dict(boxstyle='round', facecolor='mistyrose'))
+                ax.set_title('Error en Dendrograma')
+                ax.axis('off')
+        else:
+            ax.text(0.5, 0.5, 'No hay matriz de linkage disponible',
+                   ha='center', va='center', transform=ax.transAxes)
+            ax.set_title('Dendrograma no disponible')
+            ax.axis('off')
+
+        fig.tight_layout()
+
+        if progress_callback:
+            progress_callback(100)
+
+        return fig
+
+    def _plot_correlation_matrix(self, fig, data, config, progress_callback):
+        """Matriz de correlación"""
+        if progress_callback:
+            progress_callback(20)
+
+        ax = fig.add_subplot(111)
+
+        correlaciones = data.get('correlaciones', {})
+
+        if 'matriz_pearson' in correlaciones:
+            df_corr = pd.DataFrame(correlaciones['matriz_pearson'])
+
+            # Limitar variables
+            if len(df_corr.columns) > 8:
+                df_corr = df_corr.iloc[:8, :8]
+
+            if progress_callback:
+                progress_callback(60)
+
+            im = ax.imshow(df_corr.values, cmap='RdBu_r', vmin=-1, vmax=1, aspect='auto')
+            ax.set_xticks(range(len(df_corr.columns)))
+            ax.set_yticks(range(len(df_corr.index)))
+            ax.set_xticklabels(df_corr.columns, rotation=45, ha='right')
+            ax.set_yticklabels(df_corr.index)
+            plt.colorbar(im, ax=ax, shrink=0.8)
+            ax.set_title('Matriz de Correlaciones')
+
+        fig.tight_layout()
+
+        if progress_callback:
+            progress_callback(100)
+
+        return fig
+
+    def _plot_outliers_distribution(self, fig, data, config, progress_callback):
+        """Distribución de outliers"""
+        if progress_callback:
+            progress_callback(20)
+
+        ax = fig.add_subplot(111)
+
+        outliers = data.get('outliers', {})
+
+        if outliers:
+            metodos = []
+            cantidades = []
+
+            for metodo, outlier_data in outliers.items():
+                if metodo != 'consenso' and isinstance(outlier_data, dict) and 'total' in outlier_data:
+                    metodos.append(metodo.replace('_', ' ').title())
+                    cantidades.append(outlier_data['total'])
+
+            if progress_callback:
+                progress_callback(60)
+
+            if metodos:
+                bars = ax.bar(metodos, cantidades, alpha=0.7, edgecolor='black')
+                ax.set_ylabel('Número de Outliers')
+                ax.set_title('Outliers por Método')
+                ax.tick_params(axis='x', rotation=45)
+
+                for bar, val in zip(bars, cantidades):
+                    height = bar.get_height()
+                    ax.text(bar.get_x() + bar.get_width() / 2., height + 0.5,
+                           f'{val}', ha='center', va='bottom')
+
+        fig.tight_layout()
+
+        if progress_callback:
+            progress_callback(100)
+
+        return fig
+
+    def _plot_data_quality(self, fig, data, config, progress_callback):
+        """Calidad de datos (gauge)"""
+        if progress_callback:
+            progress_callback(20)
+
+        ax = fig.add_subplot(111)
+
+        calidad = data.get('calidad_datos', {})
+
+        if calidad:
+            quality_score = calidad.get('quality_score', 0)
+            calificacion = calidad.get('calificacion', 'N/A')
+
+            if progress_callback:
+                progress_callback(60)
+
+            # Gráfico de gauge
+            categories = ['Excelente', 'Buena', 'Regular', 'Deficiente']
+            colors = ['green', 'yellow', 'orange', 'red']
+            values = [25, 25, 25, 25]
+
+            wedges, texts = ax.pie(values, labels=categories, colors=colors,
+                                  startangle=90, counterclock=False)
+
+            # Aguja
+            angle = 90 - (quality_score / 100) * 360
+            ax.annotate('', xy=(0.7 * np.cos(np.radians(angle)),
+                               0.7 * np.sin(np.radians(angle))),
+                       xytext=(0, 0), arrowprops=dict(arrowstyle='->', lw=3, color='black'))
+
+            ax.set_title(f'Calidad de Datos: {quality_score:.1f}/100\n({calificacion})')
+
+        fig.tight_layout()
+
+        if progress_callback:
+            progress_callback(100)
+
+        return fig
+
+    def _update_visualization_traditional(self):
+        """Visualización tradicional (fallback)"""
+        try:
+            self.figure.clear()
+            plt.close('all')
+
+            if 'error' not in self.current_results:
+                nueva_figura = generar_visualizaciones_ml_no_supervisado(
+                    self.current_results, figsize=(12, 8)
+                )
+                self.figure = nueva_figura
+                self.canvas.figure = self.figure
+
+            self.canvas.draw_idle()
+
+        except Exception as e:
+            print(f"Error en visualización tradicional: {e}")
+            ax = self.figure.add_subplot(111)
+            ax.text(0.5, 0.5, f'Error generando visualización:\n{str(e)[:100]}',
+                   ha='center', va='center', transform=ax.transAxes,
+                   bbox=dict(boxstyle='round', facecolor='mistyrose'))
+            ax.set_title('Error en Visualización')
+            ax.axis('off')
+            self.canvas.draw_idle()
+
+    def _on_plot_selected(self, index):
+        """Cuando se selecciona un gráfico del selector"""
+        if index < 0:
+            return
+
+        task_id = self.plot_selector.itemData(index)
+
+        if task_id in self.plot_results:
+            fig = self.plot_results[task_id]
+            self.canvas.figure = fig
+            self.canvas.draw()
+
+    def _regenerate_plots_parallel(self):
+        """Regenerar todos los gráficos en paralelo"""
+        if not self.current_results:
+            return
+
+        reply = QMessageBox.question(
+            self, 'Regenerar Gráficos',
+            '¿Desea regenerar todos los gráficos en paralelo?\n\n'
+            'Esto puede tardar unos segundos.',
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.Yes
+        )
+
+        if reply == QMessageBox.Yes:
+            self._update_visualization_parallel()
+
+    def _save_all_figures(self):
+        """Guardar todos los gráficos generados"""
+        if not self.plot_results:
+            QMessageBox.warning(self, "Sin gráficos", "No hay gráficos para guardar.")
+            return
+
+        folder = QFileDialog.getExistingDirectory(
+            self, "Seleccionar Carpeta para Guardar Gráficos"
+        )
+
+        if folder:
+            try:
+                saved = 0
+                for task_id, fig in self.plot_results.items():
+                    task = self.plotter.tasks[task_id]
+                    filename = f"{task.description.replace(':', '_').replace(' ', '_')}.png"
+                    filepath = os.path.join(folder, filename)
+
+                    fig.savefig(filepath, dpi=300, bbox_inches='tight')
+                    saved += 1
+
+                QMessageBox.information(
+                    self, "Éxito",
+                    f"Se guardaron {saved} gráficos en:\n{folder}"
+                )
+
+            except Exception as e:
+                QMessageBox.critical(self, "Error", f"Error guardando gráficos:\n{e}")
 
     def _update_summary(self, results: dict, analysis_type: str):
         """Actualizar resumen"""
         summary = f"📊 Resumen - {analysis_type.replace('_', ' ').title()}\n"
         summary += "=" * 50 + "\n\n"
 
-        # Información general
         summary += f"🔍 Tipo de análisis: {results.get('tipo', 'N/A')}\n"
         summary += f"⏰ Timestamp: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
 
@@ -1240,50 +1963,21 @@ class ResultsVisualizationWidget(QWidget):
                 summary += f" (y {len(results['variables_utilizadas']) - 5} más)"
             summary += "\n\n"
 
-        # Resultados específicos por tipo
         if results.get('tipo') == 'kmeans_optimizado':
             k_optimo = results.get('recomendacion_k', 'N/A')
             summary += f"🎯 K óptimo recomendado: {k_optimo}\n"
 
-            if k_optimo != 'N/A' and 'resultados_por_k' in results:
-                if k_optimo in results['resultados_por_k']:
-                    best_result = results['resultados_por_k'][k_optimo]
-                    summary += f"📊 Silhouette Score: {best_result.get('silhouette_score', 'N/A'):.3f}\n"
-                    summary += f"📊 Davies-Bouldin Score: {best_result.get('davies_bouldin_score', 'N/A'):.3f}\n"
-
-        elif results.get('tipo') == 'clustering_jerarquico_completo':
-            if 'mejor_configuracion' in results:
-                mejor_config = results['mejor_configuracion']
-                summary += f"🎯 Mejor configuración:\n"
-                summary += f"  - Método: {mejor_config.get('metodo', 'N/A')}\n"
-                summary += f"  - Métrica: {mejor_config.get('metrica', 'N/A')}\n"
-                summary += f"  - Clusters sugeridos: {mejor_config.get('n_clusters_sugeridos', 'N/A')}\n"
+        elif results.get('tipo') == 'dbscan_optimizado':
+            config = results.get('mejor_configuracion', {})
+            summary += f"🎯 Clusters encontrados: {config.get('n_clusters', 'N/A')}\n"
+            summary += f"🔍 Outliers detectados: {config.get('n_noise', 'N/A')}\n"
 
         elif results.get('tipo') == 'pca_completo_avanzado':
             if 'linear' in results.get('resultados_por_metodo', {}):
                 linear_result = results['resultados_por_metodo']['linear']
                 n_comp = linear_result.get('componentes_recomendados', 'N/A')
                 summary += f"📊 Componentes recomendados: {n_comp}\n"
-                if 'analisis' in linear_result:
-                    var_exp = linear_result['analisis'].get('varianza_acumulada', [])
-                    if var_exp and n_comp != 'N/A' and n_comp <= len(var_exp):
-                        summary += f"📊 Varianza explicada: {var_exp[n_comp -1 ] *100:.1f}%\n"
 
-        elif results.get('tipo') == 'dbscan_optimizado':
-            if 'mejor_configuracion' in results:
-                config = results['mejor_configuracion']
-                summary += f"🎯 Clusters encontrados: {config.get('n_clusters', 'N/A')}\n"
-                summary += f"🔍 Outliers detectados: {config.get('n_noise', 'N/A')}\n"
-                summary += f"📊 Eps óptimo: {config.get('eps', 'N/A'):.3f}\n"
-
-        elif results.get('tipo') == 'analisis_exploratorio_completo':
-            if 'estadisticas_basicas' in results:
-                summary += f"📊 Variables analizadas: {len(results['estadisticas_basicas'])}\n"
-            if 'outliers' in results:
-                outliers_info = results['outliers']
-                summary += f"🔍 Outliers detectados: {outliers_info.get('total_outliers', 'N/A')}\n"
-
-        # Recomendaciones
         if 'recomendaciones' in results:
             summary += "\n💡 Recomendaciones:\n"
             for i, rec in enumerate(results['recomendaciones'][:3], 1):
@@ -1295,11 +1989,9 @@ class ResultsVisualizationWidget(QWidget):
         """Actualizar métricas"""
         metrics_data = []
 
-        # Métricas generales
         if 'variables_utilizadas' in results:
             metrics_data.append(("Variables utilizadas", len(results['variables_utilizadas'])))
 
-        # Métricas específicas por tipo
         tipo = results.get('tipo', '')
 
         if tipo == 'kmeans_optimizado':
@@ -1310,61 +2002,30 @@ class ResultsVisualizationWidget(QWidget):
                     metrics_data.extend([
                         ("K óptimo", k_optimo),
                         ("Silhouette Score", f"{best_result.get('silhouette_score', 0):.3f}"),
-                        ("Davies-Bouldin Score", f"{best_result.get('davies_bouldin_score', 0):.3f}"),
-                        ("Inercia", f"{best_result.get('inercia', 0):.2f}")
+                        ("Inercia", f"{best_result.get('inertia', 0):.2f}")
                     ])
+
+        elif tipo == 'dbscan_optimizado':
+            config = results.get('mejor_configuracion', {})
+            metrics_data.extend([
+                ("Clusters", config.get('n_clusters', 'N/A')),
+                ("Outliers", config.get('n_noise', 'N/A')),
+                ("% Outliers", f"{config.get('noise_ratio', 0) * 100:.1f}%"),
+                ("Silhouette Score", f"{config.get('silhouette_score', 0):.3f}")
+            ])
 
         elif tipo == 'pca_completo_avanzado':
             if 'linear' in results.get('resultados_por_metodo', {}):
                 linear_result = results['resultados_por_metodo']['linear']
                 if 'analisis' in linear_result:
+                    analisis = linear_result['analisis']
                     metrics_data.extend([
                         ("Componentes recomendados", linear_result.get('componentes_recomendados', 'N/A')),
-                        ("Varianza PC1", f"{linear_result['analisis']['varianza_explicada'][0 ] *100:.1f}%"),
-                        ("Varianza PC2", f"{linear_result['analisis']['varianza_explicada'][1 ] *100:.1f}%"
-                        if len(linear_result['analisis']['varianza_explicada']) > 1 else 'N/A'),
-                        ("Varianza Acumulada (2 PCs)",
-                         f"{linear_result['analisis']['varianza_acumulada'][1 ] *100:.1f}%"
-                         if len(linear_result['analisis']['varianza_acumulada']) > 1 else 'N/A')
+                        ("Varianza PC1", f"{analisis['varianza_explicada'][0] * 100:.1f}%"),
+                        ("Varianza PC2", f"{analisis['varianza_explicada'][1] * 100:.1f}%"
+                        if len(analisis['varianza_explicada']) > 1 else 'N/A')
                     ])
 
-        elif tipo == 'clustering_jerarquico_completo':
-            if 'mejor_configuracion' in results:
-                config = results['mejor_configuracion']
-                metrics_data.extend([
-                    ("Método", config.get('metodo', 'N/A')),
-                    ("Métrica", config.get('metrica', 'N/A')),
-                    ("Clusters sugeridos", config.get('n_clusters_sugeridos', 'N/A')),
-                    ("Silhouette Score", f"{config.get('silhouette_score', 0):.3f}"),
-                    ("Calinski-Harabasz", f"{config.get('calinski_harabasz_score', 0):.1f}"),
-                    ("Davies-Bouldin", f"{config.get('davies_bouldin_score', 0):.3f}")
-                ])
-
-        elif tipo == 'dbscan_optimizado':
-            if 'mejor_configuracion' in results:
-                config = results['mejor_configuracion']
-                metrics_data.extend([
-                    ("Clusters", config.get('n_clusters', 'N/A')),
-                    ("Outliers", config.get('n_noise', 'N/A')),
-                    ("% Outliers", f"{config.get('noise_ratio', 0 ) *100:.1f}%"),
-                    ("Silhouette Score", f"{config.get('silhouette_score', 0):.3f}"),
-                    ("Eps óptimo", f"{config.get('eps', 0):.3f}"),
-                    ("Min samples", config.get('min_samples', 'N/A'))
-                ])
-
-        elif tipo == 'analisis_exploratorio_completo':
-            if 'correlaciones' in results:
-                corr_data = results['correlaciones']
-                metrics_data.append(("Correlaciones fuertes",
-                                     len(corr_data.get('correlaciones_fuertes', []))))
-            if 'outliers' in results:
-                outlier_data = results['outliers']
-                metrics_data.extend([
-                    ("Total outliers", outlier_data.get('total_outliers', 'N/A')),
-                    ("% Outliers", f"{outlier_data.get('porcentaje_outliers', 0):.1f}%")
-                ])
-
-        # Llenar tabla
         self.metrics_table.setRowCount(len(metrics_data))
         self.metrics_table.setColumnCount(2)
         self.metrics_table.setHorizontalHeaderLabels(["Métrica", "Valor"])
@@ -1375,857 +2036,131 @@ class ResultsVisualizationWidget(QWidget):
 
         self.metrics_table.resizeColumnsToContents()
 
-    def _create_pca_visualization(self):
-        """Crear visualización para PCA con enfoque en puntos de muestreo"""
+    def _update_details(self, results: dict):
+        """Actualizar detalles técnicos"""
+        results_copy = results.copy()
+
+        if 'datos_originales' in results_copy:
+            del results_copy['datos_originales']
+
         try:
-            from sklearn.decomposition import PCA
-            from sklearn.preprocessing import StandardScaler
+            details = json.dumps(results_copy, indent=2, default=str, ensure_ascii=False)
 
-            resultados = self.current_results.get('resultados_por_metodo', {})
+            if len(details) > 50000:
+                details = details[:50000] + "\n\n... (Resultado truncado)"
 
-            if 'linear' not in resultados:
-                ax = self.figure.add_subplot(111)
-                ax.text(0.5, 0.5, 'No hay resultados de PCA lineal para visualizar',
-                        ha='center', va='center', transform=ax.transAxes)
-                ax.set_title('PCA - Sin Resultados')
-                return
-
-            # NO usar figura externa - trabajar directamente con self.figure
-            # self.figure ya está limpia desde _update_visualization
-
-            # Usar la función de visualización especializada
-            if 'datos_originales_escalados' in self.current_results:
-                # Crear la visualización directamente en self.figure
-                self._create_pca_plots_internal()
-            else:
-                # Visualización PCA tradicional como fallback
-                self._create_traditional_pca_visualization()
-
+            self.details_text.setText(details)
         except Exception as e:
-            print(f"Error en visualización PCA: {e}")
-            ax = self.figure.add_subplot(111)
-            ax.text(0.5, 0.5, f'Error en PCA: {str(e)[:100]}',
-                    ha='center', va='center', transform=ax.transAxes,
-                    bbox=dict(boxstyle='round', facecolor='mistyrose'))
-            ax.set_title('Error en PCA')
-            ax.axis('off')
-
-    def _create_traditional_pca_visualization(self):
-        """Visualización PCA tradicional como fallback"""
-        try:
-            resultados = self.current_results.get('resultados_por_metodo', {})
-
-            if 'linear' not in resultados:
-                ax = self.figure.add_subplot(111)
-                ax.text(0.5, 0.5, 'No hay resultados de PCA para visualizar',
-                        ha='center', va='center', transform=ax.transAxes)
-                return
-
-            linear_result = resultados['linear']
-            analisis = linear_result.get('analisis', {})
-
-            # Crear subplot 2x2
-            fig = self.figure
-            gs = fig.add_gridspec(2, 2, hspace=0.3, wspace=0.3)
-
-            # 1. Varianza explicada
-            ax1 = fig.add_subplot(gs[0, 0])
-            var_explicada = analisis.get('varianza_explicada', [])
-            if var_explicada:
-                x = range(1, len(var_explicada) + 1)
-                ax1.bar(x, [v * 100 for v in var_explicada], alpha=0.7)
-                ax1.set_xlabel('Componente Principal')
-                ax1.set_ylabel('Varianza Explicada (%)')
-                ax1.set_title('Varianza por Componente')
-                ax1.grid(True, alpha=0.3)
-
-            # 2. Varianza acumulada
-            ax2 = fig.add_subplot(gs[0, 1])
-            var_acumulada = analisis.get('varianza_acumulada', [])
-            if var_acumulada:
-                x = range(1, len(var_acumulada) + 1)
-                ax2.plot(x, [v * 100 for v in var_acumulada], 'o-', linewidth=2)
-                ax2.axhline(y=95, color='red', linestyle='--', label='95%')
-                ax2.set_xlabel('Componente Principal')
-                ax2.set_ylabel('Varianza Acumulada (%)')
-                ax2.set_title('Varianza Acumulada')
-                ax2.legend()
-                ax2.grid(True, alpha=0.3)
-
-            # 3. Información de componentes
-            ax3 = fig.add_subplot(gs[1, :])
-            componentes_info = analisis.get('componentes_info', [])
-            if componentes_info and len(componentes_info) > 0:
-                # Mostrar contribuciones del primer componente
-                pc1_info = componentes_info[0]
-                top_vars = pc1_info.get('top_variables', [])[:5]
-
-                if top_vars:
-                    variables = [var['variable'] for var in top_vars]
-                    loadings = [var['loading'] for var in top_vars]
-
-                    bars = ax3.barh(range(len(variables)), loadings)
-                    ax3.set_yticks(range(len(variables)))
-                    ax3.set_yticklabels(variables)
-                    ax3.set_xlabel('Loading')
-                    ax3.set_title('Variables más importantes en PC1')
-                    ax3.grid(True, alpha=0.3)
-
-            plt.suptitle('Análisis de Componentes Principales', fontsize=14, fontweight='bold')
-
-        except Exception as e:
-            ax = self.figure.add_subplot(111)
-            ax.text(0.5, 0.5, f'Error en PCA tradicional: {str(e)[:100]}',
-                    ha='center', va='center', transform=ax.transAxes)
-
-    def _show_error_visualization(self):
-        """Mostrar visualización de error"""
-        self.figure.clear()
-        ax = self.figure.add_subplot(111)
-        ax.text(0.5, 0.5, 'Error generando visualización',
-                ha='center', va='center', transform=ax.transAxes,
-                bbox=dict(boxstyle='round', facecolor='mistyrose'))
-        ax.set_title('Error en Visualización')
-        ax.axis('off')
-
-    # 5. Fix missing functions in ResultsVisualizationWidget class
-    # Add these methods to the ResultsVisualizationWidget class:
+            self.details_text.setText(f"Error mostrando detalles: {e}")
 
     def _show_error(self, error_msg):
-        """Mostrar error en lugar de resultados"""
+        """Mostrar error"""
         self.summary_text.setText(f"❌ Error en el análisis:\n\n{error_msg}")
         self.status_label.setText("❌ Error en análisis")
         self.status_label.setStyleSheet("color: red;")
 
-        # Limpiar otros tabs
         self.metrics_table.setRowCount(0)
         self.details_text.setText(f"Error: {error_msg}")
 
-        # Deshabilitar botones
         self.export_results_btn.setEnabled(False)
         self.generate_report_btn.setEnabled(False)
+        self.regenerate_parallel_btn.setEnabled(False)
 
-    # 6. Add the missing _create_exploratory_visualization method
-    def _create_exploratory_visualization(self):
-        """Crear visualización para análisis exploratorio"""
-        try:
-            self.figure.clear()
-
-            # Usar la función de visualización exploratoria
-            if 'datos_originales' in self.current_results:
-                self.figure = _crear_visualizacion_exploratorio_puntos_muestreo(
-                    self.current_results, figsize=(16, 12)
-                )
-            else:
-                # Fallback básico
-                ax = self.figure.add_subplot(111)
-
-                # Mostrar información básica del análisis exploratorio
-                calidad = self.current_results.get('calidad_datos', {})
-                outliers = self.current_results.get('outliers', {})
-                correlaciones = self.current_results.get('correlaciones', {})
-
-                info_text = "Resumen Análisis Exploratorio:\n\n"
-
-                if calidad:
-                    score = calidad.get('quality_score', 0)
-                    info_text += f"Calidad de datos: {score:.1f}/100\n"
-                    info_text += f"Calificación: {calidad.get('calificacion', 'N/A')}\n\n"
-
-                if outliers:
-                    consenso = outliers.get('consenso', {})
-                    if consenso:
-                        info_text += f"Outliers detectados: {consenso.get('total_unico', 0)}\n"
-                        info_text += f"Porcentaje outliers: {consenso.get('porcentaje', 0):.1f}%\n\n"
-
-                if correlaciones:
-                    corr_fuertes = correlaciones.get('correlaciones_fuertes', [])
-                    info_text += f"Correlaciones fuertes: {len(corr_fuertes)}\n"
-                    multicolineal = correlaciones.get('multicolinealidad', 'N/A')
-                    info_text += f"Multicolinealidad: {multicolineal}\n"
-
-                ax.text(0.1, 0.9, info_text, transform=ax.transAxes,
-                        fontsize=12, va='top', ha='left',
-                        bbox=dict(boxstyle='round', facecolor='lightblue', alpha=0.7))
-                ax.set_title('Análisis Exploratorio - Resumen')
-                ax.axis('off')
-
-            self.figure.tight_layout()
-            self.canvas.draw()
-
-        except Exception as e:
-            print(f"Error en visualización exploratoria: {e}")
-            ax = self.figure.add_subplot(111)
-            ax.text(0.5, 0.5, f'Error en visualización exploratoria:\n{str(e)[:100]}',
-                    ha='center', va='center', transform=ax.transAxes,
-                    bbox=dict(boxstyle='round', facecolor='mistyrose'))
-            ax.set_title('Error en Visualización')
-            ax.axis('off')
-            self.canvas.draw()
-
-    def _update_details(self, results: dict):
-        """Actualizar detalles técnicos"""
-        # Limitar el contenido para evitar problemas de memoria
-        results_copy = results.copy()
-
-        # Eliminar datos grandes para el JSON
-        if 'datos_originales' in results_copy:
-            del results_copy['datos_originales']
-        if 'datos_escalados' in results_copy:
-            del results_copy['datos_escalados']
-        if 'linkage_matrix' in results_copy:
-            results_copy['linkage_matrix'] = "... (matriz muy grande, omitida)"
-
-        details = json.dumps(results_copy, indent=2, default=str, ensure_ascii=False)
-
-        # Limitar longitud para evitar sobrecarga
-        if len(details) > 50000:
-            details = details[:50000] + "\n\n... (Resultado truncado por longitud)"
-
-        self.details_text.setText(details)
-
-    def _update_visualization(self):
-        """Actualizar visualización según el tipo de análisis"""
-        if not self.current_results or not ML_AVAILABLE:
+    def _save_figure(self):
+        """Guardar figura actual"""
+        if not hasattr(self, 'canvas') or not hasattr(self.canvas, 'figure'):
+            QMessageBox.warning(self, "Sin figura", "No hay figura para guardar.")
             return
 
-        try:
-            # IMPORTANTE: Limpiar completamente la figura antes de crear nueva
-            self.figure.clear()
-            plt.close('all')  # Cerrar todas las figuras previas
-
-            tipo = self.current_results.get('tipo', '')
-
-            if tipo == 'kmeans_optimizado':
-                self._create_kmeans_visualization()
-            elif tipo == 'clustering_jerarquico_completo':
-                self._create_hierarchical_visualization()
-            elif tipo == 'dbscan_optimizado':
-                self._create_dbscan_visualization()
-            elif tipo == 'pca_completo_avanzado':
-                self._create_pca_visualization()
-            elif tipo == 'analisis_exploratorio_completo':
-                self._create_exploratory_visualization()
-            else:
-                ax = self.figure.add_subplot(111)
-                ax.text(0.5, 0.5, f'Visualización no disponible para: {tipo}',
-                        ha='center', va='center', transform=ax.transAxes)
-                ax.set_title('Visualización No Disponible')
-
-            # IMPORTANTE: Aplicar layout y dibujar
-            self.figure.tight_layout()
-            self.canvas.draw_idle()  # Usar draw_idle() en lugar de draw()
-
-        except Exception as e:
-            print(f"Error en visualización: {e}")
-            import traceback
-            traceback.print_exc()
-
-            # IMPORTANTE: Limpiar y mostrar error
-            self.figure.clear()
-            ax = self.figure.add_subplot(111)
-            ax.text(0.5, 0.5, f'Error generando visualización:\n{str(e)[:100]}',
-                    ha='center', va='center', transform=ax.transAxes,
-                    bbox=dict(boxstyle='round', facecolor='mistyrose'))
-            ax.set_title('Error en Visualización')
-            ax.axis('off')
-            self.canvas.draw_idle()
-
-    def _create_kmeans_visualization(self):
-        """Crear visualización para K-Means"""
-        resultados = self.current_results.get('resultados_por_k', {})
-
-        if not resultados:
-            ax = self.figure.add_subplot(111)
-            ax.text(0.5, 0.5, 'No hay resultados de K-Means para visualizar',
-                    ha='center', va='center', transform=ax.transAxes)
-            return
-
-        # Crear subplots
-        fig = self.figure
-
-        # Si tenemos los datos y clusters, hacer visualización 2D
-        k_optimo = self.current_results.get('recomendacion_k')
-        if k_optimo and k_optimo in resultados and 'datos_originales' in self.current_results:
-            # 2 subplots: métricas y clusters
-            ax1 = fig.add_subplot(121)
-            ax2 = fig.add_subplot(122)
-
-            # Plot 1: Silhouette score vs K
-            k_vals = sorted(list(resultados.keys()))
-            silhouette_vals = [resultados[k]['silhouette_score'] for k in k_vals]
-
-            ax1.plot(k_vals, silhouette_vals, 'bo-', linewidth=2, markersize=8)
-            ax1.set_xlabel('Número de Clusters (K)', fontsize=11)
-            ax1.set_ylabel('Silhouette Score', fontsize=11)
-            ax1.set_title('Evaluación de K óptimo', fontsize=12, fontweight='bold')
-            ax1.grid(True, alpha=0.3)
-
-            # Marcar el K óptimo
-            if k_optimo in resultados:
-                best_score = resultados[k_optimo]['silhouette_score']
-                ax1.plot(k_optimo, best_score, 'ro', markersize=12, label=f'K óptimo = {k_optimo}')
-                ax1.legend()
-
-            # Plot 2: Visualización de clusters (PCA 2D si hay muchas dimensiones)
+        file_path, _ = QFileDialog.getSaveFileName(
+            self, "Guardar Figura", "", "Imagen PNG (*.png);;Imagen JPEG (*.jpg)"
+        )
+        if file_path:
             try:
-                from sklearn.decomposition import PCA
-                from sklearn.preprocessing import StandardScaler
-
-                datos = self.current_results['datos_originales'].dropna()
-
-                # Si hay más de 2 dimensiones, usar PCA
-                if datos.shape[1] > 2:
-                    scaler = StandardScaler()
-                    datos_scaled = scaler.fit_transform(datos)
-                    pca = PCA(n_components=2)
-                    datos_2d = pca.fit_transform(datos_scaled)
-                    xlabel = f'PC1 ({pca.explained_variance_ratio_[0 ] *100:.1f}%)'
-                    ylabel = f'PC2 ({pca.explained_variance_ratio_[1 ] *100:.1f}%)'
-                else:
-                    datos_2d = datos.values
-                    xlabel = datos.columns[0] if datos.shape[1] > 0 else 'X'
-                    ylabel = datos.columns[1] if datos.shape[1] > 1 else 'Y'
-
-                # Obtener clusters del k óptimo
-                if 'cluster_labels' in resultados[k_optimo]:
-                    labels = resultados[k_optimo]['cluster_labels'][:len(datos_2d)]
-
-                    # Graficar puntos coloreados por cluster
-                    scatter = ax2.scatter(datos_2d[:, 0], datos_2d[:, 1],
-                                          c=labels, cmap='viridis',
-                                          alpha=0.6, edgecolors='black', linewidth=0.5)
-                    ax2.set_xlabel(xlabel, fontsize=11)
-                    ax2.set_ylabel(ylabel, fontsize=11)
-                    ax2.set_title(f'Clusters K-Means (K={k_optimo})', fontsize=12, fontweight='bold')
-
-                    # Añadir colorbar
-                    cbar = plt.colorbar(scatter, ax=ax2)
-                    cbar.set_label('Cluster', fontsize=10)
-
-                    # Marcar centroides si están disponibles
-                    if 'centroides' in resultados[k_optimo]:
-                        centroides = resultados[k_optimo]['centroides']
-                        if centroides.shape[1] > 2:
-                            # Transformar centroides con el mismo PCA
-                            centroides_scaled = scaler.transform(centroides)
-                            centroides_2d = pca.transform(centroides_scaled)
-                        else:
-                            centroides_2d = centroides
-
-                        ax2.scatter(centroides_2d[:, 0], centroides_2d[:, 1],
-                                    c='red', marker='*', s=300, edgecolors='black',
-                                    linewidth=2, label='Centroides')
-                        ax2.legend()
-                else:
-                    ax2.scatter(datos_2d[:, 0], datos_2d[:, 1], alpha=0.6)
-                    ax2.set_xlabel(xlabel, fontsize=11)
-                    ax2.set_ylabel(ylabel, fontsize=11)
-                    ax2.set_title('Datos sin clusters', fontsize=12)
-
+                self.canvas.figure.savefig(file_path, dpi=300, bbox_inches='tight')
+                QMessageBox.information(self, "Éxito", f"Figura guardada en:\n{file_path}")
             except Exception as e:
-                print(f"Error en visualización de clusters: {e}")
-                ax2.text(0.5, 0.5, 'Error visualizando clusters',
-                         ha='center', va='center', transform=ax2.transAxes)
-                ax2.set_title('Error')
-        else:
-            # Solo mostrar gráfico de métricas
-            ax = fig.add_subplot(111)
+                QMessageBox.critical(self, "Error", f"No se pudo guardar:\n{e}")
 
-            k_vals = sorted(list(resultados.keys()))
-            silhouette_vals = [resultados[k]['silhouette_score'] for k in k_vals]
-            davies_vals = [resultados[k]['davies_bouldin_score'] for k in k_vals]
-
-            ax2 = ax.twinx()
-
-            line1 = ax.plot(k_vals, silhouette_vals, 'bo-', linewidth=2,
-                            markersize=8, label='Silhouette (↑ mejor)')
-            line2 = ax2.plot(k_vals, davies_vals, 'rs-', linewidth=2,
-                             markersize=8, label='Davies-Bouldin (↓ mejor)')
-
-            ax.set_xlabel('Número de Clusters (K)', fontsize=12)
-            ax.set_ylabel('Silhouette Score', fontsize=12, color='b')
-            ax2.set_ylabel('Davies-Bouldin Score', fontsize=12, color='r')
-            ax.set_title('Métricas de Evaluación K-Means', fontsize=14, fontweight='bold')
-            ax.grid(True, alpha=0.3)
-
-            # Combinar leyendas
-            lines = line1 + line2
-            labels = [l.get_label() for l in lines]
-            ax.legend(lines, labels, loc='best')
-
-            # Marcar K óptimo
-            k_optimo = self.current_results.get('recomendacion_k')
-            if k_optimo and k_optimo in resultados:
-                ax.axvline(k_optimo, color='green', linestyle='--', alpha=0.7,
-                           label=f'K óptimo = {k_optimo}')
-
-    def _create_hierarchical_visualization(self):
-        """Crear dendrograma para clustering jerárquico"""
-        try:
-            from scipy.cluster.hierarchy import dendrogram, linkage
-            from sklearn.preprocessing import StandardScaler
-
-            # Obtener datos
-            if 'datos_originales' not in self.current_results:
-                ax = self.figure.add_subplot(111)
-                ax.text(0.5, 0.5, 'No hay datos para crear dendrograma',
-                        ha='center', va='center', transform=ax.transAxes)
-                return
-
-            datos = self.current_results['datos_originales'].dropna()
-
-            # Limitar número de muestras para visualización clara
-            max_samples = 100
-            if len(datos) > max_samples:
-                datos = datos.sample(n=max_samples, random_state=42)
-                print(f"Datos limitados a {max_samples} muestras para dendrograma")
-
-            # Escalar datos
-            scaler = StandardScaler()
-            datos_scaled = scaler.fit_transform(datos)
-
-            # Obtener configuración
-            mejor_config = self.current_results.get('mejor_configuracion', {})
-            metodo = mejor_config.get('metodo', 'ward')
-            metrica = mejor_config.get('metrica', 'euclidean')
-
-            # Ward solo funciona con euclidean
-            if metodo == 'ward':
-                metrica = 'euclidean'
-
-            # Crear linkage matrix
-            Z = linkage(datos_scaled, method=metodo, metric=metrica)
-
-            # Crear dendrograma
-            ax = self.figure.add_subplot(111)
-
-            dendro = dendrogram(
-                Z,
-                ax=ax,
-                orientation='top',
-                distance_sort='descending',
-                show_leaf_counts=True,
-                leaf_font_size=10,
-                color_threshold=0.7 * np.max(Z[:, 2]),
-                above_threshold_color='gray'
-            )
-
-            ax.set_title(f'Dendrograma - Clustering Jerárquico ({metodo} + {metrica})',
-                         fontsize=14, fontweight='bold', pad=20)
-            ax.set_ylabel('Distancia', fontsize=12)
-            ax.set_xlabel('Índice de Muestra', fontsize=12)
-            ax.grid(True, alpha=0.3, axis='y')
-
-            # Añadir línea de corte sugerida
-            n_clusters = mejor_config.get('n_clusters_sugeridos', 3)
-            if n_clusters > 1 and len(Z) >= n_clusters - 1:
-                altura_corte = Z[-(n_clusters -1), 2]
-                ax.axhline(y=altura_corte, color='red', linestyle='--',
-                           linewidth=2, alpha=0.8)
-                ax.text(ax.get_xlim()[1] * 0.7, altura_corte * 1.05,
-                        f'{n_clusters} clusters sugeridos',
-                        bbox=dict(boxstyle='round,pad=0.3', facecolor='yellow', alpha=0.7),
-                        fontsize=10, fontweight='bold')
-
-        except Exception as e:
-            print(f"Error creando dendrograma: {e}")
-            ax = self.figure.add_subplot(111)
-            ax.text(0.5, 0.5, f'Error creando dendrograma:\n{str(e)[:100]}',
-                    ha='center', va='center', transform=ax.transAxes,
-                    bbox=dict(boxstyle='round', facecolor='mistyrose'))
-            ax.set_title('Error en Dendrograma')
-            ax.axis('off')
-
-    def _create_dbscan_visualization(self):
-        """Crear visualización para DBSCAN"""
-        try:
-            mejor_config = self.current_results.get('mejor_configuracion', {})
-
-            if not mejor_config or 'datos_originales' not in self.current_results:
-                ax = self.figure.add_subplot(111)
-                ax.text(0.5, 0.5, 'No hay resultados de DBSCAN para visualizar',
-                        ha='center', va='center', transform=ax.transAxes)
-                ax.set_title('DBSCAN - Sin Resultados')
-                return
-
-            # Verificar si hay error en los resultados
-            if 'error' in self.current_results:
-                ax = self.figure.add_subplot(111)
-                error_msg = self.current_results.get('mensaje_error', self.current_results['error'])
-                ax.text(0.5, 0.5, f'Error en DBSCAN:\n\n{error_msg}',
-                        ha='center', va='center', transform=ax.transAxes,
-                        bbox=dict(boxstyle='round', facecolor='mistyrose'))
-                ax.set_title('Error en DBSCAN')
-                ax.axis('off')
-                return
-
-            # Crear la visualización
-            self._create_dbscan_plots_internal()
-
-        except Exception as e:
-            print(f"Error en visualización DBSCAN: {e}")
-            ax = self.figure.add_subplot(111)
-            ax.text(0.5, 0.5, f"Error en DBSCAN:\n{str(e)[:50]}",
-                    ha='center', va='center', transform=ax.transAxes,
-                    bbox=dict(boxstyle='round', facecolor='mistyrose'))
-            ax.set_title('Error en DBSCAN')
-            ax.axis('off')
-
-    def _create_dbscan_plots_internal(self):
-        """Crear plots DBSCAN directamente en self.figure - VERSIÓN CORREGIDA"""
-        try:
-            from sklearn.decomposition import PCA
-            from sklearn.preprocessing import StandardScaler
-
-            datos = self.current_results['datos_originales']
-            mejor_config = self.current_results['mejor_configuracion']
-
-            # CORREGIDO: Verificar que labels existe y es válido
-            if 'labels' not in mejor_config and 'cluster_labels' not in mejor_config:
-                ax = self.figure.add_subplot(111)
-                ax.text(0.5, 0.5, 'No hay etiquetas de clusters disponibles',
-                        ha='center', va='center', transform=ax.transAxes)
-                return
-
-            # Obtener labels con nombres alternativos
-            labels = mejor_config.get('labels', mejor_config.get('cluster_labels', []))
-
-            if not labels or len(labels) == 0:
-                ax = self.figure.add_subplot(111)
-                ax.text(0.5, 0.5, 'Etiquetas de clusters vacías',
-                        ha='center', va='center', transform=ax.transAxes)
-                return
-
-            labels = np.array(labels)
-
-            # Verificar compatibilidad de dimensiones
-            if len(labels) != len(datos):
-                # Ajustar si es necesario
-                min_len = min(len(labels), len(datos))
-                labels = labels[:min_len]
-                datos = datos.iloc[:min_len]
-
-            # Layout 2x2
-            gs = self.figure.add_gridspec(2, 2, hspace=0.3, wspace=0.3)
-
-            # 1. Clusters con PCA - CORREGIDO
-            ax1 = self.figure.add_subplot(gs[0, 0])
-            self._plot_dbscan_clusters_fixed(ax1, datos, labels)
-
-            # 2. Información de parámetros
-            ax2 = self.figure.add_subplot(gs[0, 1])
-            self._plot_dbscan_info_fixed(ax2, mejor_config)
-
-            # 3. Distribución de clusters
-            ax3 = self.figure.add_subplot(gs[1, 0])
-            self._plot_dbscan_distribution_fixed(ax3, labels)
-
-            # 4. Estadísticas
-            ax4 = self.figure.add_subplot(gs[1, 1])
-            self._plot_dbscan_stats_fixed(ax4, mejor_config)
-
-            self.figure.suptitle('DBSCAN - Análisis de Clusters y Outliers',
-                                 fontsize=16, fontweight='bold')
-
-        except Exception as e:
-            print(f"Error en DBSCAN plots: {e}")
-            import traceback
-            traceback.print_exc()
-
-            ax = self.figure.add_subplot(111)
-            ax.text(0.5, 0.5, f'Error en DBSCAN: {str(e)[:100]}',
-                    ha='center', va='center', transform=ax.transAxes,
-                    bbox=dict(boxstyle='round', facecolor='mistyrose'))
-            ax.set_title('Error en DBSCAN')
-            ax.axis('off')
-
-    # 7. Métodos auxiliares para DBSCAN
-    def _plot_dbscan_clusters(self, ax, datos, labels):
-        """Graficar clusters DBSCAN con PCA - VERSIÓN CORREGIDA"""
-        try:
-            from sklearn.decomposition import PCA
-            from sklearn.preprocessing import StandardScaler
-
-            # Seleccionar columnas numéricas válidas
-            numeric_cols = datos.select_dtypes(include=[np.number]).columns
-            exclude_cols = ['Points', 'WQI_IDEAM_6V', 'WQI_IDEAM_7V', 'WQI_NSF_9V']
-            valid_cols = [col for col in numeric_cols if col not in exclude_cols]
-
-            if len(valid_cols) < 2:
-                ax.text(0.5, 0.5, 'Insuficientes variables numéricas',
-                        ha='center', va='center', transform=ax.transAxes)
-                return
-
-            # Preparar datos para PCA
-            datos_numeric = datos[valid_cols].dropna()
-
-            # Ajustar labels al tamaño de datos limpios
-            if len(datos_numeric) != len(labels):
-                # Mantener solo los índices válidos
-                valid_indices = datos_numeric.index
-                original_indices = datos.index
-                mask = np.isin(original_indices, valid_indices)
-                labels_clean = labels[mask]
-            else:
-                labels_clean = labels
-
-            if len(datos_numeric) != len(labels_clean):
-                ax.text(0.5, 0.5, 'Incompatibilidad en dimensiones de datos',
-                        ha='center', va='center', transform=ax.transAxes)
-                return
-
-            # Aplicar PCA para reducir a 2D
-            scaler = StandardScaler()
-            datos_scaled = scaler.fit_transform(datos_numeric)
-
-            pca = PCA(n_components=2)
-            datos_2d = pca.fit_transform(datos_scaled)
-
-            # Colores por cluster
-            unique_labels = set(labels_clean)
-            colors = plt.cm.Spectral(np.linspace(0, 1, len(unique_labels)))
-
-            for k, col in zip(unique_labels, colors):
-                if k == -1:
-                    # Outliers en negro
-                    col = 'black'
-                    marker = 'x'
-                    label = 'Outliers'
-                    s = 100
-                    alpha = 0.8
-                else:
-                    marker = 'o'
-                    label = f'Cluster {k}'
-                    s = 60
-                    alpha = 0.7
-
-                class_member_mask = (labels_clean == k)
-                xy = datos_2d[class_member_mask]
-
-                if len(xy) > 0:  # Solo graficar si hay puntos
-                    ax.scatter(xy[:, 0], xy[:, 1], c=[col], marker=marker,
-                               s=s, label=label, alpha=alpha, edgecolors='black', linewidth=0.5)
-
-            var_exp = pca.explained_variance_ratio_
-            ax.set_xlabel(f'PC1 ({var_exp[0] * 100:.1f}%)')
-            ax.set_ylabel(f'PC2 ({var_exp[1] * 100:.1f}%)')
-            ax.set_title('Clusters DBSCAN (PCA)')
-            ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
-            ax.grid(True, alpha=0.3)
-
-        except Exception as e:
-            ax.text(0.5, 0.5, f'Error: {str(e)[:50]}',
-                    ha='center', va='center', transform=ax.transAxes)
-
-    def _plot_dbscan_info(self, ax, mejor_config):
-        """Mostrar información de parámetros DBSCAN"""
-        try:
-            info_text = f"Parámetros DBSCAN:\n\n"
-            info_text += f"Eps: {mejor_config.get('eps', 0):.3f}\n"
-            info_text += f"Min Samples: {mejor_config.get('min_samples', 0)}\n\n"
-            info_text += f"Resultados:\n"
-            info_text += f"Clusters: {mejor_config.get('n_clusters', 0)}\n"
-            info_text += f"Outliers: {mejor_config.get('n_noise', 0)}\n"
-            info_text += f"Silhouette: {mejor_config.get('silhouette_score', 0):.3f}\n"
-
-            ax.text(0.05, 0.95, info_text, fontsize=11, va='top', ha='left',
-                    family='monospace', transform=ax.transAxes,
-                    bbox=dict(boxstyle='round', facecolor='lightblue', alpha=0.7))
-            ax.set_title('Configuración DBSCAN')
-            ax.axis('off')
-
-        except Exception as e:
-            ax.text(0.5, 0.5, f'Error: {str(e)[:30]}',
-                    ha='center', va='center', transform=ax.transAxes)
-
-    def _plot_dbscan_distribution(self, ax, labels):
-        """Graficar distribución de puntos por cluster"""
-        try:
-            unique_labels = sorted([l for l in set(labels) if l != -1])
-            outliers_count = list(labels).count(-1)
-
-            # Contar puntos por cluster
-            cluster_counts = [list(labels).count(label) for label in unique_labels]
-            cluster_names = [f'Cluster {label}' for label in unique_labels]
-
-            if outliers_count > 0:
-                cluster_counts.append(outliers_count)
-                cluster_names.append('Outliers')
-
-            if cluster_counts:
-                colors = ['red' if name == 'Outliers' else 'skyblue' for name in cluster_names]
-                bars = ax.bar(cluster_names, cluster_counts, color=colors, alpha=0.7, edgecolor='black')
-
-                # Añadir valores en barras
-                for bar, count in zip(bars, cluster_counts):
-                    height = bar.get_height()
-                    ax.text(bar.get_x() + bar.get_width() / 2., height + 0.5,
-                            f'{count}', ha='center', va='bottom', fontweight='bold')
-
-                ax.set_ylabel('Número de Puntos')
-                ax.set_title('Distribución por Cluster')
-                ax.tick_params(axis='x', rotation=45)
-                ax.grid(True, alpha=0.3, axis='y')
-            else:
-                ax.text(0.5, 0.5, 'Sin datos de distribución',
-                        ha='center', va='center', transform=ax.transAxes)
-
-        except Exception as e:
-            ax.text(0.5, 0.5, f'Error: {str(e)[:30]}',
-                    ha='center', va='center', transform=ax.transAxes)
-
-    def _plot_dbscan_stats(self, ax, mejor_config):
-        """Mostrar estadísticas adicionales"""
-        try:
-            n_clusters = mejor_config.get('n_clusters', 0)
-            n_outliers = mejor_config.get('n_noise', 0)
-            total_points = n_clusters * 10 + n_outliers  # Estimación
-
-            # Crear gráfico de pie
-            if n_clusters > 0 or n_outliers > 0:
-                labels_pie = []
-                sizes = []
-                colors = []
-
-                if n_clusters > 0:
-                    labels_pie.append(f'Clusters\n({n_clusters})')
-                    sizes.append(70)  # Porcentaje aproximado
-                    colors.append('lightblue')
-
-                if n_outliers > 0:
-                    labels_pie.append(f'Outliers\n({n_outliers})')
-                    sizes.append(30)
-                    colors.append('red')
-
-                ax.pie(sizes, labels=labels_pie, colors=colors, autopct='%1.1f%%',
-                       startangle=90, alpha=0.7)
-                ax.set_title('Proporción Clusters vs Outliers')
-            else:
-                ax.text(0.5, 0.5, 'Sin estadísticas disponibles',
-                        ha='center', va='center', transform=ax.transAxes)
-
-        except Exception as e:
-            ax.text(0.5, 0.5, f'Error: {str(e)[:30]}',
-                    ha='center', va='center', transform=ax.transAxes)
-
-    # 8. Agregar botón de limpiar gráfico en _create_viz_tab
-    def _create_viz_tab(self) -> QWidget:
-        """Crear tab de visualizaciones con botón de limpiar"""
-        widget = QWidget()
-        layout = QVBoxLayout()
-
-        # Canvas para matplotlib
-        self.figure = Figure(figsize=(12, 8))
-        self.canvas = FigureCanvas(self.figure)
-
-        scroll = QScrollArea()
-        scroll.setWidget(self.canvas)
-        scroll.setWidgetResizable(True)
-        layout.addWidget(scroll)
-
-        # Controles mejorados
-        controls_layout = QHBoxLayout()
-
-        self.save_fig_btn = QPushButton("💾 Guardar Gráfico")
-        self.save_fig_btn.clicked.connect(self._save_figure)
-        controls_layout.addWidget(self.save_fig_btn)
-
-        # NUEVO: Botón de limpiar gráfico
-        self.clear_fig_btn = QPushButton("🗑️ Limpiar Gráfico")
-        self.clear_fig_btn.clicked.connect(self._clear_figure)
-        self.clear_fig_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #e74c3c;
-                color: white;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #c0392b;
-            }
-        """)
-        controls_layout.addWidget(self.clear_fig_btn)
-
-        controls_layout.addStretch()
-        layout.addLayout(controls_layout)
-
-        widget.setLayout(layout)
-        return widget
-
-    # 9. Nuevo método para limpiar figura
     def _clear_figure(self):
-        """Limpiar completamente la figura"""
+        """Limpiar figura"""
         try:
             self.figure.clear()
             plt.close('all')
 
-            # Mostrar mensaje de figura limpia
             ax = self.figure.add_subplot(111)
-            ax.text(0.5, 0.5, 'Gráfico limpiado\n\nEjecuta un nuevo análisis para ver visualizaciones',
-                    ha='center', va='center', transform=ax.transAxes,
-                    fontsize=14, bbox=dict(boxstyle='round', facecolor='lightgreen', alpha=0.7))
+            ax.text(0.5, 0.5, 'Gráfico limpiado\n\nEjecuta un nuevo análisis',
+                   ha='center', va='center', transform=ax.transAxes,
+                   fontsize=14, bbox=dict(boxstyle='round', facecolor='lightgreen'))
             ax.set_title('Figura Limpia')
             ax.axis('off')
 
             self.canvas.draw_idle()
-
-            # Log de la acción
-            if hasattr(self.parent(), 'log'):
-                self.parent().log("🗑️ Gráfico limpiado manualmente")
-
         except Exception as e:
-            print(f"Error limpiando figura: {e}")
-            QMessageBox.warning(self, "Error", f"No se pudo limpiar el gráfico:\n{e}")
-
+            QMessageBox.warning(self, "Error", f"No se pudo limpiar:\n{e}")
 
     def _export_results(self):
-        """Exportar resultados actuales a un archivo CSV"""
-        from PyQt5.QtWidgets import QFileDialog, QMessageBox
-        import pandas as pd
+        """Exportar resultados"""
+        if not self.current_results or 'datos_originales' not in self.current_results:
+            QMessageBox.warning(self, "Sin datos", "No hay resultados para exportar.")
+            return
+
+        file_path, _ = QFileDialog.getSaveFileName(
+            self, "Exportar Resultados", "", "Archivo CSV (*.csv)"
+        )
+        if file_path:
+            try:
+                df = self.current_results['datos_originales'].copy()
+
+                if self.current_results.get('tipo') == 'kmeans_optimizado':
+                    k_opt = self.current_results.get('recomendacion_k')
+                    if k_opt and 'resultados_por_k' in self.current_results:
+                        if k_opt in self.current_results['resultados_por_k']:
+                            labels = self.current_results['resultados_por_k'][k_opt]['labels']
+                            df['Cluster'] = labels[:len(df)]
+
+                elif self.current_results.get('tipo') == 'dbscan_optimizado':
+                    config = self.current_results.get('mejor_configuracion', {})
+                    if 'labels' in config:
+                        labels = config['labels']
+                        df['Cluster'] = labels[:len(df)]
+
+                df.to_csv(file_path, index=False, encoding='utf-8-sig')
+                QMessageBox.information(self, "Éxito", f"Resultados exportados a:\n{file_path}")
+            except Exception as e:
+                QMessageBox.critical(self, "Error", f"No se pudo exportar:\n{e}")
+
+    def _generate_report(self):
+        """Generar reporte"""
+        if not self.current_results:
+            QMessageBox.warning(self, "Sin datos", "No hay resultados para el reporte.")
+            return
+
+        file_path, _ = QFileDialog.getSaveFileName(
+            self, "Guardar Reporte", "", "Archivo de texto (*.txt)"
+        )
+        if not file_path:
+            return
 
         try:
-            if not hasattr(self, 'current_results') or 'datos_originales' not in self.current_results:
-                QMessageBox.warning(self, "Sin datos", "No hay resultados para exportar.")
-                return
+            with open(file_path, "w", encoding="utf-8") as f:
+                f.write("=== Reporte de ML No Supervisado ===\n\n")
+                f.write(f"Tipo de análisis: {self.current_results.get('tipo', 'N/A')}\n")
+                f.write(f"Fecha: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
 
-            # Obtener DataFrame original y etiquetas de cluster
-            df = self.current_results['datos_originales'].copy()
-            mejor_config = self.current_results.get('mejor_configuracion', {})
-            if 'cluster_labels' in mejor_config:
-                df['Cluster'] = mejor_config['cluster_labels'][:len(df)]
+                if 'recomendaciones' in self.current_results:
+                    f.write("Recomendaciones:\n")
+                    for i, rec in enumerate(self.current_results['recomendaciones'], 1):
+                        f.write(f"{i}. {rec}\n")
 
-            # Diálogo para guardar archivo
-            file_path, _ = QFileDialog.getSaveFileName(
-                self,
-                "Exportar Resultados",
-                "",
-                "Archivo CSV (*.csv);;Todos los archivos (*.*)"
-            )
-
-            if file_path:
-                df.to_csv(file_path, index=False, encoding='utf-8-sig')
-                QMessageBox.information(self, "Exportación completada",
-                                        f"Resultados exportados a:\n{file_path}")
-
+            QMessageBox.information(self, "Éxito", f"Reporte guardado en:\n{file_path}")
         except Exception as e:
-            QMessageBox.critical(self, "Error", f"No se pudieron exportar los resultados:\n{str(e)}")
+            QMessageBox.critical(self, "Error", f"No se pudo generar el reporte:\n{e}")
 
-    def _create_metrics_tab(self) -> QWidget:
-        """Crear tab de métricas"""
-        widget = QWidget()
-        layout = QVBoxLayout()
-
-        self.metrics_table = QTableWidget()
-        self.metrics_table.setAlternatingRowColors(True)
-        layout.addWidget(self.metrics_table)
-
-        widget.setLayout(layout)
-        return widget
-
-# ==================== VENTANA PRINCIPAL MEJORADA ====================
+# ==================== VENTANA PRINCIPAL ====================
 
 class NoSupervisadoWindow(QWidget, ThemedWidget):
-    """Ventana principal para ML No Supervisado"""
+    """Ventana principal para ML No Supervisado optimizada"""
 
     def __init__(self):
         QWidget.__init__(self)
@@ -2249,8 +2184,6 @@ class NoSupervisadoWindow(QWidget, ThemedWidget):
             print("⚠️ NoSupervisadoWindow: DataManager no importado")
 
         self.setup_ui()
-
-        # Verificar datos al inicio
         self.check_data_availability()
         print("✅ NoSupervisadoWindow: Inicialización completada")
 
@@ -2275,7 +2208,7 @@ class NoSupervisadoWindow(QWidget, ThemedWidget):
         # Contenido principal
         content_splitter = QSplitter(Qt.Horizontal)
 
-        # Panel izquierdo con scroll
+        # Panel izquierdo
         left_panel = self.create_left_panel()
         content_splitter.addWidget(left_panel)
 
@@ -2355,7 +2288,7 @@ class NoSupervisadoWindow(QWidget, ThemedWidget):
         for btn in buttons:
             btn.setEnabled(enabled)
 
-    # ==================== CONFIGURACIÓN DE UI MEJORADA ====================
+    # ==================== CONFIGURACIÓN DE UI ====================
 
     def create_header(self) -> QWidget:
         """Crear header de la ventana"""
@@ -2399,8 +2332,7 @@ class NoSupervisadoWindow(QWidget, ThemedWidget):
         return header
 
     def create_left_panel(self) -> QWidget:
-        """Crear panel izquierdo con scroll mejorado"""
-        # Widget principal
+        """Crear panel izquierdo"""
         main_widget = QWidget()
         main_layout = QVBoxLayout()
         main_layout.setContentsMargins(0, 0, 0, 0)
@@ -2408,11 +2340,9 @@ class NoSupervisadoWindow(QWidget, ThemedWidget):
         # Crear scroll area
         scroll_area = QScrollArea()
         scroll_area.setWidgetResizable(True)
-        scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-        scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         scroll_area.setMinimumWidth(400)
 
-        # Widget de contenido del scroll
+        # Widget de contenido
         content_widget = QWidget()
         layout = QVBoxLayout()
         layout.setSpacing(15)
@@ -2427,21 +2357,14 @@ class NoSupervisadoWindow(QWidget, ThemedWidget):
         self.configuration = ConfigurationWidget()
         layout.addWidget(self.configuration)
 
-        # Botones de análisis mejorados
+        # Botones de análisis
         analysis_group = QGroupBox("🚀 Análisis Disponibles")
         analysis_layout = QVBoxLayout()
         analysis_layout.setSpacing(12)
 
         # Clustering
         clustering_label = QLabel("🎯 Algoritmos de Clustering")
-        clustering_label.setStyleSheet("""
-            font-weight: bold; 
-            color: #2c3e50; 
-            font-size: 13px;
-            background-color: #ecf0f1;
-            padding: 8px;
-            border-radius: 4px;
-        """)
+        clustering_label.setStyleSheet("font-weight: bold; color: #2c3e50; font-size: 13px;")
         analysis_layout.addWidget(clustering_label)
 
         self.kmeans_btn = QPushButton("🔹 K-Means Optimizado")
@@ -2452,115 +2375,50 @@ class NoSupervisadoWindow(QWidget, ThemedWidget):
 
         self.hierarchical_btn = QPushButton("🔸 Clustering Jerárquico")
         self.hierarchical_btn.setMinimumHeight(40)
-        self.hierarchical_btn.setToolTip("Clustering basado en dendrogramas con múltiples métodos de enlace")
+        self.hierarchical_btn.setToolTip("Clustering basado en jerarquías")
         self.hierarchical_btn.clicked.connect(lambda: self.run_analysis('clustering_jerarquico'))
         analysis_layout.addWidget(self.hierarchical_btn)
 
         self.dbscan_btn = QPushButton("🔺 DBSCAN")
         self.dbscan_btn.setMinimumHeight(40)
-        self.dbscan_btn.setToolTip("Clustering basado en densidad con detección automática de outliers")
+        self.dbscan_btn.setToolTip("Clustering basado en densidad con detección de outliers")
         self.dbscan_btn.clicked.connect(lambda: self.run_analysis('dbscan'))
         analysis_layout.addWidget(self.dbscan_btn)
 
-        # Separador visual
-        separator1 = QFrame()
-        separator1.setFrameShape(QFrame.HLine)
-        separator1.setFrameShadow(QFrame.Sunken)
-        separator1.setStyleSheet("color: #bdc3c7;")
-        analysis_layout.addWidget(separator1)
-
-        # Reducción dimensional
+        # PCA
         pca_label = QLabel("📊 Reducción Dimensional")
-        pca_label.setStyleSheet("""
-            font-weight: bold; 
-            color: #2c3e50; 
-            font-size: 13px;
-            background-color: #e8f5e8;
-            padding: 8px;
-            border-radius: 4px;
-        """)
+        pca_label.setStyleSheet("font-weight: bold; color: #2c3e50; font-size: 13px;")
         analysis_layout.addWidget(pca_label)
 
         self.pca_btn = QPushButton("🔹 PCA Avanzado")
         self.pca_btn.setMinimumHeight(40)
-        self.pca_btn.setToolTip("Análisis de Componentes Principales lineal y no lineal (Kernel PCA)")
+        self.pca_btn.setToolTip("Análisis de Componentes Principales")
         self.pca_btn.clicked.connect(lambda: self.run_analysis('pca_avanzado'))
         analysis_layout.addWidget(self.pca_btn)
 
-        # Separador visual
-        separator2 = QFrame()
-        separator2.setFrameShape(QFrame.HLine)
-        separator2.setFrameShadow(QFrame.Sunken)
-        separator2.setStyleSheet("color: #bdc3c7;")
-        analysis_layout.addWidget(separator2)
-
         # Análisis exploratorio
         exp_label = QLabel("🔍 Análisis Exploratorio")
-        exp_label.setStyleSheet("""
-            font-weight: bold; 
-            color: #2c3e50; 
-            font-size: 13px;
-            background-color: #fff2e8;
-            padding: 8px;
-            border-radius: 4px;
-        """)
+        exp_label.setStyleSheet("font-weight: bold; color: #2c3e50; font-size: 13px;")
         analysis_layout.addWidget(exp_label)
 
         self.exploratory_btn = QPushButton("🔹 Análisis Completo")
         self.exploratory_btn.setMinimumHeight(40)
-        self.exploratory_btn.setToolTip("Análisis exploratorio completo: correlaciones, distribuciones y outliers")
+        self.exploratory_btn.setToolTip("Análisis exploratorio completo")
         self.exploratory_btn.clicked.connect(lambda: self.run_analysis('analisis_exploratorio'))
         analysis_layout.addWidget(self.exploratory_btn)
 
-        # Espacio flexible
-        analysis_layout.addStretch()
-
-        # Separador visual
-        separator3 = QFrame()
-        separator3.setFrameShape(QFrame.HLine)
-        separator3.setFrameShadow(QFrame.Sunken)
-        separator3.setStyleSheet("color: #bdc3c7;")
-        analysis_layout.addWidget(separator3)
-
-        # Botones de control
-        control_label = QLabel("⚙️ Control de Análisis")
-        control_label.setStyleSheet("""
-            font-weight: bold; 
-            color: #2c3e50; 
-            font-size: 13px;
-            background-color: #ffeaea;
-            padding: 8px;
-            border-radius: 4px;
-        """)
-        analysis_layout.addWidget(control_label)
-
+        # Botón de cancelar
         self.cancel_btn = QPushButton("❌ Cancelar Análisis")
         self.cancel_btn.setMinimumHeight(40)
         self.cancel_btn.setVisible(False)
-        self.cancel_btn.setToolTip("Cancelar el análisis actual")
         self.cancel_btn.clicked.connect(self.cancel_analysis)
-        self.cancel_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #e74c3c;
-                color: white;
-                border: none;
-                border-radius: 6px;
-                font-weight: bold;
-                font-size: 12px;
-            }
-            QPushButton:hover {
-                background-color: #c0392b;
-            }
-            QPushButton:pressed {
-                background-color: #a93226;
-            }
-        """)
+        self.cancel_btn.setStyleSheet("background-color: #e74c3c; color: white; font-weight: bold;")
         analysis_layout.addWidget(self.cancel_btn)
 
+        analysis_layout.addStretch()
         analysis_group.setLayout(analysis_layout)
         layout.addWidget(analysis_group)
 
-        # Espacio al final
         layout.addStretch()
 
         content_widget.setLayout(layout)
@@ -2627,10 +2485,7 @@ class NoSupervisadoWindow(QWidget, ThemedWidget):
             QMessageBox.information(
                 self, "Datos Demo",
                 f"Se generaron {len(demo_data)} muestras con {demo_data.shape[1]} variables\n\n"
-                "Los datos incluyen parámetros de calidad del agua realistas con:\n"
-                "• Múltiples estaciones de monitoreo\n"
-                "• Correlaciones naturales entre variables\n"
-                "• Outliers para pruebas de robustez"
+                "Los datos incluyen parámetros de calidad del agua realistas."
             )
 
         except Exception as e:
@@ -2640,15 +2495,14 @@ class NoSupervisadoWindow(QWidget, ThemedWidget):
     # ==================== EJECUCIÓN DE ANÁLISIS ====================
 
     def run_analysis(self, analysis_type: str):
-        """Ejecutar análisis específico"""
+        """Ejecutar análisis específico con monitor de hilos"""
         if not self.validate_selection():
             return
 
         if not ML_AVAILABLE:
             QMessageBox.critical(
                 self, "Error",
-                "Las librerías de Machine Learning no están disponibles.\n"
-                "Verifica que scikit-learn, matplotlib y seaborn estén instalados."
+                "Las librerías de Machine Learning no están disponibles."
             )
             return
 
@@ -2656,77 +2510,60 @@ class NoSupervisadoWindow(QWidget, ThemedWidget):
         variables = self.variable_selection.get_selected_variables()
         config = self.configuration.get_config()
 
-        # Configurar kwargs base comunes
-        base_kwargs = {
+        # Configurar kwargs base
+        kwargs = {
             'variables': variables,
             'escalado': config['scaling_method'],
-            'verbose': config['verbose']
+            'verbose': config['verbose'],
+            'random_state': config['random_state']
         }
 
-        # Configurar kwargs específicos según el tipo de análisis
+        # Añadir configuración específica
         if analysis_type == 'kmeans_optimizado':
-            kwargs = {
-                **base_kwargs,
-                'k_range': config['kmeans_k_range'],
-                'criterios_optimo': ['silhouette', 'elbow', 'gap'],
-                'random_state': config['random_state']
-            }
+            kwargs['kmeans_k_range'] = config['kmeans_k_range']
         elif analysis_type == 'clustering_jerarquico':
-            kwargs = {
-                **base_kwargs,
-                'metodos': [config['hierarchical_method']],
-                'metricas': [config['hierarchical_metric']],
-                'max_clusters': config['hierarchical_max_clusters']
-            }
+            kwargs['hierarchical_method'] = config['hierarchical_method']
+            kwargs['hierarchical_metric'] = config['hierarchical_metric']
+            kwargs['hierarchical_max_clusters'] = config['hierarchical_max_clusters']
         elif analysis_type == 'dbscan':
-            kwargs = {
-                **base_kwargs,
-                'optimizar_parametros': config['dbscan_optimize']
-            }
-            # Añadir contamination solo si se maneja outliers
-            if config['handle_outliers']:
-                kwargs['contamination'] = config['outlier_contamination']
-
+            kwargs['dbscan_optimize'] = config['dbscan_optimize']
         elif analysis_type == 'pca_avanzado':
-            metodos = ['linear']
-            if config['pca_include_kernel']:
-                metodos.append('kernel')
-            kwargs = {
-                **base_kwargs,
-                'metodos': metodos,
-                'explicar_varianza_objetivo': config['pca_variance_threshold'],
-                'random_state': config['random_state']
-            }
-            # Añadir parámetros de kernel PCA si está habilitado
-            if config['pca_include_kernel']:
-                kwargs.update({
-                    'max_components': config['pca_max_components']
-                })
+            kwargs['pca_variance_threshold'] = config['pca_variance_threshold']
         elif analysis_type == 'analisis_exploratorio':
-            kwargs = {
-                **base_kwargs,
-                'handle_outliers': config['handle_outliers']
-            }
-            # Añadir método de outliers si está habilitado
-            if config['handle_outliers']:
-                kwargs['outlier_method'] = config['outlier_method']
-                kwargs['random_state'] = config['random_state']
+            kwargs['handle_outliers'] = config['handle_outliers']
 
         # Mostrar progreso
         self.show_progress(True)
-        self.log(f"🚀 Iniciando análisis: {analysis_type}")
-        self.log(f"📊 Variables seleccionadas: {len(variables)}")
-        self.log(f"⚙️ Configuración: {config['scaling_method']} scaling")
+
+        # Mostrar monitor de hilos solo para clustering jerárquico
+        if analysis_type == 'clustering_jerarquico' and hasattr(self.thread_monitor, 'reset'):
+            try:
+                self.thread_monitor.setVisible(True)
+                self.thread_monitor.reset()
+            except Exception as e:
+                print(f"Error en thread_monitor: {e}")
+
+        self.log(f"Iniciando análisis: {analysis_type}")
+        self.log(f"Variables seleccionadas: {len(variables)}")
 
         # Crear worker
         self.current_worker = MLNoSupervisadoWorker(analysis_type, self.current_data, **kwargs)
 
-        # Conectar señales
+        # Conectar señales existentes
         self.current_worker.progress.connect(self.progress_bar.setValue)
         self.current_worker.status.connect(self.log)
         self.current_worker.finished.connect(self.on_analysis_finished)
         self.current_worker.error.connect(self.on_analysis_error)
         self.current_worker.log.connect(self.log)
+
+        # Conectar señal del monitor de hilos (solo para clustering jerárquico)
+        if analysis_type == 'clustering_jerarquico':
+            if hasattr(self.current_worker, 'thread_activity') and hasattr(self.thread_monitor,
+                                                                           'update_active_threads'):
+                try:
+                    self.current_worker.thread_activity.connect(self.thread_monitor.update_active_threads)
+                except Exception as e:
+                    print(f"Error conectando thread_activity: {e}")
 
         # Iniciar
         self.current_worker.start()
@@ -2779,26 +2616,13 @@ class NoSupervisadoWindow(QWidget, ThemedWidget):
 
         self.log("✅ Análisis completado exitosamente")
 
-        # Mostrar resumen rápido en el log
-        if 'tipo' in results:
-            if results['tipo'] == 'kmeans_optimizado' and 'recomendacion_k' in results:
-                self.log(f"🎯 K óptimo recomendado: {results['recomendacion_k']}")
-            elif results['tipo'] == 'dbscan_optimizado' and 'mejor_configuracion' in results:
-                config = results['mejor_configuracion']
-                self.log(f"🎯 DBSCAN: {config.get('n_clusters', 0)} clusters, {config.get('n_noise', 0)} outliers")
-            elif results['tipo'] == 'pca_completo_avanzado':
-                if 'linear' in results.get('resultados_por_metodo', {}):
-                    linear = results['resultados_por_metodo']['linear']
-                    self.log(f"📊 PCA: {linear.get('componentes_recomendados', 'N/A')} componentes recomendados")
-
     @pyqtSlot(str)
     def on_analysis_error(self, error_msg: str):
         """Cuando ocurre un error"""
         self.show_progress(False)
         self.log(f"❌ Error: {error_msg}")
         QMessageBox.critical(self, "Error en Análisis",
-                            f"Error durante el análisis:\n\n{error_msg}\n\n"
-                            "Revisa los datos y la configuración.")
+                             f"Error durante el análisis:\n\n{error_msg}")
 
     def on_variables_changed(self):
         """Cuando cambian las variables seleccionadas"""
@@ -2809,11 +2633,25 @@ class NoSupervisadoWindow(QWidget, ThemedWidget):
     # ==================== UTILIDADES ====================
 
     def show_progress(self, show: bool):
-        """Mostrar/ocultar progreso"""
+        """Mostrar/ocultar progreso y monitor de hilos"""
         self.progress_bar.setVisible(show)
         self.cancel_btn.setVisible(show)
+
         if show:
             self.progress_bar.setValue(0)
+            # Intentar resetear monitor solo si existe
+            if hasattr(self.thread_monitor, 'reset'):
+                try:
+                    self.thread_monitor.reset()
+                except:
+                    pass
+        else:
+            # Ocultar monitor cuando termine
+            if hasattr(self.thread_monitor, 'setVisible'):
+                try:
+                    self.thread_monitor.setVisible(False)
+                except:
+                    pass
 
         # Deshabilitar botones durante análisis
         self.enable_analysis_buttons(not show)
@@ -2837,76 +2675,43 @@ class NoSupervisadoWindow(QWidget, ThemedWidget):
         help_dialog = QDialog(self)
         help_dialog.setWindowTitle("Ayuda - Machine Learning No Supervisado")
         help_dialog.setModal(True)
-        help_dialog.resize(800, 700)
+        help_dialog.resize(800, 600)
 
         layout = QVBoxLayout()
 
         help_text = QTextEdit()
         help_text.setReadOnly(True)
         help_text.setHtml("""
-        <h2>🔍 Machine Learning No Supervisado</h2>
+            <h2>Machine Learning No Supervisado</h2>
 
-        <h3>📌 ¿Qué es el ML No Supervisado?</h3>
-        <p>El aprendizaje no supervisado busca patrones ocultos en datos sin etiquetas predefinidas. 
-        Es ideal para explorar datos y descubrir estructuras subyacentes.</p>
+            <h3>Técnicas disponibles:</h3>
+            <ul>
+            <li><b>K-Means:</b> Agrupa datos en K clusters esféricos</li>
+            <li><b>DBSCAN:</b> Detecta clusters de densidad variable y outliers</li>
+            <li><b>Clustering Jerárquico:</b> Crea jerarquías de grupos</li>
+            <li><b>PCA:</b> Reduce dimensionalidad manteniendo varianza</li>
+            <li><b>Análisis Exploratorio:</b> Examina correlaciones y distribuciones</li>
+            </ul>
 
-        <h3>🎯 Técnicas de Clustering:</h3>
-        <ul>
-        <li><b>K-Means Optimizado:</b> Agrupa datos en K clusters esféricos con selección automática del K óptimo</li>
-        <li><b>Clustering Jerárquico:</b> Crea dendrogramas con jerarquías de grupos, ideal para estructuras anidadas</li>
-        <li><b>DBSCAN:</b> Detecta clusters de densidad variable y outliers automáticamente</li>
-        </ul>
+            <h3>Flujo recomendado:</h3>
+            <ol>
+            <li>Cargar datos desde el módulo "Cargar Datos" o usar Demo</li>
+            <li>Seleccionar variables (usar botón "Auto" para selección inteligente)</li>
+            <li>Configurar parámetros según necesidades</li>
+            <li>Ejecutar "Análisis Exploratorio" primero</li>
+            <li>Aplicar técnicas de clustering o PCA</li>
+            <li>Revisar resultados en las pestañas de visualización</li>
+            </ol>
 
-        <h3>📊 Reducción Dimensional:</h3>
-        <ul>
-        <li><b>PCA Linear:</b> Proyecta datos en componentes principales lineales</li>
-        <li><b>Kernel PCA:</b> PCA no lineal para patrones complejos con kernels RBF, polinomial, etc.</li>
-        </ul>
-
-        <h3>🔍 Análisis Exploratorio:</h3>
-        <ul>
-        <li><b>Correlaciones:</b> Detecta relaciones lineales y no lineales entre variables</li>
-        <li><b>Distribuciones:</b> Analiza patrones de distribución y normalidad</li>
-        <li><b>Outliers:</b> Identifica valores atípicos con múltiples métodos</li>
-        </ul>
-
-        <h3>🚀 Cómo usar (Flujo recomendado):</h3>
-        <ol>
-        <li><b>Cargar datos:</b> Desde el módulo "Cargar Datos" o usa el botón Demo</li>
-        <li><b>Seleccionar variables:</b> Usa el botón "Auto" para selección inteligente</li>
-        <li><b>Configurar análisis:</b> Ajusta parámetros según tus necesidades</li>
-        <li><b>Ejecutar análisis:</b> Comienza con "Análisis Exploratorio" para entender los datos</li>
-        <li><b>Revisar resultados:</b> Usa las pestañas de visualización y métricas</li>
-        <li><b>Refinar análisis:</b> Ajusta parámetros y repite según resultados</li>
-        </ol>
-
-        <h3>💡 Consejos y Mejores Prácticas:</h3>
-        <ul>
-        <li><b>Orden recomendado:</b> Análisis Exploratorio → PCA → K-Means → DBSCAN → Jerárquico</li>
-        <li><b>Selección de variables:</b> Evita variables con >50% de valores faltantes</li>
-        <li><b>Escalado:</b> Standard es recomendado para la mayoría de casos</li>
-        <li><b>K-Means:</b> Prueba rangos de 2-8 clusters inicialmente</li>
-        <li><b>PCA:</b> 95% de varianza explicada es un buen punto de partida</li>
-        <li><b>DBSCAN:</b> Ideal cuando no conoces el número de clusters</li>
-        <li><b>Outliers:</b> Isolation Forest es robusto para datos multidimensionales</li>
-        </ul>
-
-        <h3>📈 Interpretación de Resultados:</h3>
-        <ul>
-        <li><b>Silhouette Score:</b> >0.7 excelente, 0.5-0.7 bueno, <0.5 débil</li>
-        <li><b>Davies-Bouldin:</b> Menor es mejor (clusters más separados)</li>
-        <li><b>Varianza PCA:</b> Primer componente debería explicar >30% idealmente</li>
-        <li><b>Outliers:</b> 5-10% es normal, >20% puede indicar problemas en datos</li>
-        </ul>
-
-        <h3>🚨 Solución de Problemas:</h3>
-        <ul>
-        <li><b>Error "No clusters":</b> Verifica escalado y selección de variables</li>
-        <li><b>Resultados inconsistentes:</b> Fija la semilla aleatoria</li>
-        <li><b>Análisis lento:</b> Reduce variables o usa muestreo</li>
-        <li><b>PCA sin sentido:</b> Verifica correlaciones entre variables</li>
-        </ul>
-        """)
+            <h3>Consejos:</h3>
+            <ul>
+            <li>Standard scaling es recomendado para la mayoría de casos</li>
+            <li>Evita variables con más del 50% de valores faltantes</li>
+            <li>K-Means funciona bien con clusters esféricos</li>
+            <li>DBSCAN es ideal cuando no conoces el número de clusters</li>
+            <li>PCA es útil cuando tienes muchas variables correlacionadas</li>
+            </ul>
+            """)
         layout.addWidget(help_text)
 
         # Botones
@@ -2918,231 +2723,114 @@ class NoSupervisadoWindow(QWidget, ThemedWidget):
         help_dialog.exec_()
 
     def apply_styles(self):
-        """Aplicar estilos personalizados mejorados"""
+        """Aplicar estilos personalizados"""
         style = """
-        /* Estilos generales */
-        QWidget {
-            font-family: 'Segoe UI', Arial, sans-serif;
-        }
+            QWidget {
+                font-family: 'Segoe UI', Arial, sans-serif;
+            }
 
-        /* GroupBox styling */
-        QGroupBox {
-            font-weight: bold;
-            border: 2px solid #bdc3c7;
-            border-radius: 8px;
-            margin-top: 1ex;
-            padding-top: 10px;
-            background-color: #fafafa;
-        }
+            QGroupBox {
+                font-weight: bold;
+                border: 2px solid #bdc3c7;
+                border-radius: 8px;
+                margin-top: 1ex;
+                padding-top: 10px;
+                background-color: #fafafa;
+            }
 
-        QGroupBox::title {
-            subcontrol-origin: margin;
-            left: 15px;
-            padding: 0 8px 0 8px;
-            background-color: white;
-            border-radius: 4px;
-        }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 15px;
+                padding: 0 8px 0 8px;
+                background-color: white;
+                border-radius: 4px;
+            }
 
-        /* Botones principales */
-        QPushButton {
-            background-color: #3498db;
-            border: none;
-            color: white;
-            padding: 8px 16px;
-            border-radius: 6px;
-            font-weight: bold;
-            font-size: 12px;
-        }
+            QPushButton {
+                background-color: #3498db;
+                border: none;
+                color: white;
+                padding: 8px 16px;
+                border-radius: 6px;
+                font-weight: bold;
+                font-size: 12px;
+            }
 
-        QPushButton:hover {
-            background-color: #2980b9;
-        }
+            QPushButton:hover {
+                background-color: #2980b9;
+            }
 
-        QPushButton:pressed {
-            background-color: #21618c;
-        }
+            QPushButton:pressed {
+                background-color: #21618c;
+            }
 
-        QPushButton:disabled {
-            background-color: #bdc3c7;
-            color: #7f8c8d;
-        }
+            QPushButton:disabled {
+                background-color: #bdc3c7;
+                color: #7f8c8d;
+            }
 
-        /* Progress bar */
-        QProgressBar {
-            border: 2px solid #bdc3c7;
-            border-radius: 8px;
-            text-align: center;
-            font-weight: bold;
-            background-color: white;
-        }
+            QProgressBar {
+                border: 2px solid #bdc3c7;
+                border-radius: 8px;
+                text-align: center;
+                font-weight: bold;
+                background-color: white;
+            }
 
-        QProgressBar::chunk {
-            background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-                        stop:0 #3498db, stop:1 #2980b9);
-            border-radius: 6px;
-        }
+            QProgressBar::chunk {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                            stop:0 #3498db, stop:1 #2980b9);
+                border-radius: 6px;
+            }
 
-        /* TabWidget */
-        QTabWidget::pane {
-            border: 2px solid #bdc3c7;
-            border-radius: 8px;
-            background-color: white;
-        }
+            QTabWidget::pane {
+                border: 2px solid #bdc3c7;
+                border-radius: 8px;
+                background-color: white;
+            }
 
-        QTabBar::tab {
-            background: #ecf0f1;
-            border: 1px solid #bdc3c7;
-            padding: 8px 16px;
-            margin-right: 2px;
-            border-top-left-radius: 6px;
-            border-top-right-radius: 6px;
-        }
+            QTabBar::tab {
+                background: #ecf0f1;
+                border: 1px solid #bdc3c7;
+                padding: 8px 16px;
+                margin-right: 2px;
+                border-top-left-radius: 6px;
+                border-top-right-radius: 6px;
+            }
 
-        QTabBar::tab:selected {
-            background: #3498db;
-            color: white;
-            font-weight: bold;
-        }
+            QTabBar::tab:selected {
+                background: #3498db;
+                color: white;
+                font-weight: bold;
+            }
 
-        QTabBar::tab:hover {
-            background: #d5dbdb;
-        }
+            QListWidget {
+                border: 2px solid #bdc3c7;
+                border-radius: 6px;
+                selection-background-color: #3498db;
+                background-color: white;
+            }
 
-        /* ListWidget */
-        QListWidget {
-            border: 2px solid #bdc3c7;
-            border-radius: 6px;
-            selection-background-color: #3498db;
-            background-color: white;
-            alternate-background-color: #f8f9fa;
-        }
-
-        QListWidget::item {
-            padding: 8px;
-            border-bottom: 1px solid #ecf0f1;
-        }
-
-        QListWidget::item:hover {
-            background-color: #e8f4fd;
-        }
-
-        QListWidget::item:selected {
-            background-color: #3498db;
-            color: white;
-        }
-
-        /* TextEdit */
-        QTextEdit {
-            border: 2px solid #bdc3c7;
-            border-radius: 6px;
-            font-family: 'Segoe UI', Arial, sans-serif;
-            background-color: white;
-            selection-background-color: #3498db;
-        }
-
-        /* TableWidget */
-        QTableWidget {
-            border: 2px solid #bdc3c7;
-            gridline-color: #ecf0f1;
-            selection-background-color: #3498db;
-            alternate-background-color: #f8f9fa;
-            background-color: white;
-        }
-
-        QTableWidget::item {
-            padding: 8px;
-            border-bottom: 1px solid #ecf0f1;
-        }
-
-        QTableWidget::item:selected {
-            background-color: #3498db;
-            color: white;
-        }
-
-        QHeaderView::section {
-            background-color: #34495e;
-            color: white;
-            padding: 8px;
-            border: none;
-            font-weight: bold;
-        }
-
-        /* Frame */
-        QFrame {
-            border: 1px solid #bdc3c7;
-            border-radius: 6px;
-            background-color: white;
-        }
-
-        /* ScrollArea */
-        QScrollArea {
-            border: 1px solid #bdc3c7;
-            border-radius: 6px;
-            background-color: white;
-        }
-
-        /* ComboBox */
-        QComboBox {
-            border: 2px solid #bdc3c7;
-            border-radius: 4px;
-            padding: 4px 8px;
-            background-color: white;
-        }
-
-        QComboBox:hover {
-            border-color: #3498db;
-        }
-
-        /* SpinBox */
-        QSpinBox, QDoubleSpinBox {
-            border: 2px solid #bdc3c7;
-            border-radius: 4px;
-            padding: 4px 8px;
-            background-color: white;
-        }
-
-        QSpinBox:hover, QDoubleSpinBox:hover {
-            border-color: #3498db;
-        }
-
-        /* CheckBox */
-        QCheckBox {
-            spacing: 8px;
-        }
-
-        QCheckBox::indicator {
-            width: 16px;
-            height: 16px;
-            border: 2px solid #bdc3c7;
-            border-radius: 3px;
-            background-color: white;
-        }
-
-        QCheckBox::indicator:checked {
-            background-color: #3498db;
-            border-color: #3498db;
-        }
-        """
+            QTextEdit {
+                border: 2px solid #bdc3c7;
+                border-radius: 6px;
+                background-color: white;
+            }
+            """
 
         self.setStyleSheet(style)
 
-
-# ==================== FUNCIÓN PRINCIPAL PARA TESTING ====================
+# ==================== FUNCIÓN PRINCIPAL ====================
 
 def main():
     """Función principal para testing independiente"""
     app = QApplication(sys.argv)
-
-    # Configurar estilo de la aplicación
     app.setStyle('Fusion')
 
-    # Crear ventana principal
     window = NoSupervisadoWindow()
     window.show()
 
-    # Ejecutar aplicación
     sys.exit(app.exec_())
-
 
 if __name__ == "__main__":
     main()
