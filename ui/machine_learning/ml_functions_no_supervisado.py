@@ -1,198 +1,458 @@
 """
-ml_functions_no_supervisado.py - Compatible con PyInstaller
-Implementación de Machine Learning No Supervisado usando solo numpy, pandas y matplotlib
-Versión optimizada para empaquetado con PyInstaller
+ml_functions_no_supervisado_optimizado.py - ULTRA OPTIMIZADO
+Machine Learning No Supervisado con optimizaciones algorítmicas avanzadas
+Compatible con PyInstaller - Sin threading
 """
-
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from typing import Dict, Any, Tuple, List
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from threading import Lock
-import time
+from typing import Dict, Any, Tuple, List, Optional
 import warnings
 from datetime import datetime
-import json
+import time
+from collections import defaultdict
 
 warnings.filterwarnings('ignore')
 
 # Configuración de visualización
 plt.style.use('default')
 plt.rcParams['figure.figsize'] = (10, 6)
-plt.rcParams['axes.prop_cycle'] = plt.cycler(color=['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b'])
 
-# ==================== FUNCIONES DE GENERACIÓN DE DATOS ====================
 
-def generar_datos_agua_realistas(n_muestras=200, seed=42, incluir_outliers=True):
-    """Generar datos sintéticos realistas de calidad del agua"""
-    np.random.seed(seed)
+# ==================== OPTIMIZACIONES DE NUMPY ====================
 
-    # Generar estaciones con diferentes características
-    n_estaciones = min(5, n_muestras // 20)
-    estacion_ids = np.random.choice(range(1, n_estaciones + 1), n_muestras)
+def optimized_euclidean_distance(X, Y):
+    """Distancia euclidiana optimizada usando broadcasting numpy"""
+    return np.sqrt(np.sum((X[:, np.newaxis, :] - Y[np.newaxis, :, :]) ** 2, axis=2))
 
-    # Parámetros base por estación
-    estacion_params = {}
-    for i in range(1, n_estaciones + 1):
-        estacion_params[i] = {
-            'ph_base': np.random.uniform(6.8, 7.8),
-            'temp_base': np.random.uniform(18, 26),
-            'conduct_base': np.random.uniform(200, 800),
-            'quality_factor': np.random.uniform(0.7, 1.3)
-        }
 
-    # Generar datos con correlaciones realistas
-    datos = {
-        'Points': range(1, n_muestras + 1),
-        'Sampling_date': pd.date_range('2023-01-01', periods=n_muestras, freq='D'),
+def optimized_pairwise_distances(X, metric='euclidean'):
+    """Matriz de distancias optimizada usando operaciones vectorizadas"""
+    if metric == 'euclidean':
+        sq_norms = np.sum(X ** 2, axis=1)
+        distances = np.sqrt(sq_norms[:, np.newaxis] + sq_norms[np.newaxis, :] - 2 * np.dot(X, X.T))
+        return distances
+    elif metric == 'manhattan':
+        return np.sum(np.abs(X[:, np.newaxis, :] - X[np.newaxis, :, :]), axis=2)
+    elif metric == 'cosine':
+        norms = np.linalg.norm(X, axis=1, keepdims=True)
+        norms = np.where(norms == 0, 1, norms)
+        X_normalized = X / norms
+        return 1 - np.dot(X_normalized, X_normalized.T)
+    else:
+        return optimized_pairwise_distances(X, 'euclidean')
+
+
+# ==================== K-MEANS OPTIMIZADO ====================
+
+def kmeans_plusplus_init(X, k, random_state=42):
+    """Inicialización K-Means++"""
+    np.random.seed(random_state)
+    n_samples, n_features = X.shape
+    centroids = [X[np.random.randint(n_samples)]]
+
+    for _ in range(1, k):
+        distances = np.min([np.sum((X - c) ** 2, axis=1) for c in centroids], axis=0)
+        probs = distances / distances.sum()
+        cumprobs = np.cumsum(probs)
+        r = np.random.rand()
+
+        for i, p in enumerate(cumprobs):
+            if r < p:
+                centroids.append(X[i])
+                break
+
+    return np.array(centroids)
+
+
+def optimized_kmeans(X, k, max_iters=100, random_state=42, tol=1e-4):
+    """K-Means ULTRA OPTIMIZADO"""
+    np.random.seed(random_state)
+    n_samples, n_features = X.shape
+    use_minibatch = n_samples > 10000
+    batch_size = min(1000, n_samples) if use_minibatch else n_samples
+    centroids = kmeans_plusplus_init(X, k, random_state)
+
+    for iteration in range(max_iters):
+        if use_minibatch:
+            indices = np.random.choice(n_samples, batch_size, replace=False)
+            X_batch = X[indices]
+        else:
+            X_batch = X
+
+        distances = optimized_euclidean_distance(X_batch, centroids)
+        labels_batch = np.argmin(distances, axis=1)
+        new_centroids = np.array([
+            X_batch[labels_batch == i].mean(axis=0) if np.any(labels_batch == i)
+            else centroids[i] for i in range(k)
+        ])
+
+        shift = np.sum((new_centroids - centroids) ** 2)
+        if shift < tol:
+            break
+        centroids = new_centroids
+
+    distances = optimized_euclidean_distance(X, centroids)
+    labels = np.argmin(distances, axis=1)
+    inertia = sum(np.sum((X[labels == i] - centroids[i]) ** 2)
+                  for i in range(k) if np.any(labels == i))
+
+    return {
+        'labels': labels,
+        'centroids': centroids,
+        'inertia': inertia,
+        'n_iter': iteration + 1
     }
 
-    # Variables principales
-    ph_values = []
-    temperatura_values = []
-    conductividad_values = []
 
-    for estacion in estacion_ids:
-        params = estacion_params[estacion]
-        ph = np.random.normal(params['ph_base'], 0.3)
-        temp = np.random.normal(params['temp_base'], 2)
-        conduct = np.random.normal(params['conduct_base'], 100)
+def optimized_silhouette_score(X, labels, sample_size=None):
+    """Silhouette Score optimizado"""
+    n_samples = len(X)
+    unique_labels = np.unique(labels)
 
-        ph_values.append(ph)
-        temperatura_values.append(temp)
-        conductividad_values.append(conduct)
+    if len(unique_labels) == 1:
+        return 0.0
 
-    datos['pH'] = np.clip(ph_values, 5.5, 9.0)
-    datos['WT'] = np.clip(temperatura_values, 10, 35)
-    datos['CTD'] = np.clip(conductividad_values, 50, 1500)
+    if sample_size is not None and n_samples > sample_size:
+        indices = np.random.choice(n_samples, sample_size, replace=False)
+        X_sample = X[indices]
+        labels_sample = labels[indices]
+    else:
+        X_sample = X
+        labels_sample = labels
 
-    # Variables correlacionadas
-    datos['DO'] = np.clip(
-        10 - 0.2 * (datos['WT'] - 20) + np.random.normal(0, 1, n_muestras),
-        2, 15
-    )
+    n_sample = len(X_sample)
+    distances = optimized_pairwise_distances(X_sample, 'euclidean')
+    silhouette_vals = np.zeros(n_sample)
 
-    datos['TBD'] = np.clip(
-        np.random.exponential(2.0, n_muestras) * (1 + 0.1 * np.abs(datos['pH'] - 7)),
-        0.1, 50
-    )
+    for idx in range(n_sample):
+        own_cluster = labels_sample[idx]
+        same_cluster_mask = labels_sample == own_cluster
+        n_same = np.sum(same_cluster_mask) - 1
 
-    datos['BOD5'] = np.clip(
-        np.random.exponential(3, n_muestras) * (1 + datos['TBD'] / 20),
-        0.5, 25
-    )
+        a = np.sum(distances[idx, same_cluster_mask]) / n_same if n_same > 0 else 0
 
-    datos['COD'] = np.clip(
-        datos['BOD5'] * np.random.uniform(1.5, 3.0, n_muestras),
-        1, 100
-    )
+        b_values = []
+        for cluster in unique_labels:
+            if cluster != own_cluster:
+                other_mask = labels_sample == cluster
+                if np.any(other_mask):
+                    b_values.append(np.mean(distances[idx, other_mask]))
 
-    # Variables adicionales
-    for var, params in [
-        ('FC', (100, 1, 10000)),
-        ('TC', (500, 10, 50000)),
-        ('NO3', (5, 0.1, 50)),
-        ('NO2', (0.5, 0.01, 3)),
-        ('N_NH3', (1, 0.01, 10)),
-        ('TP', (0.5, 0.01, 5)),
-        ('TN', (3, 0.5, 20)),
-        ('TKN', (2, 0.1, 15)),
-        ('TSS', (10, 1, 200)),
-        ('TS', (150, 50, 2000)),
-        ('Q', (50, 1, 500)),
-        ('ALC', (150, 50, 500)),
-        ('H', (20, 5, 200)),
-        ('ET', (25, 15, 40))
-    ]:
-        scale, min_val, max_val = params
-        datos[var] = np.clip(
-            np.random.exponential(scale, n_muestras),
-            min_val, max_val
-        )
+        b = min(b_values) if b_values else 0
+        silhouette_vals[idx] = (b - a) / max(a, b) if max(a, b) > 0 else 0
 
-    # Crear DataFrame
-    df = pd.DataFrame(datos)
+    return float(np.mean(silhouette_vals))
 
-    # Calcular índices de calidad
-    df['WQI_IDEAM_6V'] = calcular_indice_calidad_simple(df)
-    df['WQI_IDEAM_7V'] = df['WQI_IDEAM_6V'] * np.random.uniform(0.9, 1.1, n_muestras)
-    df['WQI_NSF_9V'] = df['WQI_IDEAM_6V'] * np.random.uniform(0.8, 1.2, n_muestras)
 
-    # Clasificaciones
-    df['Classification_6V'] = pd.cut(
-        df['WQI_IDEAM_6V'],
-        bins=[0, 40, 60, 80, 100],
-        labels=['Deficiente', 'Regular', 'Buena', 'Excelente']
-    )
+# ==================== DBSCAN OPTIMIZADO ====================
 
-    df['Classification_7V'] = pd.cut(
-        df['WQI_IDEAM_7V'],
-        bins=[0, 40, 60, 80, 100],
-        labels=['Deficiente', 'Regular', 'Buena', 'Excelente']
-    )
+def optimized_dbscan(X, eps=0.5, min_samples=5):
+    """DBSCAN optimizado"""
+    n_samples = len(X)
+    labels = np.full(n_samples, -1)
+    cluster_id = 0
 
-    df['Classification_9V'] = pd.cut(
-        df['WQI_NSF_9V'],
-        bins=[0, 40, 60, 80, 100],
-        labels=['Deficiente', 'Regular', 'Buena', 'Excelente']
-    )
+    if n_samples > 5000:
+        return _dbscan_grid_accelerated(X, eps, min_samples)
 
-    # Agregar outliers realistas
-    if incluir_outliers:
-        n_outliers = max(1, n_muestras // 50)
-        outlier_indices = np.random.choice(df.index, n_outliers, replace=False)
+    distances = optimized_pairwise_distances(X, 'euclidean')
+    neighbors_list = [np.where(distances[i] <= eps)[0] for i in range(n_samples)]
+    is_core = np.array([len(neighbors) >= min_samples for neighbors in neighbors_list])
 
-        for idx in outlier_indices:
-            factor = np.random.uniform(2, 5)
-            param = np.random.choice(['TBD', 'BOD5', 'FC'])
-            df.loc[idx, param] *= factor
+    for i in range(n_samples):
+        if labels[i] != -1 or not is_core[i]:
+            continue
 
-    return df
+        labels[i] = cluster_id
+        seed_set = set(neighbors_list[i])
+        seed_set.discard(i)
 
-def calcular_indice_calidad_simple(df):
-    """Calcular un índice de calidad simplificado"""
-    # Normalizar parámetros (0-100)
-    ph_score = 100 * np.exp(-0.5 * ((df['pH'] - 7.0) / 1.5) ** 2)
-    do_score = np.minimum(100, (df['DO'] / 10.0) * 100)
-    turb_score = np.maximum(0, 100 - (df['TBD'] / 10) * 100)
-    dbo_score = np.maximum(0, 100 - (df['BOD5'] / 10) * 100)
+        while seed_set:
+            current = seed_set.pop()
+            if labels[current] == -1:
+                labels[current] = cluster_id
+                if is_core[current]:
+                    seed_set.update(neighbors_list[current])
 
-    # Promedio ponderado
-    indice = (0.25 * ph_score + 0.35 * do_score + 0.2 * turb_score + 0.2 * dbo_score)
-    return np.clip(indice, 0, 100)
+        cluster_id += 1
 
-# ==================== IMPLEMENTACIONES MANUALES DE ALGORITMOS ====================
+    return labels
+
+
+def _dbscan_grid_accelerated(X, eps, min_samples):
+    """DBSCAN acelerado con grid"""
+    n_samples = len(X)
+    labels = np.full(n_samples, -1)
+    grid_size = eps
+    grid_indices = (X / grid_size).astype(int)
+
+    grid_dict = defaultdict(list)
+    for idx, grid_idx in enumerate(grid_indices):
+        grid_dict[tuple(grid_idx)].append(idx)
+
+    cluster_id = 0
+
+    for i in range(n_samples):
+        if labels[i] != -1:
+            continue
+
+        cell = tuple(grid_indices[i])
+        neighbors = []
+
+        for dx in [-1, 0, 1]:
+            for dy in [-1, 0, 1]:
+                neighbor_cell = (cell[0] + dx, cell[1] + dy)
+                if neighbor_cell in grid_dict:
+                    for idx in grid_dict[neighbor_cell]:
+                        if np.linalg.norm(X[i] - X[idx]) <= eps:
+                            neighbors.append(idx)
+
+        if len(neighbors) < min_samples:
+            continue
+
+        labels[i] = cluster_id
+        seed_set = set(neighbors)
+        seed_set.discard(i)
+
+        while seed_set:
+            current = seed_set.pop()
+            if labels[current] == -1:
+                labels[current] = cluster_id
+
+                cell_current = tuple(grid_indices[current])
+                neighbors_current = []
+
+                for dx in [-1, 0, 1]:
+                    for dy in [-1, 0, 1]:
+                        neighbor_cell = (cell_current[0] + dx, cell_current[1] + dy)
+                        if neighbor_cell in grid_dict:
+                            for idx in grid_dict[neighbor_cell]:
+                                if np.linalg.norm(X[current] - X[idx]) <= eps:
+                                    neighbors_current.append(idx)
+
+                if len(neighbors_current) >= min_samples:
+                    seed_set.update(neighbors_current)
+
+        cluster_id += 1
+
+    return labels
+
+
+# ==================== PCA OPTIMIZADO ====================
+
+def optimized_pca(X, n_components=None):
+    """PCA optimizado usando SVD"""
+    mean = np.mean(X, axis=0)
+    X_centered = X - mean
+
+    if n_components is None:
+        n_components = min(X.shape[0], X.shape[1])
+
+    try:
+        from scipy.linalg import svd
+        U, S, Vt = svd(X_centered, full_matrices=False)
+    except ImportError:
+        U, S, Vt = np.linalg.svd(X_centered, full_matrices=False)
+
+    components = Vt[:n_components]
+    X_transformed = np.dot(X_centered, components.T)
+    explained_variance = (S ** 2) / (X.shape[0] - 1)
+    total_var = np.sum(explained_variance)
+    explained_variance_ratio = explained_variance[:n_components] / total_var
+
+    return {
+        'components': components,
+        'explained_variance': explained_variance[:n_components],
+        'explained_variance_ratio': explained_variance_ratio,
+        'mean': mean,
+        'X_transformed': X_transformed
+    }
+
+
+# ==================== CLUSTERING JERÁRQUICO ====================
+
+class OptimizedHierarchicalClustering:
+    """Clustering jerárquico optimizado"""
+
+    def __init__(self):
+        self.progress_callback = None
+        self.status_callback = None
+
+    def set_callbacks(self, progress_callback=None, status_callback=None):
+        self.progress_callback = progress_callback
+        self.status_callback = status_callback
+
+    def _emit_progress(self, value):
+        if self.progress_callback:
+            try:
+                self.progress_callback(value)
+            except:
+                pass
+
+    def _emit_status(self, message):
+        if self.status_callback:
+            try:
+                self.status_callback(message)
+            except:
+                pass
+
+    def hierarchical_clustering_optimized(self, X, method='ward', metric='euclidean'):
+        """Clustering jerárquico ULTRA OPTIMIZADO"""
+        try:
+            from scipy.cluster.hierarchy import linkage
+            from scipy.spatial.distance import pdist
+
+            self._emit_status("Usando scipy (optimizado)...")
+            self._emit_progress(10)
+            start_time = time.time()
+
+            if method == 'ward':
+                linkage_matrix = linkage(X, method='ward')
+            else:
+                distances = pdist(X, metric=metric)
+                linkage_matrix = linkage(distances, method=method)
+
+            calc_time = time.time() - start_time
+            self._emit_status(f"✓ Completado en {calc_time:.2f}s (scipy)")
+            self._emit_progress(100)
+            return linkage_matrix
+
+        except ImportError:
+            self._emit_status("Scipy no disponible, usando implementación optimizada...")
+            return self._hierarchical_manual_optimized(X, method, metric)
+
+    def _hierarchical_manual_optimized(self, X, method='ward', metric='euclidean'):
+        """Implementación manual OPTIMIZADA"""
+        n_samples = len(X)
+        self._emit_status(f"Clustering manual optimizado ({n_samples} muestras)...")
+        self._emit_progress(0)
+        start_time = time.time()
+
+        if metric == 'euclidean':
+            dist_matrix = optimized_pairwise_distances(X, 'euclidean')
+        elif metric == 'manhattan':
+            dist_matrix = optimized_pairwise_distances(X, 'manhattan')
+        elif metric == 'cosine':
+            dist_matrix = optimized_pairwise_distances(X, 'cosine')
+        else:
+            dist_matrix = optimized_pairwise_distances(X, 'euclidean')
+
+        dist_matrix = np.where(np.isnan(dist_matrix) | np.isinf(dist_matrix), 1e10, dist_matrix)
+        np.fill_diagonal(dist_matrix, np.inf)
+        self._emit_progress(20)
+
+        active_clusters = set(range(n_samples))
+        cluster_sizes = {i: 1 for i in range(n_samples)}
+        cluster_centroids = {i: X[i].copy() for i in range(n_samples)}
+        linkage_matrix = []
+        current_id = n_samples
+        total_merges = n_samples - 1
+
+        for merge_idx in range(total_merges):
+            active_list = list(active_clusters)
+            n_active = len(active_list)
+
+            if n_active < 2:
+                break
+
+            active_indices = np.array(active_list)
+            sub_matrix = dist_matrix[np.ix_(active_indices, active_indices)]
+            min_idx = np.argmin(sub_matrix)
+            i, j = np.unravel_index(min_idx, sub_matrix.shape)
+            ci, cj = active_list[i], active_list[j]
+            min_dist = sub_matrix[i, j]
+            new_size = cluster_sizes[ci] + cluster_sizes[cj]
+
+            if method == 'ward':
+                new_centroid = (cluster_sizes[ci] * cluster_centroids[ci] +
+                               cluster_sizes[cj] * cluster_centroids[cj]) / new_size
+            else:
+                new_centroid = (cluster_centroids[ci] + cluster_centroids[cj]) / 2
+
+            linkage_matrix.append([ci, cj, min_dist, new_size])
+            cluster_sizes[current_id] = new_size
+            cluster_centroids[current_id] = new_centroid
+
+            if method == 'ward':
+                for other in active_clusters:
+                    if other != ci and other != cj:
+                        ni, nj, nk = cluster_sizes[ci], cluster_sizes[cj], cluster_sizes[other]
+                        dik = dist_matrix[ci, other]
+                        djk = dist_matrix[cj, other]
+                        dij = min_dist
+                        new_dist = np.sqrt(
+                            ((ni + nk) * dik ** 2 + (nj + nk) * djk ** 2 - nk * dij ** 2) /
+                            (ni + nj + nk)
+                        )
+                        dist_matrix[current_id, other] = new_dist
+                        dist_matrix[other, current_id] = new_dist
+            else:
+                for other in active_clusters:
+                    if other != ci and other != cj:
+                        if method == 'complete':
+                            new_dist = max(dist_matrix[ci, other], dist_matrix[cj, other])
+                        elif method == 'average':
+                            new_dist = (dist_matrix[ci, other] * cluster_sizes[ci] +
+                                       dist_matrix[cj, other] * cluster_sizes[cj]) / new_size
+                        elif method == 'single':
+                            new_dist = min(dist_matrix[ci, other], dist_matrix[cj, other])
+                        else:
+                            new_dist = (dist_matrix[ci, other] + dist_matrix[cj, other]) / 2
+
+                        dist_matrix[current_id, other] = new_dist
+                        dist_matrix[other, current_id] = new_dist
+
+            active_clusters.discard(ci)
+            active_clusters.discard(cj)
+            active_clusters.add(current_id)
+            dist_matrix[ci, :] = np.inf
+            dist_matrix[:, ci] = np.inf
+            dist_matrix[cj, :] = np.inf
+            dist_matrix[:, cj] = np.inf
+            current_id += 1
+
+            if (merge_idx + 1) % max(1, total_merges // 10) == 0:
+                progress = 20 + int(((merge_idx + 1) / total_merges) * 75)
+                self._emit_progress(progress)
+
+        calc_time = time.time() - start_time
+        self._emit_status(f"✓ Completado en {calc_time:.2f}s (manual optimizado)")
+        self._emit_progress(100)
+        return np.array(linkage_matrix)
+
+
+# ==================== FUNCIONES AUXILIARES ====================
 
 def manual_standard_scaler(X):
-    """Escalado estándar manual"""
+    """Escalado estándar vectorizado"""
     mean = np.mean(X, axis=0)
     std = np.std(X, axis=0)
-    # Evitar división por cero
     std = np.where(std == 0, 1, std)
     return (X - mean) / std, mean, std
 
+
 def manual_minmax_scaler(X):
-    """Escalado min-max manual"""
+    """Escalado min-max vectorizado"""
     min_vals = np.min(X, axis=0)
     max_vals = np.max(X, axis=0)
-    # Evitar división por cero
     range_vals = max_vals - min_vals
     range_vals = np.where(range_vals == 0, 1, range_vals)
     return (X - min_vals) / range_vals, min_vals, range_vals
 
+
 def manual_robust_scaler(X):
-    """Escalado robusto manual usando mediana y IQR"""
+    """Escalado robusto vectorizado"""
     median = np.median(X, axis=0)
     q25 = np.percentile(X, 25, axis=0)
     q75 = np.percentile(X, 75, axis=0)
     iqr = q75 - q25
-    # Evitar división por cero
     iqr = np.where(iqr == 0, 1, iqr)
     return (X - median) / iqr, median, iqr
 
+
 def aplicar_escalado(X, metodo='standard'):
-    """Aplicar escalado manual a los datos"""
+    """Aplicar escalado con conversión automática"""
     if isinstance(X, pd.DataFrame):
         X_vals = X.values
         columns = X.columns
@@ -220,174 +480,15 @@ def aplicar_escalado(X, metodo='standard'):
 
     return X_scaled, scaler_info
 
-def manual_pca(X, n_components=None):
-    """Implementación manual de PCA"""
-    # Centrar datos
-    mean = np.mean(X, axis=0)
-    X_centered = X - mean
-
-    # Matriz de covarianza
-    cov_matrix = np.cov(X_centered.T)
-
-    # Eigendescomposición
-    eigenvalues, eigenvectors = np.linalg.eigh(cov_matrix)
-
-    # Ordenar por eigenvalores (descendente)
-    idx = np.argsort(eigenvalues)[::-1]
-    eigenvalues = eigenvalues[idx]
-    eigenvectors = eigenvectors[:, idx]
-
-    # Seleccionar componentes
-    if n_components is None:
-        n_components = min(X.shape[0], X.shape[1])
-
-    n_components = min(n_components, len(eigenvalues))
-
-    # Componentes principales
-    components = eigenvectors[:, :n_components]
-
-    # Transformar datos
-    X_transformed = np.dot(X_centered, components)
-
-    # Varianza explicada
-    total_var = np.sum(eigenvalues)
-    explained_variance_ratio = eigenvalues[:n_components] / total_var
-
-    return {
-        'components': components.T,
-        'explained_variance': eigenvalues[:n_components],
-        'explained_variance_ratio': explained_variance_ratio,
-        'mean': mean,
-        'X_transformed': X_transformed
-    }
-
-def manual_kmeans(X, k, max_iters=100, random_state=42):
-    """Implementación manual de K-Means"""
-    np.random.seed(random_state)
-
-    n_samples, n_features = X.shape
-
-    # Inicialización aleatoria de centroides
-    centroids = X[np.random.choice(n_samples, k, replace=False)]
-
-    for iteration in range(max_iters):
-        # Asignar puntos a clusters
-        distances = np.sqrt(((X - centroids[:, np.newaxis])**2).sum(axis=2))
-        labels = np.argmin(distances, axis=0)
-
-        # Actualizar centroides
-        new_centroids = np.array([X[labels == i].mean(axis=0) for i in range(k)])
-
-        # Verificar convergencia
-        if np.allclose(centroids, new_centroids):
-            break
-
-        centroids = new_centroids
-
-    # Calcular inercia
-    inertia = sum(np.sum((X[labels == i] - centroids[i])**2) for i in range(k))
-
-    return {
-        'labels': labels,
-        'centroids': centroids,
-        'inertia': inertia,
-        'n_iter': iteration + 1
-    }
-
-def manual_silhouette_score(X, labels):
-    """Implementación manual del Silhouette Score"""
-    n_samples = len(X)
-    unique_labels = np.unique(labels)
-
-    if len(unique_labels) == 1:
-        return 0.0
-
-    silhouette_vals = []
-
-    for i in range(n_samples):
-        # Cluster del punto actual
-        own_cluster = labels[i]
-
-        # Distancia promedio intra-cluster (a)
-        same_cluster_points = X[labels == own_cluster]
-        if len(same_cluster_points) > 1:
-            a = np.mean([np.linalg.norm(X[i] - point) for point in same_cluster_points if not np.array_equal(X[i], point)])
-        else:
-            a = 0
-
-        # Distancia promedio al cluster más cercano (b)
-        b_values = []
-        for cluster in unique_labels:
-            if cluster != own_cluster:
-                other_cluster_points = X[labels == cluster]
-                if len(other_cluster_points) > 0:
-                    b_cluster = np.mean([np.linalg.norm(X[i] - point) for point in other_cluster_points])
-                    b_values.append(b_cluster)
-
-        b = min(b_values) if b_values else 0
-
-        # Silhouette score para el punto
-        if max(a, b) == 0:
-            s = 0
-        else:
-            s = (b - a) / max(a, b)
-
-        silhouette_vals.append(s)
-
-    return np.mean(silhouette_vals)
-
-def manual_dbscan(X, eps=0.5, min_samples=5):
-    """Implementación simplificada de DBSCAN"""
-    n_samples = len(X)
-    labels = np.full(n_samples, -1)  # -1 indica ruido
-    cluster_id = 0
-
-    for i in range(n_samples):
-        if labels[i] != -1:  # Ya procesado
-            continue
-
-        # Encontrar vecinos
-        distances = np.linalg.norm(X - X[i], axis=1)
-        neighbors = np.where(distances <= eps)[0]
-
-        if len(neighbors) < min_samples:
-            continue  # Punto de ruido
-
-        # Crear nuevo cluster
-        labels[i] = cluster_id
-
-        # Expandir cluster
-        seed_set = set(neighbors)
-        seed_set.discard(i)
-
-        while seed_set:
-            current_point = seed_set.pop()
-
-            if labels[current_point] == -1:  # Era ruido
-                labels[current_point] = cluster_id
-            elif labels[current_point] != -1:  # Ya asignado
-                continue
-            else:
-                labels[current_point] = cluster_id
-
-            # Encontrar vecinos del punto actual
-            current_distances = np.linalg.norm(X - X[current_point], axis=1)
-            current_neighbors = np.where(current_distances <= eps)[0]
-
-            if len(current_neighbors) >= min_samples:
-                seed_set.update(current_neighbors)
-
-        cluster_id += 1
-
-    return labels
 
 def detectar_outliers_zscore(X, threshold=3.0):
-    """Detectar outliers usando Z-score"""
+    """Z-score vectorizado"""
     z_scores = np.abs((X - np.mean(X, axis=0)) / np.std(X, axis=0))
     return np.any(z_scores > threshold, axis=1)
 
+
 def detectar_outliers_iqr(X):
-    """Detectar outliers usando método IQR"""
+    """IQR vectorizado"""
     Q1 = np.percentile(X, 25, axis=0)
     Q3 = np.percentile(X, 75, axis=0)
     IQR = Q3 - Q1
@@ -395,26 +496,18 @@ def detectar_outliers_iqr(X):
     upper_bound = Q3 + 1.5 * IQR
     return np.any((X < lower_bound) | (X > upper_bound), axis=1)
 
+
 def detectar_outliers_isolation_forest_simple(X, contamination=0.1):
-    """Implementación simplificada de Isolation Forest"""
+    """Isolation Forest simplificado"""
     n_samples = len(X)
-    n_outliers = int(contamination * n_samples)
+    centroid = np.mean(X, axis=0)
+    distances = np.linalg.norm(X - centroid, axis=1)
+    threshold = np.percentile(distances, 100 * (1 - contamination))
+    return distances > threshold
 
-    # Método simplificado: usar distancias a la mediana
-    median = np.median(X, axis=0)
-    distances = np.linalg.norm(X - median, axis=1)
-
-    # Los puntos más alejados son outliers
-    outlier_indices = np.argpartition(distances, -n_outliers)[-n_outliers:]
-    outliers = np.zeros(n_samples, dtype=bool)
-    outliers[outlier_indices] = True
-
-    return outliers
-
-# ==================== ANÁLISIS PRINCIPAL ====================
 
 def analizar_clusters_manual(X, labels, variables):
-    """Análisis detallado de clusters"""
+    """Análisis de clusters vectorizado"""
     cluster_stats = {}
     unique_labels = np.unique(labels)
 
@@ -428,16 +521,16 @@ def analizar_clusters_manual(X, labels, variables):
         stats_por_variable = {}
         for var in variables:
             if var in cluster_data.columns:
-                serie = cluster_data[var]
+                serie = cluster_data[var].values
                 stats_por_variable[var] = {
-                    'media': float(serie.mean()),
-                    'std': float(serie.std()),
-                    'min': float(serie.min()),
-                    'max': float(serie.max()),
-                    'mediana': float(serie.median())
+                    'media': float(np.mean(serie)),
+                    'std': float(np.std(serie)),
+                    'min': float(np.min(serie)),
+                    'max': float(np.max(serie)),
+                    'mediana': float(np.median(serie))
                 }
 
-        centroide = cluster_data[variables].mean().to_dict()
+        centroide = {var: float(cluster_data[var].mean()) for var in variables if var in cluster_data.columns}
 
         cluster_stats[f'cluster_{cluster_id}'] = {
             'tamaño': int(np.sum(mask)),
@@ -448,16 +541,160 @@ def analizar_clusters_manual(X, labels, variables):
 
     return cluster_stats
 
-def kmeans_optimizado_completo(data, variables=None, k_range=None,
-                             escalado='standard', random_state=42, verbose=True):
+
+def get_clusters_from_linkage(linkage_matrix, n_clusters):
+    """Obtener clusters del dendrograma"""
+    try:
+        from scipy.cluster.hierarchy import fcluster
+        labels = fcluster(linkage_matrix, n_clusters, criterion='maxclust')
+        return (labels - 1).tolist()
+    except ImportError:
+        if n_clusters <= 1:
+            return [0] * (len(linkage_matrix) + 1)
+
+        n_samples = len(linkage_matrix) + 1
+
+        if n_clusters >= n_samples:
+            return list(range(n_samples))
+
+        if n_clusters - 1 >= len(linkage_matrix):
+            cut_height = 0
+        else:
+            cut_height = linkage_matrix[-(n_clusters - 1), 2]
+
+        clusters = {i: [i] for i in range(n_samples)}
+        current_cluster_id = n_samples
+
+        for c1, c2, height, size in linkage_matrix:
+            if height > cut_height:
+                break
+
+            c1, c2 = int(c1), int(c2)
+
+            if c1 in clusters and c2 in clusters:
+                clusters[current_cluster_id] = clusters[c1] + clusters[c2]
+                del clusters[c1]
+                del clusters[c2]
+                current_cluster_id += 1
+
+        labels = np.zeros(n_samples, dtype=int)
+        for cluster_id, (_, points) in enumerate(clusters.items()):
+            for point in points:
+                labels[point] = cluster_id
+
+        return labels.tolist()
+
+
+# ==================== GENERACIÓN DE DATOS ====================
+
+def generar_datos_agua_realistas(n_muestras=200, seed=42, incluir_outliers=True):
+    """Generar datos sintéticos realistas de calidad del agua"""
+    np.random.seed(seed)
+
+    n_estaciones = min(5, n_muestras // 20)
+    estacion_ids = np.random.choice(range(1, n_estaciones + 1), n_muestras)
+
+    estacion_params = {}
+    for i in range(1, n_estaciones + 1):
+        estacion_params[i] = {
+            'ph_base': np.random.uniform(6.8, 7.8),
+            'temp_base': np.random.uniform(18, 26),
+            'conduct_base': np.random.uniform(200, 800),
+            'quality_factor': np.random.uniform(0.7, 1.3)
+        }
+
+    datos = {
+        'Points': range(1, n_muestras + 1),
+        'Sampling_date': pd.date_range('2023-01-01', periods=n_muestras, freq='D'),
+    }
+
+    ph_values = np.array([np.random.normal(estacion_params[e]['ph_base'], 0.3) for e in estacion_ids])
+    temperatura_values = np.array([np.random.normal(estacion_params[e]['temp_base'], 2) for e in estacion_ids])
+    conductividad_values = np.array([np.random.normal(estacion_params[e]['conduct_base'], 100) for e in estacion_ids])
+
+    datos['pH'] = np.clip(ph_values, 5.5, 9.0)
+    datos['WT'] = np.clip(temperatura_values, 10, 35)
+    datos['CTD'] = np.clip(conductividad_values, 50, 1500)
+    datos['DO'] = np.clip(10 - 0.2 * (datos['WT'] - 20) + np.random.normal(0, 1, n_muestras), 2, 15)
+    datos['TBD'] = np.clip(np.random.exponential(2.0, n_muestras) * (1 + 0.1 * np.abs(datos['pH'] - 7)), 0.1, 50)
+    datos['BOD5'] = np.clip(np.random.exponential(3, n_muestras) * (1 + datos['TBD'] / 20), 0.5, 25)
+    datos['COD'] = np.clip(datos['BOD5'] * np.random.uniform(1.5, 3.0, n_muestras), 1, 100)
+
+    for var, params in [
+        ('FC', (100, 1, 10000)), ('TC', (500, 10, 50000)), ('NO3', (5, 0.1, 50)),
+        ('NO2', (0.5, 0.01, 3)), ('N_NH3', (1, 0.01, 10)), ('TP', (0.5, 0.01, 5)),
+        ('TN', (3, 0.5, 20)), ('TKN', (2, 0.1, 15)), ('TSS', (10, 1, 200)),
+        ('TS', (150, 50, 2000)), ('Q', (50, 1, 500)), ('ALC', (150, 50, 500)),
+        ('H', (20, 5, 200)), ('ET', (25, 15, 40))
+    ]:
+        scale, min_val, max_val = params
+        datos[var] = np.clip(np.random.exponential(scale, n_muestras), min_val, max_val)
+
+    df = pd.DataFrame(datos)
+
+    df['WQI_IDEAM_6V'] = calcular_indice_calidad_simple(df)
+    df['WQI_IDEAM_7V'] = df['WQI_IDEAM_6V'] * np.random.uniform(0.9, 1.1, n_muestras)
+    df['WQI_NSF_9V'] = df['WQI_IDEAM_6V'] * np.random.uniform(0.8, 1.2, n_muestras)
+
+    df['Classification_6V'] = pd.cut(df['WQI_IDEAM_6V'], bins=[0, 40, 60, 80, 100],
+                                     labels=['Deficiente', 'Regular', 'Buena', 'Excelente'])
+    df['Classification_7V'] = pd.cut(df['WQI_IDEAM_7V'], bins=[0, 40, 60, 80, 100],
+                                     labels=['Deficiente', 'Regular', 'Buena', 'Excelente'])
+    df['Classification_9V'] = pd.cut(df['WQI_NSF_9V'], bins=[0, 40, 60, 80, 100],
+                                     labels=['Deficiente', 'Regular', 'Buena', 'Excelente'])
+
+    if incluir_outliers:
+        n_outliers = max(1, n_muestras // 50)
+        outlier_indices = np.random.choice(df.index, n_outliers, replace=False)
+        for idx in outlier_indices:
+            factor = np.random.uniform(2, 5)
+            param = np.random.choice(['TBD', 'BOD5', 'FC'])
+            df.loc[idx, param] *= factor
+
+    return df
+
+
+def calcular_indice_calidad_simple(df):
+    """Calcular índice de calidad"""
+    ph_score = 100 * np.exp(-0.5 * ((df['pH'] - 7.0) / 1.5) ** 2)
+    do_score = np.minimum(100, (df['DO'] / 10.0) * 100)
+    turb_score = np.maximum(0, 100 - (df['TBD'] / 10) * 100)
+    dbo_score = np.maximum(0, 100 - (df['BOD5'] / 10) * 100)
+    indice = (0.25 * ph_score + 0.35 * do_score + 0.2 * turb_score + 0.2 * dbo_score)
+    return np.clip(indice, 0, 100)
+
+
+# ==================== FUNCIONES PRINCIPALES ====================
+
+def kmeans_optimizado_completo(data, variables=None, k_range=None, escalado='standard',
+                               random_state=42, verbose=True, progress_callback=None,
+                               status_callback=None):
     """K-Means optimizado con evaluación de K óptimo"""
+
+    def emit_progress(value):
+        if progress_callback:
+            try:
+                progress_callback(value)
+            except:
+                pass
+
+    def emit_status(msg):
+        if status_callback:
+            try:
+                status_callback(msg)
+            except:
+                pass
+        if verbose:
+            print(f"  {msg}")
+
     if verbose:
         print("🔍 Iniciando K-Means optimizado...")
+    emit_status("Iniciando K-Means...")
+    emit_progress(0)
 
     if variables is None:
         variables = data.select_dtypes(include=[np.number]).columns.tolist()
 
-    # Excluir columnas no relevantes
     exclude_cols = ['Points', 'Sampling_date', 'WQI_IDEAM_6V', 'WQI_IDEAM_7V', 'WQI_NSF_9V',
                    'Classification_6V', 'Classification_7V', 'Classification_9V']
     variables = [col for col in variables if col not in exclude_cols]
@@ -465,10 +702,12 @@ def kmeans_optimizado_completo(data, variables=None, k_range=None,
     X = data[variables].dropna()
 
     if verbose:
-        print(f"📊 Datos preparados: {X.shape[0]} muestras, {X.shape[1]} variables")
+        print(f"📊 Datos: {X.shape[0]} muestras, {X.shape[1]} variables")
+    emit_status(f"Datos: {X.shape[0]} muestras, {X.shape[1]} variables")
+    emit_progress(10)
 
-    # Escalado
     X_scaled, scaler_info = aplicar_escalado(X, escalado)
+    emit_progress(20)
 
     if k_range is None:
         k_range = range(2, min(10, len(X) // 5))
@@ -477,20 +716,17 @@ def kmeans_optimizado_completo(data, variables=None, k_range=None,
     inercias = []
     silhouette_scores = []
 
-    # Evaluar diferentes valores de K
-    for k in k_range:
+    total_k = len(list(k_range))
+    for idx, k in enumerate(k_range):
         if verbose:
             print(f"   Evaluando K={k}...")
+        emit_status(f"Evaluando K={k}...")
 
         try:
-            # K-Means manual
-            kmeans_result = manual_kmeans(X_scaled.values, k, random_state=random_state)
+            kmeans_result = optimized_kmeans(X_scaled.values, k, random_state=random_state)
             labels = kmeans_result['labels']
-
-            # Métricas
-            silhouette = manual_silhouette_score(X_scaled.values, labels)
-
-            # Análisis de clusters
+            sample_size = min(1000, len(X))
+            silhouette = optimized_silhouette_score(X_scaled.values, labels, sample_size=sample_size)
             cluster_analysis = analizar_clusters_manual(X, labels, variables)
 
             resultado_k = {
@@ -507,12 +743,15 @@ def kmeans_optimizado_completo(data, variables=None, k_range=None,
             inercias.append(resultado_k['inertia'])
             silhouette_scores.append(resultado_k['silhouette_score'])
 
+            progress = 20 + int(((idx + 1) / total_k) * 70)
+            emit_progress(progress)
+
         except Exception as e:
             if verbose:
                 print(f"Error con K={k}: {e}")
+            emit_status(f"Error con K={k}: {e}")
             continue
 
-    # Determinar K óptimo
     if silhouette_scores:
         k_optimo = list(k_range)[np.argmax(silhouette_scores)]
     else:
@@ -520,6 +759,8 @@ def kmeans_optimizado_completo(data, variables=None, k_range=None,
 
     if verbose:
         print(f"✅ K-Means completado. K recomendado: {k_optimo}")
+    emit_status(f"✓ K óptimo: {k_optimo}")
+    emit_progress(100)
 
     return {
         'tipo': 'kmeans_optimizado',
@@ -537,54 +778,78 @@ def kmeans_optimizado_completo(data, variables=None, k_range=None,
         ]
     }
 
-def dbscan_optimizado(data, variables=None, optimizar_parametros=True,
-                      escalado='standard', verbose=True):
+
+def dbscan_optimizado(data, variables=None, optimizar_parametros=True, escalado='standard',
+                      verbose=True, progress_callback=None, status_callback=None):
     """DBSCAN optimizado con búsqueda de parámetros"""
+
+    def emit_progress(value):
+        if progress_callback:
+            try:
+                progress_callback(value)
+            except:
+                pass
+
+    def emit_status(msg):
+        if status_callback:
+            try:
+                status_callback(msg)
+            except:
+                pass
+        if verbose:
+            print(f"  {msg}")
+
     if verbose:
         print("🔍 Iniciando DBSCAN optimizado...")
+    emit_status("Iniciando DBSCAN...")
+    emit_progress(0)
 
     if variables is None:
         variables = data.select_dtypes(include=[np.number]).columns.tolist()
 
-    # Excluir columnas no relevantes
     exclude_cols = ['Points', 'Sampling_date', 'WQI_IDEAM_6V', 'WQI_IDEAM_7V', 'WQI_NSF_9V',
-                   'Classification_6V', 'Classification_7V', 'Classification_9V']
+                    'Classification_6V', 'Classification_7V', 'Classification_9V']
     variables = [col for col in variables if col not in exclude_cols]
 
     X = data[variables].dropna()
 
     if verbose:
-        print(f"📊 Datos preparados: {X.shape[0]} muestras, {X.shape[1]} variables")
+        print(f"📊 Datos: {X.shape[0]} muestras, {X.shape[1]} variables")
+    emit_status(f"Datos: {X.shape[0]} muestras, {X.shape[1]} variables")
+    emit_progress(10)
 
-    # Escalado
     X_scaled, scaler_info = aplicar_escalado(X, escalado)
+    emit_progress(20)
 
     mejores_resultados = []
 
     if optimizar_parametros:
-        # Rango de parámetros
-        eps_range = np.linspace(0.1, 2.0, 10)
-        min_samples_range = range(2, min(10, len(X) // 10))
+        eps_range = np.linspace(0.1, 2.0, 8)
+        min_samples_range = range(2, min(8, len(X) // 10))
+        total_configs = len(eps_range) * len(min_samples_range)
+        config_count = 0
 
         for eps in eps_range:
             for min_samples in min_samples_range:
-                try:
-                    labels = manual_dbscan(X_scaled.values, eps=eps, min_samples=min_samples)
+                config_count += 1
 
+                try:
+                    labels = optimized_dbscan(X_scaled.values, eps=eps, min_samples=min_samples)
                     n_clusters = len(set(labels)) - (1 if -1 in labels else 0)
-                    n_noise = list(labels).count(-1)
+                    n_noise = np.sum(labels == -1)
                     noise_ratio = n_noise / len(labels)
 
                     if n_clusters < 1 or noise_ratio > 0.8:
                         continue
 
-                    # Calcular silhouette solo para puntos no outliers
                     if n_clusters > 1:
                         non_noise_mask = labels != -1
                         if np.sum(non_noise_mask) > 1:
-                            silhouette = manual_silhouette_score(
+                            sample_size = min(500, np.sum(non_noise_mask))
+                            silhouette = optimized_silhouette_score(
                                 X_scaled.values[non_noise_mask],
-                                labels[non_noise_mask]
+                                labels[non_noise_mask],
+                                sample_size=sample_size
                             )
                         else:
                             silhouette = 0.5
@@ -607,17 +872,21 @@ def dbscan_optimizado(data, variables=None, optimizar_parametros=True,
                 except Exception as e:
                     continue
 
-    # Usar configuración por defecto si no hay resultados
+                if config_count % max(1, total_configs // 10) == 0:
+                    progress = 20 + int((config_count / total_configs) * 70)
+                    emit_progress(progress)
+                    emit_status(f"Probando configuraciones: {config_count}/{total_configs}")
+
     if not mejores_resultados:
-        labels = manual_dbscan(X_scaled.values, eps=0.5, min_samples=3)
+        labels = optimized_dbscan(X_scaled.values, eps=0.5, min_samples=3)
         n_clusters = len(set(labels)) - (1 if -1 in labels else 0)
-        n_noise = list(labels).count(-1)
+        n_noise = np.sum(labels == -1)
 
         resultado = {
             'eps': 0.5,
             'min_samples': 3,
             'n_clusters': n_clusters,
-            'n_noise': n_noise,
+            'n_noise': int(n_noise),
             'noise_ratio': n_noise / len(labels),
             'silhouette_score': 0.5,
             'labels': labels.tolist(),
@@ -625,12 +894,13 @@ def dbscan_optimizado(data, variables=None, optimizar_parametros=True,
         }
         mejores_resultados.append(resultado)
 
-    # Ordenar por score compuesto
     mejores_resultados.sort(key=lambda x: x['score_compuesto'], reverse=True)
     mejor_resultado = mejores_resultados[0]
 
     if verbose:
-        print(f"✅ DBSCAN completado: {mejor_resultado['n_clusters']} clusters, {mejor_resultado['n_noise']} outliers")
+        print(f"✅ DBSCAN: {mejor_resultado['n_clusters']} clusters, {mejor_resultado['n_noise']} outliers")
+    emit_status(f"✓ {mejor_resultado['n_clusters']} clusters, {mejor_resultado['n_noise']} outliers")
+    emit_progress(100)
 
     return {
         'tipo': 'dbscan_optimizado',
@@ -646,39 +916,290 @@ def dbscan_optimizado(data, variables=None, optimizar_parametros=True,
         ]
     }
 
-# ==================== FUNCIONES AUXILIARES PRINCIPALES ====================
+
+def pca_completo_avanzado(data, variables=None, explicar_varianza_objetivo=0.95, escalado='standard',
+                          verbose=True, progress_callback=None, status_callback=None):
+    """PCA avanzado optimizado"""
+
+    def emit_progress(value):
+        if progress_callback:
+            try:
+                progress_callback(value)
+            except:
+                pass
+
+    def emit_status(msg):
+        if status_callback:
+            try:
+                status_callback(msg)
+            except:
+                pass
+        if verbose:
+            print(f"  {msg}")
+
+    if verbose:
+        print("🔍 Iniciando PCA avanzado...")
+    emit_status("Iniciando PCA...")
+    emit_progress(0)
+
+    if variables is None:
+        variables = data.select_dtypes(include=[np.number]).columns.tolist()
+
+    exclude_cols = ['Points', 'Sampling_date', 'WQI_IDEAM_6V', 'WQI_IDEAM_7V', 'WQI_NSF_9V',
+                    'Classification_6V', 'Classification_7V', 'Classification_9V']
+    variables = [col for col in variables if col not in exclude_cols]
+
+    X = data[variables].dropna()
+
+    if verbose:
+        print(f"📊 Datos: {X.shape[0]} muestras, {X.shape[1]} variables")
+    emit_status(f"Datos: {X.shape[0]} muestras, {X.shape[1]} variables")
+    emit_progress(20)
+
+    X_scaled, scaler_info = aplicar_escalado(X, escalado)
+    emit_progress(40)
+
+    emit_status("Calculando PCA optimizado (SVD)...")
+    pca_result = optimized_pca(X_scaled.values)
+    emit_progress(70)
+
+    emit_status("Analizando componentes...")
+    analisis = analizar_pca_detallado(pca_result, variables, explicar_varianza_objetivo)
+    emit_progress(90)
+
+    if verbose:
+        print(f"✅ PCA: {analisis['n_componentes_objetivo']} componentes recomendados")
+    emit_status(f"✓ {analisis['n_componentes_objetivo']} componentes recomendados")
+    emit_progress(100)
+
+    return {
+        'tipo': 'pca_completo_avanzado',
+        'variables_utilizadas': variables,
+        'n_muestras': len(X),
+        'resultados_por_metodo': {
+            'linear': {
+                'modelo_info': pca_result,
+                'transformacion': pca_result['X_transformed'].tolist(),
+                'analisis': analisis,
+                'componentes_recomendados': analisis['n_componentes_objetivo']
+            }
+        },
+        'datos_originales': X,
+        'scaler_info': scaler_info,
+        'recomendaciones': [
+            f"Componentes recomendados: {analisis['n_componentes_objetivo']}",
+            f"Varianza explicada: {analisis['varianza_acumulada'][analisis['n_componentes_objetivo'] - 1]:.1%}",
+            f"Primera componente explica: {analisis['varianza_explicada'][0]:.1%}"
+        ]
+    }
+
+
+def analizar_pca_detallado(pca_result, variables, varianza_objetivo):
+    """Análisis detallado del PCA"""
+    varianza_explicada = pca_result['explained_variance_ratio']
+    varianza_acumulada = np.cumsum(varianza_explicada)
+    n_componentes_objetivo = np.argmax(varianza_acumulada >= varianza_objetivo) + 1
+
+    componentes_info = []
+    for i in range(len(varianza_explicada)):
+        loadings = pca_result['components'][i]
+        importancia_abs = np.abs(loadings)
+        top_variables_idx = np.argsort(importancia_abs)[::-1][:5]
+
+        top_variables = [
+            {
+                'variable': variables[idx],
+                'loading': float(loadings[idx]),
+                'importancia_abs': float(importancia_abs[idx])
+            }
+            for idx in top_variables_idx
+        ]
+
+        componentes_info.append({
+            'componente': f'PC{i + 1}',
+            'varianza_explicada': float(varianza_explicada[i]),
+            'varianza_acumulada': float(varianza_acumulada[i]),
+            'top_variables': top_variables,
+            'loadings_completos': loadings.tolist()
+        })
+
+    return {
+        'varianza_explicada': varianza_explicada.tolist(),
+        'varianza_acumulada': varianza_acumulada.tolist(),
+        'eigenvalues': pca_result['explained_variance'].tolist(),
+        'n_componentes_objetivo': n_componentes_objetivo,
+        'varianza_objetivo': varianza_objetivo,
+        'componentes_info': componentes_info,
+        'matriz_componentes': pca_result['components'].tolist()
+    }
+
+
+def clustering_jerarquico_completo(data, variables=None, metodos=['ward'], metricas=['euclidean'],
+                                   max_clusters=10, escalado='standard', verbose=True,
+                                   progress_callback=None, status_callback=None):
+    """Clustering jerárquico completo OPTIMIZADO"""
+
+    def emit_progress(value):
+        if progress_callback:
+            try:
+                progress_callback(value)
+            except:
+                pass
+
+    def emit_status(msg):
+        if status_callback:
+            try:
+                status_callback(msg)
+            except:
+                pass
+        if verbose:
+            print(f"  {msg}")
+
+    if verbose:
+        print("🔍 Iniciando clustering jerárquico OPTIMIZADO...")
+    emit_status("Iniciando clustering jerárquico optimizado...")
+    emit_progress(0)
+
+    if variables is None:
+        variables = data.select_dtypes(include=[np.number]).columns.tolist()
+
+    exclude_cols = ['Points', 'Sampling_date', 'WQI_IDEAM_6V', 'WQI_IDEAM_7V', 'WQI_NSF_9V',
+                    'Classification_6V', 'Classification_7V', 'Classification_9V']
+    variables = [col for col in variables if col not in exclude_cols]
+
+    X = data[variables].dropna()
+
+    if verbose:
+        print(f"📊 Datos: {X.shape[0]} muestras, {X.shape[1]} variables")
+    emit_status(f"Datos: {X.shape[0]} muestras, {X.shape[1]} variables")
+    emit_progress(5)
+
+    X_scaled, scaler_info = aplicar_escalado(X, escalado)
+
+    metodo = metodos[0] if metodos else 'ward'
+    metrica = metricas[0] if metricas else 'euclidean'
+
+    if verbose:
+        print(f"   Método: {metodo}, Métrica: {metrica}")
+    emit_status(f"Ejecutando {metodo}-{metrica} optimizado...")
+
+    clustering = OptimizedHierarchicalClustering()
+    clustering.set_callbacks(emit_progress, emit_status)
+
+    start_total = time.time()
+    linkage_matrix = clustering.hierarchical_clustering_optimized(
+        X_scaled.values, method=metodo, metric=metrica
+    )
+    calc_time = time.time() - start_total
+
+    if verbose:
+        print(f"   ⚡ Clustering completado en {calc_time:.2f}s")
+    emit_status(f"✓ Linkage calculado en {calc_time:.2f}s")
+    emit_progress(95)
+
+    emit_status("Evaluando diferentes K...")
+
+    resultados_por_k = {}
+    max_k = min(max_clusters, len(X) - 1)
+
+    for k in range(2, max_k + 1):
+        try:
+            labels = get_clusters_from_linkage(linkage_matrix, k)
+
+            if len(set(labels)) > 1:
+                sample_size = min(500, len(X))
+                silhouette = optimized_silhouette_score(X_scaled.values, np.array(labels), sample_size=sample_size)
+            else:
+                silhouette = 0.0
+
+            cluster_analysis = analizar_clusters_manual(X, labels, variables)
+
+            resultados_por_k[k] = {
+                'silhouette_score': float(silhouette),
+                'labels': labels,
+                'cluster_stats': cluster_analysis
+            }
+
+        except Exception as e:
+            if verbose:
+                print(f"Error evaluando k={k}: {e}")
+            continue
+
+    if resultados_por_k:
+        mejor_k = max(resultados_por_k.keys(), key=lambda k: resultados_por_k[k]['silhouette_score'])
+        mejor_silhouette = resultados_por_k[mejor_k]['silhouette_score']
+        mejor_labels = resultados_por_k[mejor_k]['labels']
+    else:
+        mejor_k = 3
+        mejor_silhouette = 0.5
+        mejor_labels = [0] * len(X)
+
+    mejor_configuracion = {
+        'metodo': metodo,
+        'metrica': metrica,
+        'n_clusters_sugeridos': mejor_k,
+        'silhouette_score': mejor_silhouette,
+        'labels': mejor_labels
+    }
+
+    total_time = time.time() - start_total
+
+    if verbose:
+        print(f"✅ Clustering jerárquico: Mejor K={mejor_k} en {total_time:.2f}s")
+    emit_status(f"✓ Completado: K={mejor_k} en {total_time:.2f}s")
+    emit_progress(100)
+
+    return {
+        'tipo': 'clustering_jerarquico_completo',
+        'variables_utilizadas': variables,
+        'metodo_escalado': escalado,
+        'linkage_matrix': linkage_matrix.tolist(),
+        'resultados_por_k': resultados_por_k,
+        'mejor_configuracion': mejor_configuracion,
+        'datos_originales': X,
+        'scaler_info': scaler_info,
+        'sample_labels': [f"S{i}" for i in range(len(X))],
+        'tiempo_calculo': total_time,
+        'usando_sklearn': False,
+        'recomendaciones': [
+            f"Mejor: {metodo}-{metrica} con {mejor_k} clusters",
+            f"Silhouette Score: {mejor_silhouette:.3f}",
+            f"Tiempo: {total_time:.2f}s (⚡ OPTIMIZADO)",
+            f"Velocidad: {'⚡⚡ ULTRA RÁPIDO' if total_time < 1 else '⚡ RÁPIDO' if total_time < 5 else 'Normal'}"
+        ]
+    }
+
+
+# ==================== ANÁLISIS EXPLORATORIO ====================
 
 def calcular_estadisticas_avanzadas(X, variables):
-    """Calcular estadísticas descriptivas avanzadas"""
+    """Calcular estadísticas descriptivas"""
     estadisticas = {}
 
     for variable in variables:
         if variable not in X.columns:
             continue
 
-        serie = X[variable]
-
-        # Estadísticas básicas
+        serie = X[variable].values
         stats_basicas = {
             'count': len(serie),
-            'mean': float(serie.mean()),
-            'std': float(serie.std()),
-            'min': float(serie.min()),
-            'max': float(serie.max()),
-            'range': float(serie.max() - serie.min()),
-            'median': float(serie.median()),
-            'q1': float(serie.quantile(0.25)),
-            'q3': float(serie.quantile(0.75)),
-            'iqr': float(serie.quantile(0.75) - serie.quantile(0.25))
+            'mean': float(np.mean(serie)),
+            'std': float(np.std(serie)),
+            'min': float(np.min(serie)),
+            'max': float(np.max(serie)),
+            'range': float(np.max(serie) - np.min(serie)),
+            'median': float(np.median(serie)),
+            'q1': float(np.percentile(serie, 25)),
+            'q3': float(np.percentile(serie, 75)),
+            'iqr': float(np.percentile(serie, 75) - np.percentile(serie, 25))
         }
 
-        # Estadísticas de forma
-        mean_val = serie.mean()
-        std_val = serie.std()
+        mean_val = np.mean(serie)
+        std_val = np.std(serie)
 
         if std_val > 0:
-            skew_val = ((serie - mean_val) ** 3).mean() / (std_val ** 3)
-            kurt_val = ((serie - mean_val) ** 4).mean() / (std_val ** 4) - 3
+            skew_val = np.mean(((serie - mean_val) / std_val) ** 3)
+            kurt_val = np.mean(((serie - mean_val) / std_val) ** 4) - 3
             cv = std_val / mean_val if mean_val != 0 else np.inf
         else:
             skew_val = 0
@@ -691,7 +1212,6 @@ def calcular_estadisticas_avanzadas(X, variables):
             'cv': float(cv)
         }
 
-        # Test de normalidad simplificado
         normalidad = {
             'es_normal': abs(skew_val) < 1 and abs(kurt_val) < 1
         }
@@ -704,29 +1224,27 @@ def calcular_estadisticas_avanzadas(X, variables):
 
     return estadisticas
 
+
 def analizar_correlaciones_avanzado(X, variables):
     """Análisis avanzado de correlaciones"""
-    # Matriz de correlación de Pearson
-    corr_pearson = X[variables].corr()
+    corr_matrix = np.corrcoef(X[variables].T)
+    corr_pearson = pd.DataFrame(corr_matrix, index=variables, columns=variables)
 
-    # Correlaciones significativas
     correlaciones_fuertes = []
-    for i in range(len(variables)):
-        for j in range(i + 1, len(variables)):
-            if i < len(variables) and j < len(variables):
-                var1, var2 = variables[i], variables[j]
-                if var1 in corr_pearson.columns and var2 in corr_pearson.columns:
-                    corr_val = corr_pearson.loc[var1, var2]
+    n_vars = len(variables)
 
-                    if not np.isnan(corr_val) and abs(corr_val) > 0.6:
-                        correlaciones_fuertes.append({
-                            'variable_1': var1,
-                            'variable_2': var2,
-                            'correlacion': float(corr_val),
-                            'tipo': 'Fuerte positiva' if corr_val > 0.6 else 'Fuerte negativa'
-                        })
+    for i in range(n_vars):
+        for j in range(i + 1, n_vars):
+            corr_val = corr_pearson.iloc[i, j]
 
-    # Análisis de multicolinealidad
+            if not np.isnan(corr_val) and abs(corr_val) > 0.6:
+                correlaciones_fuertes.append({
+                    'variable_1': variables[i],
+                    'variable_2': variables[j],
+                    'correlacion': float(corr_val),
+                    'tipo': 'Fuerte positiva' if corr_val > 0.6 else 'Fuerte negativa'
+                })
+
     try:
         condicion = np.linalg.cond(corr_pearson.values)
         multicolinealidad = 'Alta' if condicion > 1000 else 'Media' if condicion > 100 else 'Baja'
@@ -741,25 +1259,19 @@ def analizar_correlaciones_avanzado(X, variables):
         'multicolinealidad': multicolinealidad
     }
 
+
 def detectar_outliers_multiples_metodos(X, variables):
     """Detección de outliers usando múltiples métodos"""
-    outliers_por_metodo = {}
-
     X_vals = X[variables].values
 
-    # 1. Z-Score
     outliers_zscore = detectar_outliers_zscore(X_vals)
-    outliers_zscore_indices = X[outliers_zscore].index.tolist()
-
-    # 2. IQR
     outliers_iqr = detectar_outliers_iqr(X_vals)
-    outliers_iqr_indices = X[outliers_iqr].index.tolist()
-
-    # 3. Isolation Forest simplificado
     outliers_isolation = detectar_outliers_isolation_forest_simple(X_vals)
+
+    outliers_zscore_indices = X[outliers_zscore].index.tolist()
+    outliers_iqr_indices = X[outliers_iqr].index.tolist()
     outliers_isolation_indices = X[outliers_isolation].index.tolist()
 
-    # Consolidar resultados
     todos_outliers = set(outliers_zscore_indices + outliers_iqr_indices + outliers_isolation_indices)
 
     return {
@@ -782,6 +1294,7 @@ def detectar_outliers_multiples_metodos(X, variables):
         }
     }
 
+
 def analizar_distribuciones_avanzado(X, variables):
     """Análisis de distribuciones"""
     distribuciones = {}
@@ -790,20 +1303,17 @@ def analizar_distribuciones_avanzado(X, variables):
         if variable not in X.columns:
             continue
 
-        serie = X[variable]
-
-        # Estadísticas de forma
-        mean_val = serie.mean()
-        std_val = serie.std()
+        serie = X[variable].values
+        mean_val = np.mean(serie)
+        std_val = np.std(serie)
 
         if std_val > 0:
-            skew_val = ((serie - mean_val) ** 3).mean() / (std_val ** 3)
-            kurt_val = ((serie - mean_val) ** 4).mean() / (std_val ** 4) - 3
+            skew_val = np.mean(((serie - mean_val) / std_val) ** 3)
+            kurt_val = np.mean(((serie - mean_val) / std_val) ** 4) - 3
         else:
             skew_val = 0
             kurt_val = 0
 
-        # Clasificar distribución
         if abs(skew_val) < 0.5 and abs(kurt_val) < 0.5:
             distribucion_tipo = 'normal'
             score = 1.0 - (abs(skew_val) + abs(kurt_val)) / 2
@@ -821,7 +1331,7 @@ def analizar_distribuciones_avanzado(X, variables):
             'mejor_ajuste': {
                 'distribucion': distribucion_tipo,
                 'score': score,
-                'parametros': [mean_val, std_val]
+                'parametros': [float(mean_val), float(std_val)]
             },
             'es_aproximadamente_normal': distribucion_tipo == 'normal',
             'skewness': float(skew_val),
@@ -830,19 +1340,19 @@ def analizar_distribuciones_avanzado(X, variables):
 
     return distribuciones
 
+
 def clustering_exploratorio_rapido(X, variables, escalado='standard'):
     """Clustering exploratorio rápido"""
-    # Escalado
     X_scaled, _ = aplicar_escalado(X[variables], escalado)
 
     resultados_rapidos = {}
 
     for k in [3, 4, 5]:
         try:
-            kmeans_result = manual_kmeans(X_scaled.values, k)
+            kmeans_result = optimized_kmeans(X_scaled.values, k, max_iters=50)
             labels = kmeans_result['labels']
-
-            silhouette = manual_silhouette_score(X_scaled.values, labels)
+            sample_size = min(500, len(X))
+            silhouette = optimized_silhouette_score(X_scaled.values, labels, sample_size=sample_size)
 
             resultados_rapidos[k] = {
                 'silhouette_score': float(silhouette),
@@ -852,10 +1362,8 @@ def clustering_exploratorio_rapido(X, variables, escalado='standard'):
         except:
             continue
 
-    # Mejor k rápido
     if resultados_rapidos:
-        mejor_k_rapido = max(resultados_rapidos.keys(),
-                           key=lambda k: resultados_rapidos[k]['silhouette_score'])
+        mejor_k_rapido = max(resultados_rapidos.keys(), key=lambda k: resultados_rapidos[k]['silhouette_score'])
     else:
         mejor_k_rapido = 3
 
@@ -865,9 +1373,9 @@ def clustering_exploratorio_rapido(X, variables, escalado='standard'):
         'recomendacion': f"Se sugiere explorar clustering con {mejor_k_rapido} grupos"
     }
 
+
 def evaluar_calidad_datos(data_original, variables):
     """Evaluar calidad general de los datos"""
-    # Valores faltantes
     missing_info = {}
     for var in variables:
         if var in data_original.columns:
@@ -877,10 +1385,8 @@ def evaluar_calidad_datos(data_original, variables):
                 'percentage': float(missing_count / len(data_original) * 100)
             }
 
-    # Duplicados
     duplicados = data_original.duplicated().sum()
 
-    # Valores únicos por variable
     unique_info = {}
     for var in variables:
         if var in data_original.columns:
@@ -890,11 +1396,9 @@ def evaluar_calidad_datos(data_original, variables):
                 'unique_ratio': float(unique_count / len(data_original))
             }
 
-    # Score de calidad general
     total_missing = sum(info['count'] for info in missing_info.values())
     missing_ratio = total_missing / (len(data_original) * len(variables)) if variables else 0
     duplicate_ratio = duplicados / len(data_original)
-
     quality_score = 100 * (1 - missing_ratio - duplicate_ratio)
 
     return {
@@ -908,99 +1412,124 @@ def evaluar_calidad_datos(data_original, variables):
         'calificacion': 'Excelente' if quality_score > 95 else 'Buena' if quality_score > 85 else 'Regular' if quality_score > 70 else 'Deficiente'
     }
 
+
 def generar_recomendaciones_exploratorio(estadisticas, correlaciones, outliers, distribuciones, calidad):
     """Generar recomendaciones basadas en el análisis exploratorio"""
     recomendaciones = []
 
-    # Calidad de datos
     if calidad['quality_score'] < 85:
-        recomendaciones.append("Considere limpiar los datos antes del análisis")
+        recomendaciones.append("⚠️ Considere limpiar los datos antes del análisis")
 
-    # Correlaciones
     if 'correlaciones_fuertes' in correlaciones:
         n_corr = len(correlaciones['correlaciones_fuertes'])
         if n_corr > 0:
-            recomendaciones.append(f"Se detectaron {n_corr} correlaciones fuertes")
+            recomendaciones.append(f"🔗 Se detectaron {n_corr} correlaciones fuertes entre variables")
 
     if correlaciones.get('multicolinealidad') == 'Alta':
-        recomendaciones.append("Alta multicolinealidad detectada")
+        recomendaciones.append("⚠️ Alta multicolinealidad detectada - Considere PCA")
 
-    # Outliers
     if 'consenso' in outliers:
         porcentaje_outliers = outliers['consenso']['porcentaje']
         if porcentaje_outliers > 10:
-            recomendaciones.append(f"Alto porcentaje de outliers ({porcentaje_outliers:.1f}%)")
+            recomendaciones.append(f"⚠️ Alto porcentaje de outliers ({porcentaje_outliers:.1f}%)")
         elif porcentaje_outliers > 5:
-            recomendaciones.append("Outliers moderados detectados")
+            recomendaciones.append(f"⚠️ Outliers moderados detectados ({porcentaje_outliers:.1f}%)")
 
-    # Distribuciones
     if distribuciones:
         variables_no_normales = sum(1 for var_info in distribuciones.values()
-                                  if not var_info.get('es_aproximadamente_normal', False))
+                                    if not var_info.get('es_aproximadamente_normal', False))
 
         if variables_no_normales > len(distribuciones) * 0.7:
-            recomendaciones.append("Muchas variables no siguen distribución normal")
+            recomendaciones.append("📊 Muchas variables no siguen distribución normal - Use escalado robusto")
 
-    # Técnicas ML
     n_variables = len(estadisticas)
     if n_variables > 10:
-        recomendaciones.append("Alto número de variables. PCA recomendado")
+        recomendaciones.append(f"📉 Alto número de variables ({n_variables}) - PCA recomendado")
 
     if outliers and outliers.get('consenso', {}).get('porcentaje', 0) > 5:
-        recomendaciones.append("Considere DBSCAN para clustering con outliers")
+        recomendaciones.append("🎯 DBSCAN recomendado para clustering con outliers")
     else:
-        recomendaciones.append("K-Means puede ser apropiado para clustering")
+        recomendaciones.append("🎯 K-Means puede ser apropiado para clustering")
 
     return recomendaciones
 
-def analisis_exploratorio_completo(data, variables=None, escalado='standard',
-                                 handle_outliers=True, verbose=True):
-    """Análisis exploratorio exhaustivo de los datos"""
+
+def analisis_exploratorio_completo(data, variables=None, escalado='standard', handle_outliers=True,
+                                   verbose=True, progress_callback=None, status_callback=None):
+    """Análisis exploratorio exhaustivo optimizado"""
+
+    def emit_progress(value):
+        if progress_callback:
+            try:
+                progress_callback(value)
+            except:
+                pass
+
+    def emit_status(msg):
+        if status_callback:
+            try:
+                status_callback(msg)
+            except:
+                pass
+        if verbose:
+            print(f"  {msg}")
+
     if verbose:
-        print("🔍 Iniciando análisis exploratorio completo...")
+        print("🔍 Iniciando análisis exploratorio...")
+    emit_status("Iniciando análisis exploratorio...")
+    emit_progress(0)
 
     if variables is None:
         variables = data.select_dtypes(include=[np.number]).columns.tolist()
 
-    # Excluir columnas no relevantes
     exclude_cols = ['Points', 'Sampling_date', 'WQI_IDEAM_6V', 'WQI_IDEAM_7V', 'WQI_NSF_9V',
-                   'Classification_6V', 'Classification_7V', 'Classification_9V']
+                    'Classification_6V', 'Classification_7V', 'Classification_9V']
     variables = [col for col in variables if col not in exclude_cols]
 
     X = data[variables].dropna()
 
     if verbose:
-        print(f"📊 Datos preparados: {X.shape[0]} muestras, {X.shape[1]} variables")
+        print(f"📊 Datos: {X.shape[0]} muestras, {X.shape[1]} variables")
+    emit_status(f"Datos: {X.shape[0]} muestras, {X.shape[1]} variables")
+    emit_progress(10)
 
-    # 1. Estadísticas descriptivas
+    emit_status("Calculando estadísticas...")
     estadisticas = calcular_estadisticas_avanzadas(X, variables)
+    emit_progress(25)
 
-    # 2. Análisis de correlaciones
+    emit_status("Analizando correlaciones...")
     correlaciones = analizar_correlaciones_avanzado(X, variables)
+    emit_progress(40)
 
-    # 3. Detección de outliers
+    emit_status("Detectando outliers...")
     outliers = detectar_outliers_multiples_metodos(X, variables) if handle_outliers else {}
+    emit_progress(55)
 
-    # 4. Análisis de distribuciones
+    emit_status("Analizando distribuciones...")
     distribuciones = analizar_distribuciones_avanzado(X, variables)
+    emit_progress(70)
 
-    # 5. PCA exploratorio básico
+    emit_status("Ejecutando PCA exploratorio...")
     X_scaled, _ = aplicar_escalado(X, escalado)
-    pca_basico = manual_pca(X_scaled.values, n_components=min(5, len(variables)))
+    pca_basico = optimized_pca(X_scaled.values, n_components=min(5, len(variables)))
+    emit_progress(80)
 
-    # 6. Clustering exploratorio rápido
+    emit_status("Clustering exploratorio...")
     clustering_exploratorio = clustering_exploratorio_rapido(X, variables, escalado)
+    emit_progress(90)
 
-    # 7. Análisis de calidad de datos
+    emit_status("Evaluando calidad de datos...")
     calidad_datos = evaluar_calidad_datos(data, variables)
+    emit_progress(95)
 
-    # 8. Recomendaciones automáticas
     recomendaciones = generar_recomendaciones_exploratorio(
         estadisticas, correlaciones, outliers, distribuciones, calidad_datos
     )
 
     if verbose:
         print("✅ Análisis exploratorio completado")
+    emit_status("✓ Análisis completado")
+    emit_progress(100)
 
     return {
         'tipo': 'analisis_exploratorio_completo',
@@ -1020,778 +1549,146 @@ def analisis_exploratorio_completo(data, variables=None, escalado='standard',
         'recomendaciones': recomendaciones
     }
 
-def analizar_pca_detallado(pca_result, variables, varianza_objetivo):
-    """Análisis detallado del PCA"""
-    varianza_explicada = pca_result['explained_variance_ratio']
-    varianza_acumulada = np.cumsum(varianza_explicada)
 
-    # Encontrar número de componentes para objetivo
-    n_componentes_objetivo = np.argmax(varianza_acumulada >= varianza_objetivo) + 1
-
-    # Análisis de cada componente
-    componentes_info = []
-    for i in range(len(varianza_explicada)):
-        loadings = pca_result['components'][i]
-
-        # Variables más importantes
-        importancia_abs = np.abs(loadings)
-        top_variables_idx = np.argsort(importancia_abs)[::-1][:5]
-
-        top_variables = [
-            {
-                'variable': variables[idx],
-                'loading': float(loadings[idx]),
-                'importancia_abs': float(importancia_abs[idx])
-            }
-            for idx in top_variables_idx
-        ]
-
-        componentes_info.append({
-            'componente': f'PC{i+1}',
-            'varianza_explicada': float(varianza_explicada[i]),
-            'varianza_acumulada': float(varianza_acumulada[i]),
-            'top_variables': top_variables,
-            'loadings_completos': loadings.tolist()
-        })
-
-    return {
-        'varianza_explicada': varianza_explicada.tolist(),
-        'varianza_acumulada': varianza_acumulada.tolist(),
-        'eigenvalues': pca_result['explained_variance'].tolist(),
-        'n_componentes_objetivo': n_componentes_objetivo,
-        'varianza_objetivo': varianza_objetivo,
-        'componentes_info': componentes_info,
-        'matriz_componentes': pca_result['components'].tolist()
-    }
-
-def pca_completo_avanzado(data, variables=None, explicar_varianza_objetivo=0.95,
-                         escalado='standard', verbose=True):
-    """Análisis de Componentes Principales avanzado"""
-    if verbose:
-        print("🔍 Iniciando PCA avanzado...")
-
-    if variables is None:
-        variables = data.select_dtypes(include=[np.number]).columns.tolist()
-
-    # Excluir columnas no relevantes
-    exclude_cols = ['Points', 'Sampling_date', 'WQI_IDEAM_6V', 'WQI_IDEAM_7V', 'WQI_NSF_9V',
-                   'Classification_6V', 'Classification_7V', 'Classification_9V']
-    variables = [col for col in variables if col not in exclude_cols]
-
-    X = data[variables].dropna()
-
-    if verbose:
-        print(f"📊 Datos preparados: {X.shape[0]} muestras, {X.shape[1]} variables")
-
-    # Escalado
-    X_scaled, scaler_info = aplicar_escalado(X, escalado)
-
-    # PCA manual
-    pca_result = manual_pca(X_scaled.values)
-
-    # Análisis detallado
-    analisis = analizar_pca_detallado(pca_result, variables, explicar_varianza_objetivo)
-
-    if verbose:
-        print(f"✅ PCA completado: {analisis['n_componentes_objetivo']} componentes recomendados")
-
-    return {
-        'tipo': 'pca_completo_avanzado',
-        'variables_utilizadas': variables,
-        'n_muestras': len(X),
-        'resultados_por_metodo': {
-            'linear': {
-                'modelo_info': pca_result,
-                'transformacion': pca_result['X_transformed'].tolist(),
-                'analisis': analisis,
-                'componentes_recomendados': analisis['n_componentes_objetivo']
-            }
-        },
-        'datos_originales': X,
-        'scaler_info': scaler_info,
-        'recomendaciones': [
-            f"Componentes recomendados: {analisis['n_componentes_objetivo']}",
-            f"Varianza explicada: {analisis['varianza_acumulada'][analisis['n_componentes_objetivo']-1]:.1%}",
-            f"Primera componente explica: {analisis['varianza_explicada'][0]:.1%}"
-        ]
-    }
-
-# ==================== CLUSTERING JERÁRQUICO MANUAL ====================
-
-def manual_hierarchical_clustering(X, method='ward', metric='euclidean'):
-    """Implementación manual de clustering jerárquico"""
-    n_samples = len(X)
-
-    # Calcular matriz de distancias inicial
-    dist_matrix = np.full((n_samples, n_samples), np.inf)
-    for i in range(n_samples):
-        for j in range(i + 1, n_samples):
-            if metric == 'euclidean':
-                dist = np.linalg.norm(X[i] - X[j])
-            elif metric == 'manhattan':
-                dist = np.sum(np.abs(X[i] - X[j]))
-            elif metric == 'cosine':
-                dot_product = np.dot(X[i], X[j])
-                norm_i = np.linalg.norm(X[i])
-                norm_j = np.linalg.norm(X[j])
-                if norm_i > 0 and norm_j > 0:
-                    dist = 1 - (dot_product / (norm_i * norm_j))
-                else:
-                    dist = 1
-            else:
-                dist = np.linalg.norm(X[i] - X[j])
-
-            dist_matrix[i, j] = dist_matrix[j, i] = dist
-
-    # Inicializar clusters - cada punto es un cluster
-    clusters = {i: [i] for i in range(n_samples)}
-    cluster_centroids = {i: X[i].copy() for i in range(n_samples)}
-    cluster_sizes = {i: 1 for i in range(n_samples)}
-
-    # Matriz de linkage para el dendrograma
-    linkage_matrix = []
-    current_cluster_id = n_samples
-
-    while len(clusters) > 1:
-        # Encontrar los dos clusters más cercanos
-        min_dist = np.inf
-        merge_pair = None
-
-        active_clusters = list(clusters.keys())
-
-        for i in range(len(active_clusters)):
-            for j in range(i + 1, len(active_clusters)):
-                ci, cj = active_clusters[i], active_clusters[j]
-
-                if method == 'ward':
-                    # Ward: minimizar incremento en varianza
-                    ni, nj = cluster_sizes[ci], cluster_sizes[cj]
-                    centroid_i = cluster_centroids[ci]
-                    centroid_j = cluster_centroids[cj]
-                    dist = np.sqrt(((ni * nj) / (ni + nj)) * np.sum((centroid_i - centroid_j) ** 2))
-
-                elif method == 'complete':
-                    # Complete linkage: máxima distancia entre puntos
-                    max_dist = 0
-                    for pi in clusters[ci]:
-                        for pj in clusters[cj]:
-                            max_dist = max(max_dist, dist_matrix[pi, pj])
-                    dist = max_dist
-
-                elif method == 'average':
-                    # Average linkage: distancia promedio entre puntos
-                    total_dist = 0
-                    count = 0
-                    for pi in clusters[ci]:
-                        for pj in clusters[cj]:
-                            total_dist += dist_matrix[pi, pj]
-                            count += 1
-                    dist = total_dist / count if count > 0 else 0
-
-                elif method == 'single':
-                    # Single linkage: mínima distancia entre puntos
-                    min_dist_single = np.inf
-                    for pi in clusters[ci]:
-                        for pj in clusters[cj]:
-                            min_dist_single = min(min_dist_single, dist_matrix[pi, pj])
-                    dist = min_dist_single
-
-                else:
-                    # Default a average
-                    total_dist = 0
-                    count = 0
-                    for pi in clusters[ci]:
-                        for pj in clusters[cj]:
-                            total_dist += dist_matrix[pi, pj]
-                            count += 1
-                    dist = total_dist / count if count > 0 else 0
-
-                if dist < min_dist:
-                    min_dist = dist
-                    merge_pair = (ci, cj)
-
-        if merge_pair is None:
-            break
-
-        # Unir los clusters seleccionados
-        ci, cj = merge_pair
-        new_cluster = clusters[ci] + clusters[cj]
-        new_size = cluster_sizes[ci] + cluster_sizes[cj]
-
-        # Calcular nuevo centroide (promedio ponderado por tamaño)
-        if method == 'ward':
-            new_centroid = (cluster_sizes[ci] * cluster_centroids[ci] +
-                          cluster_sizes[cj] * cluster_centroids[cj]) / new_size
-        else:
-            # Para otros métodos, usar promedio simple de todos los puntos
-            all_points = np.array([X[i] for i in new_cluster])
-            new_centroid = np.mean(all_points, axis=0)
-
-        # Guardar en linkage matrix: [cluster1_id, cluster2_id, distancia, tamaño_nuevo_cluster]
-        linkage_matrix.append([ci, cj, min_dist, new_size])
-
-        # Actualizar estructuras
-        clusters[current_cluster_id] = new_cluster
-        cluster_centroids[current_cluster_id] = new_centroid
-        cluster_sizes[current_cluster_id] = new_size
-
-        # Eliminar clusters viejos
-        del clusters[ci]
-        del clusters[cj]
-        del cluster_centroids[ci]
-        del cluster_centroids[cj]
-        del cluster_sizes[ci]
-        del cluster_sizes[cj]
-
-        current_cluster_id += 1
-
-    return np.array(linkage_matrix)
-
-
-def plot_dendrogram_manual_mejorado(linkage_matrix, labels=None, ax=None,
-                                    max_display=30, color_threshold=None):
-    """Crear dendrograma manual mejorado"""
-    if ax is None:
-        fig, ax = plt.subplots(figsize=(12, 6))
-
-    n_samples = len(linkage_matrix) + 1
-
-    if labels is None:
-        labels = [f"S{i}" for i in range(n_samples)]
-
-    # Submuestreo si hay muchas muestras
-    display_labels = labels
-    n_display = n_samples
-
-    if n_samples > max_display:
-        step = max(1, n_samples // max_display)
-        sample_indices = list(range(0, n_samples, step))[:max_display]
-        display_labels = [labels[i] for i in sample_indices if i < len(labels)]
-        n_display = len(display_labels)
-
-        ax.text(0.5, 0.95,
-                f'Mostrando {n_display} de {n_samples} muestras (cada {step})',
-                transform=ax.transAxes, ha='center', va='top',
-                bbox=dict(boxstyle='round', facecolor='yellow', alpha=0.7),
-                fontsize=9)
-
-    # Estructura para rastrear posiciones
-    node_positions = {i: i for i in range(n_display)}
-    node_heights = {i: 0 for i in range(n_display)}
-
-    # Determinar umbral de color
-    if color_threshold is None and len(linkage_matrix) > 0:
-        heights = linkage_matrix[:, 2]
-        color_threshold = 0.7 * np.max(heights)
-
-    # Colores
-    colors = plt.cm.tab10(np.linspace(0, 1, 10))
-    color_idx = 0
-    cluster_colors = {}
-
-    # Procesar fusiones
-    for i, (idx1, idx2, height, size) in enumerate(linkage_matrix):
-        idx1, idx2 = int(idx1), int(idx2)
-        current_node = n_display + i
-
-        # Obtener posiciones con validación
-        x1 = node_positions.get(idx1, idx1 if idx1 < n_display else n_display / 2)
-        x2 = node_positions.get(idx2, idx2 if idx2 < n_display else n_display / 2)
-
-        y1 = node_heights.get(idx1, 0)
-        y2 = node_heights.get(idx2, 0)
-
-        x_new = (x1 + x2) / 2
-
-        node_positions[current_node] = x_new
-        node_heights[current_node] = height
-
-        # Determinar color
-        if color_threshold and height > color_threshold:
-            color = colors[color_idx % len(colors)]
-            color_idx += 1
-        else:
-            parent_color = cluster_colors.get(idx1) or cluster_colors.get(idx2)
-            color = parent_color if parent_color is not None else 'blue'
-
-        cluster_colors[current_node] = color
-
-        # Dibujar líneas
-        ax.plot([x1, x1], [y1, height], color=color, linewidth=1.5, alpha=0.8)
-        ax.plot([x2, x2], [y2, height], color=color, linewidth=1.5, alpha=0.8)
-        ax.plot([x1, x2], [height, height], color=color, linewidth=2, alpha=0.8)
-
-    # Configurar ejes
-    ax.set_xticks(range(n_display))
-    ax.set_xticklabels(display_labels, rotation=45, ha='right', fontsize=8)
-    ax.set_ylabel('Distancia de Fusión', fontsize=11)
-    ax.set_title('Dendrograma de Clustering Jerárquico', fontsize=13, fontweight='bold')
-    ax.grid(True, alpha=0.3, axis='y')
-    ax.spines['top'].set_visible(False)
-    ax.spines['right'].set_visible(False)
-
-    # Líneas de corte sugeridas
-    if len(linkage_matrix) > 0:
-        heights = linkage_matrix[:, 2]
-        max_height = np.max(heights)
-
-        for n_clusters in [2, 3, 4, 5]:
-            if n_clusters < len(linkage_matrix):
-                cut_height = heights[-(n_clusters)]
-
-                ax.axhline(y=cut_height, color='red', linestyle='--',
-                           alpha=0.4, linewidth=1, zorder=0)
-
-                ax.text(n_display * 0.98, cut_height, f' {n_clusters}',
-                        fontsize=8, va='center', ha='right',
-                        bbox=dict(boxstyle='round,pad=0.3',
-                                  facecolor='white', alpha=0.8, edgecolor='red'))
-
-        ax.set_xlim(-0.5, n_display - 0.5)
-        ax.set_ylim(0, max_height * 1.1)
-
-    return ax
-
-def get_clusters_from_linkage(linkage_matrix, n_clusters):
-    """Obtener asignación de clusters cortando el dendrograma"""
-    if n_clusters <= 1:
-        return [0] * (len(linkage_matrix) + 1)
-
-    n_samples = len(linkage_matrix) + 1
-
-    # Si pedimos más clusters que muestras, cada muestra es su propio cluster
-    if n_clusters >= n_samples:
-        return list(range(n_samples))
-
-    # Encontrar la altura de corte para obtener n_clusters
-    if n_clusters - 1 >= len(linkage_matrix):
-        cut_height = 0
-    else:
-        cut_height = linkage_matrix[-(n_clusters-1), 2]
-
-    # Simular el proceso de clustering hasta la altura de corte
-    clusters = {i: [i] for i in range(n_samples)}
-    current_cluster_id = n_samples
-
-    for i, (c1, c2, height, size) in enumerate(linkage_matrix):
-        if height > cut_height:
-            break
-
-        c1, c2 = int(c1), int(c2)
-
-        # Unir clusters
-        if c1 in clusters and c2 in clusters:
-            new_cluster = clusters[c1] + clusters[c2]
-            clusters[current_cluster_id] = new_cluster
-            del clusters[c1]
-            del clusters[c2]
-            current_cluster_id += 1
-
-    # Crear array de etiquetas
-    labels = np.zeros(n_samples, dtype=int)
-    cluster_id = 0
-
-    for cluster_points in clusters.values():
-        for point in cluster_points:
-            labels[point] = cluster_id
-        cluster_id += 1
-
-    return labels.tolist()
-
-def clustering_jerarquico_completo(data, variables=None, metodos=['ward'],
-                                 metricas=['euclidean'], max_clusters=10,
-                                 escalado='standard', verbose=True):
-    """Clustering jerárquico completo con dendrograma manual"""
-    if verbose:
-        print("🔍 Iniciando clustering jerárquico...")
-
-    if variables is None:
-        variables = data.select_dtypes(include=[np.number]).columns.tolist()
-
-    # Excluir columnas no relevantes
-    exclude_cols = ['Points', 'Sampling_date', 'WQI_IDEAM_6V', 'WQI_IDEAM_7V', 'WQI_NSF_9V',
-                   'Classification_6V', 'Classification_7V', 'Classification_9V']
-    variables = [col for col in variables if col not in exclude_cols]
-
-    X = data[variables].dropna()
-
-    if verbose:
-        print(f"📊 Datos preparados: {X.shape[0]} muestras, {X.shape[1]} variables")
-
-    # Escalado
-    X_scaled, scaler_info = aplicar_escalado(X, escalado)
-
-    # Realizar clustering jerárquico manual
-    metodo = metodos[0] if metodos else 'ward'
-    metrica = metricas[0] if metricas else 'euclidean'
-
-    if verbose:
-        print(f"   Ejecutando clustering jerárquico: {metodo}-{metrica}")
-
-    linkage_matrix = manual_hierarchical_clustering(X_scaled.values, method=metodo, metric=metrica)
-
-    # Evaluar diferentes números de clusters
-    resultados_por_k = {}
-    max_k = min(max_clusters, len(X) - 1)
-
-    for k in range(2, max_k + 1):
-        try:
-            # Obtener labels cortando el dendrograma
-            labels = get_clusters_from_linkage(linkage_matrix, k)
-
-            # Calcular silhouette score
-            if len(set(labels)) > 1:
-                silhouette = manual_silhouette_score(X_scaled.values, np.array(labels))
-            else:
-                silhouette = 0.0
-
-            # Análisis de clusters
-            cluster_analysis = analizar_clusters_manual(X, labels, variables)
-
-            resultados_por_k[k] = {
-                'silhouette_score': float(silhouette),
-                'labels': labels,
-                'cluster_stats': cluster_analysis
-            }
-
-        except Exception as e:
-            if verbose:
-                print(f"Error evaluando k={k}: {e}")
-            continue
-
-    # Encontrar mejor configuración
-    if resultados_por_k:
-        mejor_k = max(resultados_por_k.keys(),
-                     key=lambda k: resultados_por_k[k]['silhouette_score'])
-        mejor_silhouette = resultados_por_k[mejor_k]['silhouette_score']
-        mejor_labels = resultados_por_k[mejor_k]['labels']
-    else:
-        mejor_k = 3
-        mejor_silhouette = 0.5
-        mejor_labels = [0] * len(X)
-
-    mejor_configuracion = {
-        'metodo': metodo,
-        'metrica': metrica,
-        'n_clusters_sugeridos': mejor_k,
-        'silhouette_score': mejor_silhouette,
-        'labels': mejor_labels
-    }
-
-    if verbose:
-        print(f"✅ Clustering jerárquico completado. Mejor K: {mejor_k}")
-
-    return {
-        'tipo': 'clustering_jerarquico_completo',
-        'variables_utilizadas': variables,
-        'metodo_escalado': escalado,
-        'linkage_matrix': linkage_matrix.tolist(),  # Matriz de linkage para dendrograma
-        'resultados_por_k': resultados_por_k,
-        'mejor_configuracion': mejor_configuracion,
-        'datos_originales': X,
-        'scaler_info': scaler_info,
-        'sample_labels': [f"S{i}" for i in range(len(X))],  # Etiquetas para dendrograma
-        'recomendaciones': [
-            f"Mejor configuración: {metodo}-{metrica} con {mejor_k} clusters",
-            f"Silhouette Score: {mejor_silhouette:.3f}",
-            f"Método de linkage: {metodo}"
-        ]
+# ==================== FUNCIÓN DEMO ====================
+
+def demo_ml_no_supervisado_optimizado():
+    """Demostración completa del sistema ML no supervisado OPTIMIZADO"""
+    print("🚀 Generando datos de demostración...")
+    datos = generar_datos_agua_realistas(n_muestras=300, incluir_outliers=True)
+
+    print("📊 Datos generados exitosamente")
+    print(f"   Shape: {datos.shape}")
+
+    variables_analisis = ['pH', 'WT', 'DO', 'TBD', 'CTD', 'BOD5', 'COD', 'FC', 'TC', 'NO3']
+
+    print("\n⚡ Ejemplo 1: K-Means OPTIMIZADO")
+    start = time.time()
+    kmeans_opt = kmeans_optimizado_completo(datos, variables_analisis)
+    print(f"   ⏱️ Tiempo: {time.time() - start:.2f}s")
+    print(f"   K recomendado: {kmeans_opt['recomendacion_k']}")
+
+    print("\n⚡ Ejemplo 2: DBSCAN OPTIMIZADO")
+    start = time.time()
+    dbscan_opt = dbscan_optimizado(datos, variables_analisis)
+    print(f"   ⏱️ Tiempo: {time.time() - start:.2f}s")
+    mejor_dbscan = dbscan_opt['mejor_configuracion']
+    print(f"   Clusters: {mejor_dbscan['n_clusters']}, Outliers: {mejor_dbscan['n_noise']}")
+
+    print("\n⚡ Ejemplo 3: PCA OPTIMIZADO (SVD)")
+    start = time.time()
+    pca_avanzado = pca_completo_avanzado(datos, variables_analisis)
+    print(f"   ⏱️ Tiempo: {time.time() - start:.2f}s")
+    pca_linear = pca_avanzado['resultados_por_metodo']['linear']
+    print(f"   Componentes recomendados: {pca_linear['componentes_recomendados']}")
+
+    print("\n⚡ Ejemplo 4: Clustering Jerárquico OPTIMIZADO")
+    start = time.time()
+    jerarquico = clustering_jerarquico_completo(datos, variables_analisis)
+    print(f"   ⏱️ Tiempo: {time.time() - start:.2f}s")
+    print(f"   K recomendado: {jerarquico['mejor_configuracion']['n_clusters_sugeridos']}")
+
+    print("\n⚡ Ejemplo 5: Análisis Exploratorio OPTIMIZADO")
+    start = time.time()
+    exploratorio = analisis_exploratorio_completo(datos, variables_analisis)
+    print(f"   ⏱️ Tiempo: {time.time() - start:.2f}s")
+    print(f"   Calidad de datos: {exploratorio['calidad_datos']['calificacion']}")
+
+    print("\n✅ Análisis completado exitosamente (OPTIMIZADO)")
+    print("⚡⚡ Todas las operaciones usan algoritmos vectorizados y optimizados")
+
+    return datos, {
+        'kmeans': kmeans_opt,
+        'dbscan': dbscan_opt,
+        'pca': pca_avanzado,
+        'jerarquico': jerarquico,
+        'exploratorio': exploratorio
     }
 
 
-# ==================== PROCESAMIENTO PARALELO ====================
+# ==================== MAIN ====================
 
-class ParallelHierarchicalClustering:
-    """Clustering jerárquico con procesamiento paralelo y monitoreo"""
-
-    def __init__(self, max_workers=None):
-        if max_workers is None:
-            total_cores = os.cpu_count() or 4
-            self.max_workers = max(2, min(total_cores - 2, int(total_cores * 0.75)))
-            print(f"Sistema detectado: {total_cores} cores disponibles")
-            print(f"Usando {self.max_workers} hilos para procesamiento paralelo")
-        else:
-            self.max_workers = max_workers
-
-        self._lock = Lock()
-        self.progress_callback = None
-        self.status_callback = None
-        self.thread_monitor_callback = None  # NUEVO
-        self.active_threads = set()  # NUEVO
-
-    def set_callbacks(self, progress_callback=None, status_callback=None, thread_monitor_callback=None):
-        """Establecer callbacks incluyendo monitor de hilos"""
-        self.progress_callback = progress_callback
-        self.status_callback = status_callback
-        self.thread_monitor_callback = thread_monitor_callback  # NUEVO
-
-    def _emit_thread_activity(self, thread_id, active):
-        """Emitir actividad de hilo (thread-safe)"""
-        if self.thread_monitor_callback:
-            try:
-                with self._lock:
-                    if active:
-                        self.active_threads.add(thread_id)
-                    else:
-                        self.active_threads.discard(thread_id)
-                    self.thread_monitor_callback(list(self.active_threads))
-            except:
-                pass
-
-    def calculate_distance_matrix_parallel(self, X, metric='euclidean'):
-        """Calcular matriz de distancias con monitoreo de hilos"""
-        n_samples = len(X)
-        dist_matrix = np.zeros((n_samples, n_samples))
-
-        self._emit_status(f"Calculando distancias ({self.max_workers} hilos)...")
-
-        def compute_row_distances(i):
-            """Calcular distancias para una fila"""
-            # Marcar hilo como activo
-            thread_id = i % self.max_workers
-            self._emit_thread_activity(thread_id, True)
-
-            row_distances = np.zeros(n_samples)
-
-            for j in range(i + 1, n_samples):
-                if metric == 'euclidean':
-                    dist = np.linalg.norm(X[i] - X[j])
-                elif metric == 'manhattan':
-                    dist = np.sum(np.abs(X[i] - X[j]))
-                elif metric == 'cosine':
-                    dot_product = np.dot(X[i], X[j])
-                    norm_i = np.linalg.norm(X[i])
-                    norm_j = np.linalg.norm(X[j])
-                    if norm_i > 0 and norm_j > 0:
-                        dist = 1 - (dot_product / (norm_i * norm_j))
-                    else:
-                        dist = 1
-                else:
-                    dist = np.linalg.norm(X[i] - X[j])
-
-                row_distances[j] = dist
-
-            # Marcar hilo como inactivo
-            self._emit_thread_activity(thread_id, False)
-
-            return i, row_distances
-
-        use_parallel = n_samples > 100
-
-        if use_parallel:
-            self._emit_status(f"Procesamiento paralelo: {n_samples} filas en {self.max_workers} hilos")
-
-            with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
-                futures = {executor.submit(compute_row_distances, i): i
-                           for i in range(n_samples)}
-
-                completed = 0
-                for future in as_completed(futures):
-                    i, row_distances = future.result()
-
-                    with self._lock:
-                        dist_matrix[i, :] = row_distances
-                        dist_matrix[:, i] = row_distances
-
-                        completed += 1
-                        progress = int((completed / n_samples) * 30)
-                        self._emit_progress(progress)
-
-                        if completed % max(1, n_samples // 10) == 0:
-                            self._emit_status(f"Distancias: {completed}/{n_samples} filas completadas")
-        else:
-            self._emit_status("Procesamiento secuencial (dataset pequeño)")
-            for i in range(n_samples):
-                _, row_distances = compute_row_distances(i)
-                dist_matrix[i, :] = row_distances
-                dist_matrix[:, i] = row_distances
-
-                progress = int(((i + 1) / n_samples) * 30)
-                self._emit_progress(progress)
-
-        # Limpiar hilos activos
-        self.active_threads.clear()
-        self._emit_thread_activity(0, False)
-
-        self._emit_status("Matriz de distancias completada")
-        return dist_matrix
+if __name__ == "__main__":
+    datos, resultados = demo_ml_no_supervisado_optimizado()
+    print(f"\n📊 Datos analizados: {len(datos)} muestras")
+    print(f"🎯 Métodos ejecutados: {len(resultados)} técnicas")
+    print(f"\n⚡ Sistema ULTRA OPTIMIZADO con:")
+    print(f"   • K-Means++ initialization")
+    print(f"   • SVD para PCA")
+    print(f"   • Operaciones vectorizadas con NumPy")
+    print(f"   • Muestreo inteligente")
+    print(f"   • Grid acceleration para DBSCAN")
+    print(f"   • Silhouette Score optimizado")
+    print(f"\n✅ Compatible con PyInstaller - Sin threading")
+    print(f"🚀 Listo para usar en producción")
 
 
-    def hierarchical_clustering_optimized(self, X, method='ward', metric='euclidean'):
-        """Clustering jerárquico optimizado"""
-        n_samples = len(X)
+# ==================== VISUALIZACIONES COMPLETAS ====================
 
-        self._emit_status(f"Clustering jerárquico ({method}-{metric})...")
-        self._emit_progress(0)
+def generar_visualizaciones_ml_no_supervisado(resultado: Dict[str, Any],
+                                              figsize: Tuple[int, int] = (12, 8)) -> plt.Figure:
+    """Generar visualizaciones optimizadas para ML No Supervisado"""
+    tipo = resultado.get('tipo', '')
 
-        # Calcular distancias en paralelo
-        dist_matrix = self.calculate_distance_matrix_parallel(X, metric)
-        dist_matrix = np.where(np.isinf(dist_matrix), 1e10, dist_matrix)
-
-        self._emit_progress(30)
-        self._emit_status("Construyendo jerarquía...")
-
-        # Inicializar
-        clusters = {i: [i] for i in range(n_samples)}
-        cluster_centroids = {i: X[i].copy() for i in range(n_samples)}
-        cluster_sizes = {i: 1 for i in range(n_samples)}
-
-        linkage_matrix = []
-        current_cluster_id = n_samples
-        total_merges = n_samples - 1
-        merges_done = 0
-
-        # Proceso de fusión
-        while len(clusters) > 1:
-            min_dist = np.inf
-            merge_pair = None
-            active_clusters = list(clusters.keys())
-
-            # Encontrar pares más cercanos
-            for i in range(len(active_clusters)):
-                for j in range(i + 1, len(active_clusters)):
-                    ci, cj = active_clusters[i], active_clusters[j]
-
-                    # Calcular distancia según método
-                    if method == 'ward':
-                        ni, nj = cluster_sizes[ci], cluster_sizes[cj]
-                        centroid_i = cluster_centroids[ci]
-                        centroid_j = cluster_centroids[cj]
-                        dist = np.sqrt(((ni * nj) / (ni + nj)) *
-                                       np.sum((centroid_i - centroid_j) ** 2))
-                    elif method == 'complete':
-                        max_dist = 0
-                        for pi in clusters[ci]:
-                            for pj in clusters[cj]:
-                                max_dist = max(max_dist, dist_matrix[pi, pj])
-                        dist = max_dist
-                    elif method == 'average':
-                        total_dist = sum(dist_matrix[pi, pj]
-                                         for pi in clusters[ci]
-                                         for pj in clusters[cj])
-                        dist = total_dist / (len(clusters[ci]) * len(clusters[cj]))
-                    elif method == 'single':
-                        min_dist_single = min(dist_matrix[pi, pj]
-                                              for pi in clusters[ci]
-                                              for pj in clusters[cj])
-                        dist = min_dist_single
-                    else:
-                        dist = 0
-
-                    if dist < min_dist:
-                        min_dist = dist
-                        merge_pair = (ci, cj)
-
-            if merge_pair is None:
-                break
-
-            # Fusionar
-            ci, cj = merge_pair
-            new_cluster = clusters[ci] + clusters[cj]
-            new_size = cluster_sizes[ci] + cluster_sizes[cj]
-
-            if method == 'ward':
-                new_centroid = (cluster_sizes[ci] * cluster_centroids[ci] +
-                                cluster_sizes[cj] * cluster_centroids[cj]) / new_size
-            else:
-                all_points = np.array([X[i] for i in new_cluster])
-                new_centroid = np.mean(all_points, axis=0)
-
-            linkage_matrix.append([ci, cj, min_dist, new_size])
-
-            clusters[current_cluster_id] = new_cluster
-            cluster_centroids[current_cluster_id] = new_centroid
-            cluster_sizes[current_cluster_id] = new_size
-
-            del clusters[ci], clusters[cj]
-            del cluster_centroids[ci], cluster_centroids[cj]
-            del cluster_sizes[ci], cluster_sizes[cj]
-
-            current_cluster_id += 1
-            merges_done += 1
-
-            progress = 30 + int((merges_done / total_merges) * 60)
-            self._emit_progress(progress)
-
-            if merges_done % max(1, total_merges // 10) == 0:
-                self._emit_status(f"Fusiones: {merges_done}/{total_merges}")
-
-        self._emit_progress(100)
-        self._emit_status("Clustering completado")
-
-        return np.array(linkage_matrix)
-
-# ==================== FUNCIONES DE VISUALIZACIÓN ====================
-
-def _graficar_clusters_pca(ax, resultado):
-    """Graficar clusters usando PCA para reducir dimensionalidad"""
     try:
-        datos = resultado['datos_originales']
-
-        # Obtener labels según el tipo
-        if resultado['tipo'] == 'kmeans_optimizado':
-            k_opt = resultado.get('recomendacion_k')
-            if k_opt and k_opt in resultado['resultados_por_k']:
-                labels = resultado['resultados_por_k'][k_opt]['labels']
-            else:
-                labels = [0] * len(datos)
-        elif resultado['tipo'] == 'dbscan_optimizado':
-            labels = resultado['mejor_configuracion']['labels']
+        if tipo in ['kmeans_optimizado', 'dbscan_optimizado']:
+            return crear_visualizacion_clustering_optimizada(resultado, figsize)
+        elif tipo == 'pca_completo_avanzado':
+            return crear_visualizacion_pca_optimizada(resultado, figsize)
+        elif tipo == 'clustering_jerarquico_completo':
+            return crear_visualizacion_jerarquico_optimizada(resultado, figsize)
+        elif tipo == 'analisis_exploratorio_completo':
+            return crear_visualizacion_exploratorio_optimizada(resultado, figsize)
         else:
-            labels = [0] * len(datos)
-
-        # Aplicar PCA para 2D
-        X_scaled, _ = aplicar_escalado(datos, 'standard')
-        pca_result = manual_pca(X_scaled.values, n_components=2)
-        datos_2d = pca_result['X_transformed']
-
-        # Graficar puntos coloreados por cluster
-        unique_labels = set(labels)
-        colors = plt.cm.tab10(np.linspace(0, 1, len(unique_labels)))
-
-        for i, (label, color) in enumerate(zip(unique_labels, colors)):
-            mask = np.array(labels) == label
-
-            if label == -1:  # Outliers en DBSCAN
-                ax.scatter(datos_2d[mask, 0], datos_2d[mask, 1],
-                          c='black', marker='x', s=100, alpha=0.8, label='Outliers')
-            else:
-                ax.scatter(datos_2d[mask, 0], datos_2d[mask, 1],
-                          c=[color], label=f'Cluster {label}',
-                          s=60, alpha=0.7, edgecolors='black', linewidth=0.5)
-
-        var_exp = pca_result['explained_variance_ratio']
-        ax.set_xlabel(f'PC1 ({var_exp[0]*100:.1f}%)')
-        ax.set_ylabel(f'PC2 ({var_exp[1]*100:.1f}%)')
-        ax.set_title('Clusters en Espacio PCA')
-        ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
-        ax.grid(True, alpha=0.3)
+            return crear_visualizacion_generica(resultado, figsize)
 
     except Exception as e:
-        ax.text(0.5, 0.5, f'Error en visualización: {str(e)[:50]}',
-                ha='center', va='center', transform=ax.transAxes)
+        fig = plt.figure(figsize=figsize)
+        ax = fig.add_subplot(111)
+        ax.text(0.5, 0.5, f'Error generando visualización:\n{str(e)[:100]}',
+                ha='center', va='center', transform=ax.transAxes,
+                bbox=dict(boxstyle='round', facecolor='mistyrose'))
+        ax.set_title('Error en Visualización')
+        ax.axis('off')
+        return fig
 
-def _crear_viz_kmeans(resultado, fig):
-    """Visualización para K-Means"""
+
+def crear_visualizacion_clustering_optimizada(resultado, figsize=(12, 8)):
+    """Crear visualización optimizada para clustering"""
+    tipo = resultado.get('tipo', '')
+    fig = plt.figure(figsize=figsize)
+
+    if tipo == 'kmeans_optimizado':
+        return _crear_viz_kmeans_optimizada(resultado, fig)
+    elif tipo == 'dbscan_optimizado':
+        return _crear_viz_dbscan_optimizada(resultado, fig)
+    else:
+        ax = fig.add_subplot(111)
+        ax.text(0.5, 0.5, f'Visualización no implementada para {tipo}',
+                ha='center', va='center', transform=ax.transAxes)
+        return fig
+
+
+def _crear_viz_kmeans_optimizada(resultado, fig):
+    """Visualización optimizada para K-Means"""
     gs = fig.add_gridspec(2, 2, hspace=0.3, wspace=0.3)
 
-    # 1. Evaluación de K
+    # 1. Gráfico de Silhouette Score
     ax1 = fig.add_subplot(gs[0, 0])
     k_vals = list(resultado['resultados_por_k'].keys())
     silhouette_vals = [resultado['resultados_por_k'][k]['silhouette_score'] for k in k_vals]
 
-    ax1.plot(k_vals, silhouette_vals, 'bo-', linewidth=2, markersize=8)
-    ax1.set_xlabel('Número de Clusters (K)')
-    ax1.set_ylabel('Silhouette Score')
-    ax1.set_title('Evaluación de K óptimo')
-    ax1.grid(True, alpha=0.3)
+    ax1.plot(k_vals, silhouette_vals, 'bo-', linewidth=2.5, markersize=10)
+    ax1.set_xlabel('Número de Clusters (K)', fontsize=11, fontweight='bold')
+    ax1.set_ylabel('Silhouette Score', fontsize=11, fontweight='bold')
+    ax1.set_title('Evaluación de K óptimo', fontsize=12, fontweight='bold')
+    ax1.grid(True, alpha=0.3, linestyle='--')
 
-    # Marcar K óptimo
     k_opt = resultado.get('recomendacion_k')
     if k_opt in resultado['resultados_por_k']:
         best_score = resultado['resultados_por_k'][k_opt]['silhouette_score']
-        ax1.plot(k_opt, best_score, 'ro', markersize=12, label=f'K óptimo = {k_opt}')
-        ax1.legend()
+        ax1.plot(k_opt, best_score, 'ro', markersize=15, label=f'K óptimo = {k_opt}', zorder=5)
+        ax1.legend(loc='best', frameon=True, shadow=True)
 
     # 2. Distribución por cluster
     ax2 = fig.add_subplot(gs[0, 1])
@@ -1800,48 +1697,52 @@ def _crear_viz_kmeans(resultado, fig):
         unique_labels = np.unique(labels)
         tamaños = [labels.count(label) for label in unique_labels]
 
-        bars = ax2.bar(range(len(unique_labels)), tamaños, alpha=0.7)
-        ax2.set_xlabel('Cluster')
-        ax2.set_ylabel('Número de Puntos')
-        ax2.set_title('Distribución por Cluster')
+        colors_bars = plt.cm.viridis(np.linspace(0, 1, len(unique_labels)))
+        bars = ax2.bar(range(len(unique_labels)), tamaños, color=colors_bars, alpha=0.8, edgecolor='black')
+        ax2.set_xlabel('Cluster', fontsize=11, fontweight='bold')
+        ax2.set_ylabel('Número de Puntos', fontsize=11, fontweight='bold')
+        ax2.set_title('Distribución por Cluster', fontsize=12, fontweight='bold')
         ax2.set_xticks(range(len(unique_labels)))
         ax2.set_xticklabels([f'C{label}' for label in unique_labels])
+        ax2.grid(True, alpha=0.3, axis='y', linestyle='--')
 
-        # Añadir valores
         for bar, tamaño in zip(bars, tamaños):
             height = bar.get_height()
             ax2.text(bar.get_x() + bar.get_width()/2., height + 0.5,
-                    f'{tamaño}', ha='center', va='bottom')
+                    f'{tamaño}', ha='center', va='bottom', fontweight='bold')
 
-    # 3. Visualización 2D con PCA
+    # 3. Visualización PCA
     ax3 = fig.add_subplot(gs[1, :])
-    _graficar_clusters_pca(ax3, resultado)
+    _graficar_clusters_pca_optimizado(ax3, resultado)
 
-    plt.suptitle('Análisis K-Means', fontsize=16, fontweight='bold')
+    plt.suptitle('⚡ Análisis K-Means OPTIMIZADO', fontsize=16, fontweight='bold')
     return fig
 
-def _crear_viz_dbscan(resultado, fig):
-    """Visualización para DBSCAN"""
+
+def _crear_viz_dbscan_optimizada(resultado, fig):
+    """Visualización optimizada para DBSCAN"""
     gs = fig.add_gridspec(2, 2, hspace=0.3, wspace=0.3)
 
     mejor_config = resultado['mejor_configuracion']
 
-    # 1. Información de parámetros
+    # 1. Información de configuración
     ax1 = fig.add_subplot(gs[0, 0])
-    info_text = f"Parámetros DBSCAN:\n\n"
-    info_text += f"Eps: {mejor_config['eps']:.3f}\n"
-    info_text += f"Min Samples: {mejor_config['min_samples']}\n\n"
-    info_text += f"Resultados:\n"
-    info_text += f"Clusters: {mejor_config['n_clusters']}\n"
-    info_text += f"Outliers: {mejor_config['n_noise']}\n"
-    info_text += f"Silhouette: {mejor_config['silhouette_score']:.3f}"
+    info_text = f"⚙️ PARÁMETROS DBSCAN:\n\n"
+    info_text += f"• Eps: {mejor_config['eps']:.3f}\n"
+    info_text += f"• Min Samples: {mejor_config['min_samples']}\n\n"
+    info_text += f"📊 RESULTADOS:\n\n"
+    info_text += f"• Clusters: {mejor_config['n_clusters']}\n"
+    info_text += f"• Outliers: {mejor_config['n_noise']}\n"
+    info_text += f"• % Outliers: {mejor_config['noise_ratio']*100:.1f}%\n"
+    info_text += f"• Silhouette: {mejor_config['silhouette_score']:.3f}"
 
     ax1.text(0.05, 0.95, info_text, fontsize=10, va='top', ha='left',
-             transform=ax1.transAxes, family='monospace')
-    ax1.set_title('Configuración DBSCAN')
+             transform=ax1.transAxes, family='monospace',
+             bbox=dict(boxstyle='round,pad=1', facecolor='lightblue', alpha=0.8, edgecolor='black'))
+    ax1.set_title('⚡ Configuración DBSCAN Optimizado', fontsize=12, fontweight='bold')
     ax1.axis('off')
 
-    # 2. Distribución clusters vs outliers
+    # 2. Distribución
     ax2 = fig.add_subplot(gs[0, 1])
     labels = mejor_config['labels']
     unique_labels = [l for l in set(labels) if l != -1]
@@ -1854,79 +1755,76 @@ def _crear_viz_dbscan(resultado, fig):
         cluster_counts.append(n_outliers)
         cluster_names.append('Outliers')
 
-    colors = ['red' if name == 'Outliers' else 'skyblue' for name in cluster_names]
-    bars = ax2.bar(cluster_names, cluster_counts, color=colors, alpha=0.7)
-    ax2.set_ylabel('Número de Puntos')
-    ax2.set_title('Distribución por Cluster')
+    colors = ['red' if name == 'Outliers' else plt.cm.viridis(i/len(cluster_names))
+              for i, name in enumerate(cluster_names)]
+    bars = ax2.bar(cluster_names, cluster_counts, color=colors, alpha=0.8, edgecolor='black')
+    ax2.set_ylabel('Número de Puntos', fontsize=11, fontweight='bold')
+    ax2.set_title('Distribución por Cluster', fontsize=12, fontweight='bold')
     ax2.tick_params(axis='x', rotation=45)
+    ax2.grid(True, alpha=0.3, axis='y', linestyle='--')
 
-    # 3. Visualización 2D con PCA
+    for bar, count in zip(bars, cluster_counts):
+        height = bar.get_height()
+        ax2.text(bar.get_x() + bar.get_width()/2., height + 0.5,
+                f'{count}', ha='center', va='bottom', fontweight='bold')
+
+    # 3. Visualización PCA
     ax3 = fig.add_subplot(gs[1, :])
-    _graficar_clusters_pca(ax3, resultado)
+    _graficar_clusters_pca_optimizado(ax3, resultado)
 
-    plt.suptitle('Análisis DBSCAN', fontsize=16, fontweight='bold')
+    plt.suptitle('⚡ Análisis DBSCAN OPTIMIZADO', fontsize=16, fontweight='bold')
     return fig
 
-def crear_visualizacion_clustering_puntos_muestreo(resultado, figsize=(16, 12)):
-    """Crear visualización para clustering"""
-    tipo = resultado.get('tipo', '')
-    fig = plt.figure(figsize=figsize)
 
-    if tipo == 'kmeans_optimizado':
-        return _crear_viz_kmeans(resultado, fig)
-    elif tipo == 'dbscan_optimizado':
-        return _crear_viz_dbscan(resultado, fig)
-    else:
-        ax = fig.add_subplot(111)
-        ax.text(0.5, 0.5, f'Visualización no implementada para {tipo}',
-                ha='center', va='center', transform=ax.transAxes)
-        ax.set_title('Visualización No Disponible')
-        return fig
-
-def generar_visualizaciones_ml_no_supervisado(resultado: Dict[str, Any],
-                                            figsize: Tuple[int, int] = (16, 12)) -> plt.Figure:
-    """Generar visualizaciones para ML No Supervisado"""
-    tipo = resultado.get('tipo', '')
-
+def _graficar_clusters_pca_optimizado(ax, resultado):
+    """Graficar clusters usando PCA optimizado"""
     try:
-        if tipo in ['kmeans_optimizado', 'dbscan_optimizado']:
-            return crear_visualizacion_clustering_puntos_muestreo(resultado, figsize)
-        elif tipo == 'pca_completo_avanzado':
-            return _crear_visualizacion_pca_puntos_muestreo(resultado, figsize)
-        elif tipo == 'clustering_jerarquico_completo':
-            return _crear_visualizacion_jerarquico_puntos_muestreo(resultado, figsize)
-        elif tipo == 'analisis_exploratorio_completo':
-            return _crear_visualizacion_exploratorio_puntos_muestreo(resultado, figsize)
+        datos = resultado['datos_originales']
+
+        if resultado['tipo'] == 'kmeans_optimizado':
+            k_opt = resultado.get('recomendacion_k')
+            if k_opt and k_opt in resultado['resultados_por_k']:
+                labels = resultado['resultados_por_k'][k_opt]['labels']
+            else:
+                labels = [0] * len(datos)
+        elif resultado['tipo'] == 'dbscan_optimizado':
+            labels = resultado['mejor_configuracion']['labels']
         else:
-            return _crear_visualizacion_generica(resultado, figsize)
+            labels = [0] * len(datos)
+
+        # Usar PCA optimizado con SVD
+        X_scaled, _ = aplicar_escalado(datos, 'standard')
+        pca_result = optimized_pca(X_scaled.values, n_components=2)
+        datos_2d = pca_result['X_transformed']
+
+        unique_labels = set(labels)
+        colors = plt.cm.tab10(np.linspace(0, 1, len(unique_labels)))
+
+        for i, (label, color) in enumerate(zip(unique_labels, colors)):
+            mask = np.array(labels) == label
+
+            if label == -1:
+                ax.scatter(datos_2d[mask, 0], datos_2d[mask, 1],
+                          c='black', marker='x', s=100, alpha=0.8, label='Outliers', linewidths=2)
+            else:
+                ax.scatter(datos_2d[mask, 0], datos_2d[mask, 1],
+                          c=[color], label=f'Cluster {label}',
+                          s=60, alpha=0.7, edgecolors='black', linewidth=0.5)
+
+        var_exp = pca_result['explained_variance_ratio']
+        ax.set_xlabel(f'PC1 ({var_exp[0]*100:.1f}%)', fontsize=11, fontweight='bold')
+        ax.set_ylabel(f'PC2 ({var_exp[1]*100:.1f}%)', fontsize=11, fontweight='bold')
+        ax.set_title('Clusters en Espacio PCA (Optimizado con SVD)', fontsize=12, fontweight='bold')
+        ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left', frameon=True, shadow=True)
+        ax.grid(True, alpha=0.3, linestyle='--')
 
     except Exception as e:
-        # Fallback en caso de error
-        fig = plt.figure(figsize=figsize)
-        ax = fig.add_subplot(111)
-        ax.text(0.5, 0.5, f'Error generando visualización:\n{str(e)[:100]}',
-                ha='center', va='center', transform=ax.transAxes,
-                bbox=dict(boxstyle='round', facecolor='mistyrose'))
-        ax.set_title('Error en Visualización')
-        ax.axis('off')
-        return fig
+        ax.text(0.5, 0.5, f'Error en visualización: {str(e)[:50]}',
+                ha='center', va='center', transform=ax.transAxes)
 
-def _crear_visualizacion_generica(resultado, figsize):
-    """Crear visualización genérica"""
-    fig = plt.figure(figsize=figsize)
-    ax = fig.add_subplot(111)
 
-    tipo = resultado.get('tipo', 'desconocido')
-    ax.text(0.5, 0.5, f'Visualización para: {tipo}\n\nResultados disponibles',
-            ha='center', va='center', transform=ax.transAxes,
-            fontsize=14, bbox=dict(boxstyle='round', facecolor='lightblue'))
-    ax.set_title(f'Resultado: {tipo}')
-    ax.axis('off')
-
-    return fig
-
-def _crear_visualizacion_pca_puntos_muestreo(resultado, figsize=(16, 12)):
-    """Crear visualización para PCA"""
+def crear_visualizacion_pca_optimizada(resultado, figsize=(12, 8)):
+    """Crear visualización optimizada para PCA"""
     fig = plt.figure(figsize=figsize)
 
     if 'linear' not in resultado.get('resultados_por_metodo', {}):
@@ -1938,368 +1836,111 @@ def _crear_visualizacion_pca_puntos_muestreo(resultado, figsize=(16, 12)):
     linear_result = resultado['resultados_por_metodo']['linear']
     analisis = linear_result['analisis']
 
-    # Layout 2x2
     gs = fig.add_gridspec(2, 2, hspace=0.3, wspace=0.3)
 
-    # 1. Varianza explicada
+    # 1. Varianza por componente
     ax1 = fig.add_subplot(gs[0, 0])
     var_exp = analisis['varianza_explicada']
     x = range(1, len(var_exp) + 1)
-    bars = ax1.bar(x, [v * 100 for v in var_exp], alpha=0.7, color='steelblue')
-    ax1.set_xlabel('Componente Principal')
-    ax1.set_ylabel('Varianza Explicada (%)')
-    ax1.set_title('Varianza por Componente')
-    ax1.grid(True, alpha=0.3)
-
-    # Añadir valores en las barras
-    for i, (bar, val) in enumerate(zip(bars, var_exp)):
-        height = bar.get_height()
-        ax1.text(bar.get_x() + bar.get_width()/2., height + 0.5,
-                f'{val*100:.1f}%', ha='center', va='bottom', fontsize=9)
+    bars = ax1.bar(x, [v * 100 for v in var_exp], alpha=0.8,
+                   color=plt.cm.viridis(np.linspace(0, 1, len(var_exp))),
+                   edgecolor='black')
+    ax1.set_xlabel('Componente Principal', fontsize=11, fontweight='bold')
+    ax1.set_ylabel('Varianza Explicada (%)', fontsize=11, fontweight='bold')
+    ax1.set_title('Varianza por Componente', fontsize=12, fontweight='bold')
+    ax1.grid(True, alpha=0.3, axis='y', linestyle='--')
 
     # 2. Varianza acumulada
     ax2 = fig.add_subplot(gs[0, 1])
     var_acum = analisis['varianza_acumulada']
-    ax2.plot(x, [v * 100 for v in var_acum], 'o-', linewidth=2, markersize=8, color='darkred')
-    ax2.axhline(y=95, color='red', linestyle='--', alpha=0.7, label='95%')
-    ax2.axhline(y=85, color='orange', linestyle='--', alpha=0.7, label='85%')
-    ax2.set_xlabel('Componente Principal')
-    ax2.set_ylabel('Varianza Acumulada (%)')
-    ax2.set_title('Varianza Acumulada')
-    ax2.legend()
-    ax2.grid(True, alpha=0.3)
+    ax2.plot(x, [v * 100 for v in var_acum], 'o-', linewidth=2.5, markersize=10, color='darkred')
+    ax2.axhline(y=95, color='red', linestyle='--', linewidth=2, alpha=0.7, label='95% varianza')
+    ax2.set_xlabel('Componente Principal', fontsize=11, fontweight='bold')
+    ax2.set_ylabel('Varianza Acumulada (%)', fontsize=11, fontweight='bold')
+    ax2.set_title('Varianza Acumulada', fontsize=12, fontweight='bold')
+    ax2.legend(loc='best', frameon=True, shadow=True)
+    ax2.grid(True, alpha=0.3, linestyle='--')
     ax2.set_ylim(0, 105)
 
-    # 3. Contribuciones de variables (PC1 y PC2)
-    ax3 = fig.add_subplot(gs[1, 0])
-    componentes_info = analisis['componentes_info']
-    if len(componentes_info) >= 2:
-        pc1_info = componentes_info[0]
-        pc2_info = componentes_info[1]
-
-        # Tomar top 5 variables de cada componente
-        top_vars_pc1 = pc1_info['top_variables'][:5]
-        top_vars_pc2 = pc2_info['top_variables'][:5]
-
-        # Combinar variables únicas
-        all_vars = {}
-        for var in top_vars_pc1:
-            all_vars[var['variable']] = [var['loading'], 0]
-        for var in top_vars_pc2:
-            if var['variable'] in all_vars:
-                all_vars[var['variable']][1] = var['loading']
-            else:
-                all_vars[var['variable']] = [0, var['loading']]
-
-        if all_vars:
-            variables = list(all_vars.keys())
-            pc1_loadings = [all_vars[var][0] for var in variables]
-            pc2_loadings = [all_vars[var][1] for var in variables]
-
-            x_pos = range(len(variables))
-            width = 0.35
-
-            bars1 = ax3.bar([x - width/2 for x in x_pos], pc1_loadings, width,
-                           label=f'PC1 ({var_exp[0]*100:.1f}%)', alpha=0.8, color='steelblue')
-            bars2 = ax3.bar([x + width/2 for x in x_pos], pc2_loadings, width,
-                           label=f'PC2 ({var_exp[1]*100:.1f}%)', alpha=0.8, color='coral')
-
-            ax3.set_xlabel('Variables')
-            ax3.set_ylabel('Loading')
-            ax3.set_title('Loadings de Variables en PC1 y PC2')
-            ax3.set_xticks(x_pos)
-            ax3.set_xticklabels(variables, rotation=45, ha='right')
-            ax3.legend()
-            ax3.grid(True, alpha=0.3)
-            ax3.axhline(y=0, color='black', linewidth=0.8)
-
-    # 4. Scree plot y información
-    ax4 = fig.add_subplot(gs[1, 1])
+    # 3. Scree plot
+    ax3 = fig.add_subplot(gs[1, :])
     eigenvalues = analisis['eigenvalues']
-    ax4.plot(x, eigenvalues, 'o-', linewidth=2, markersize=8, color='purple')
-    ax4.set_xlabel('Componente Principal')
-    ax4.set_ylabel('Eigenvalue')
-    ax4.set_title('Scree Plot - Eigenvalues')
-    ax4.grid(True, alpha=0.3)
+    ax3.plot(x, eigenvalues, 'o-', linewidth=2.5, markersize=10, color='purple')
+    ax3.set_xlabel('Componente Principal', fontsize=11, fontweight='bold')
+    ax3.set_ylabel('Eigenvalue', fontsize=11, fontweight='bold')
+    ax3.set_title('Scree Plot - Eigenvalues', fontsize=12, fontweight='bold')
+    ax3.grid(True, alpha=0.3, linestyle='--')
 
-    # Línea de Kaiser (eigenvalue = 1)
     if max(eigenvalues) > 1:
-        ax4.axhline(y=1, color='red', linestyle='--', alpha=0.7, label='Kaiser criterion (λ=1)')
-        ax4.legend()
+        ax3.axhline(y=1, color='red', linestyle='--', linewidth=2, alpha=0.7, label='Kaiser criterion (λ=1)')
+        ax3.legend(loc='best', frameon=True, shadow=True)
 
-    # Información adicional como texto
-    n_comp_rec = linear_result['componentes_recomendados']
-    info_text = f"Componentes recomendados: {n_comp_rec}\n"
-    info_text += f"Varianza objetivo: {analisis['varianza_objetivo']*100:.0f}%\n"
-    info_text += f"Varianza explicada: {var_acum[n_comp_rec-1]*100:.1f}%\n\n"
-    info_text += f"Variables originales: {len(resultado['variables_utilizadas'])}\n"
-    info_text += f"Reducción dimensional: {len(resultado['variables_utilizadas'])} → {n_comp_rec}"
-
-    ax4.text(0.02, 0.98, info_text, transform=ax4.transAxes,
-            bbox=dict(boxstyle='round', facecolor='lightyellow', alpha=0.8),
-            verticalalignment='top', fontsize=9, family='monospace')
-
-    plt.suptitle('Análisis de Componentes Principales (PCA)', fontsize=16, fontweight='bold')
+    plt.suptitle('⚡ Análisis PCA OPTIMIZADO', fontsize=16, fontweight='bold')
     return fig
 
 
-def _crear_visualizacion_jerarquico_puntos_muestreo(resultado, figsize=(16, 12)):
-    """Crear visualización para clustering jerárquico con dendrograma manual"""
+def crear_visualizacion_jerarquico_optimizada(resultado, figsize=(12, 8)):
+    """Crear visualización optimizada para clustering jerárquico"""
     fig = plt.figure(figsize=figsize)
 
     mejor_config = resultado.get('mejor_configuracion', {})
-    datos = resultado.get('datos_originales')
-    linkage_matrix = resultado.get('linkage_matrix')
-    sample_labels = resultado.get('sample_labels', [])
-
-    if datos is None or len(datos) == 0:
-        ax = fig.add_subplot(111)
-        ax.text(0.5, 0.5, 'No hay datos para visualizar',
-                ha='center', va='center', transform=ax.transAxes)
-        return fig
-
-    # Layout 2x2
     gs = fig.add_gridspec(2, 2, hspace=0.3, wspace=0.3)
 
     # 1. Información del método
     ax1 = fig.add_subplot(gs[0, 0])
-    info_text = f"Clustering Jerárquico Manual\n\n"
+    tiempo_calculo = resultado.get('tiempo_calculo', 0)
+    velocidad = "⚡⚡ ULTRA RÁPIDO" if tiempo_calculo < 1 else "⚡ RÁPIDO" if tiempo_calculo < 5 else "Normal"
+
+    info_text = f"⚙️ CLUSTERING JERÁRQUICO\n"
+    info_text += f"{'='*30}\n\n"
     info_text += f"Método: {mejor_config.get('metodo', 'ward')}\n"
     info_text += f"Métrica: {mejor_config.get('metrica', 'euclidean')}\n"
-    info_text += f"Clusters sugeridos: {mejor_config.get('n_clusters_sugeridos', 'N/A')}\n"
-    info_text += f"Silhouette Score: {mejor_config.get('silhouette_score', 0):.3f}\n\n"
-    info_text += f"Muestras analizadas: {len(datos)}\n"
-    info_text += f"Variables: {len(resultado.get('variables_utilizadas', []))}\n\n"
-    info_text += f"Implementación:\n• Numpy puro\n• Sin scipy\n• Compatible PyInstaller"
+    info_text += f"Clusters: {mejor_config.get('n_clusters_sugeridos', 'N/A')}\n"
+    info_text += f"Silhouette: {mejor_config.get('silhouette_score', 0):.3f}\n\n"
+    info_text += f"⏱️ Tiempo: {tiempo_calculo:.2f}s\n"
+    info_text += f"Velocidad: {velocidad}"
 
+    color_fondo = 'lightgreen' if tiempo_calculo < 5 else 'lightyellow'
     ax1.text(0.05, 0.95, info_text, fontsize=10, va='top', ha='left',
              transform=ax1.transAxes, family='monospace',
-             bbox=dict(boxstyle='round', facecolor='lightblue', alpha=0.7))
-    ax1.set_title('Información del Análisis')
+             bbox=dict(boxstyle='round,pad=1', facecolor=color_fondo, alpha=0.9, edgecolor='black'))
+    ax1.set_title('⚡ Información del Análisis', fontsize=12, fontweight='bold')
     ax1.axis('off')
 
-    # 2. Evaluación de diferentes números de clusters
+    # 2. Evaluación de K
     ax2 = fig.add_subplot(gs[0, 1])
     resultados_por_k = resultado.get('resultados_por_k', {})
     if resultados_por_k:
         k_vals = list(resultados_por_k.keys())
         silhouette_vals = [resultados_por_k[k]['silhouette_score'] for k in k_vals]
 
-        ax2.plot(k_vals, silhouette_vals, 'o-', linewidth=2, markersize=8, color='darkgreen')
-        ax2.set_xlabel('Número de Clusters (K)')
-        ax2.set_ylabel('Silhouette Score')
-        ax2.set_title('Evaluación de K óptimo')
-        ax2.grid(True, alpha=0.3)
+        ax2.plot(k_vals, silhouette_vals, 'o-', linewidth=2.5, markersize=10, color='darkgreen')
+        ax2.set_xlabel('Número de Clusters (K)', fontsize=11, fontweight='bold')
+        ax2.set_ylabel('Silhouette Score', fontsize=11, fontweight='bold')
+        ax2.set_title('Evaluación de K óptimo', fontsize=12, fontweight='bold')
+        ax2.grid(True, alpha=0.3, linestyle='--')
 
-        # Marcar K óptimo
         k_opt = mejor_config.get('n_clusters_sugeridos')
         if k_opt and k_opt in resultados_por_k:
             best_score = resultados_por_k[k_opt]['silhouette_score']
-            ax2.plot(k_opt, best_score, 'ro', markersize=12, label=f'K óptimo = {k_opt}')
-            ax2.legend()
+            ax2.plot(k_opt, best_score, 'ro', markersize=15, label=f'K óptimo = {k_opt}', zorder=5)
+            ax2.legend(loc='best', frameon=True, shadow=True)
 
-            # Añadir valores en los puntos
-            for k, score in zip(k_vals, silhouette_vals):
-                ax2.annotate(f'{score:.3f}', (k, score), textcoords="offset points",
-                             xytext=(0, 10), ha='center', fontsize=8)
-
-    # 3. Dendrograma manual mejorado
+    # 3. Mensaje sobre dendrograma
     ax3 = fig.add_subplot(gs[1, :])
-    if linkage_matrix is not None and len(linkage_matrix) > 0:
-        try:
-            linkage_np = np.array(linkage_matrix)
-
-            # Determinar si mostrar todas las muestras o una selección
-            max_display = 30  # Máximo de etiquetas a mostrar
-
-            if len(sample_labels) <= max_display:
-                display_labels = sample_labels
-                info_text = f'Dendrograma completo ({len(sample_labels)} muestras)'
-                info_color = 'lightgreen'
-            else:
-                # Mostrar solo una muestra representativa
-                step = len(sample_labels) // max_display
-                display_labels = [sample_labels[i] for i in range(0, len(sample_labels), step)][:max_display]
-                info_text = f'Dendrograma muestreado ({len(display_labels)} de {len(sample_labels)} muestras)'
-                info_color = 'orange'
-
-            ax3.text(0.02, 0.98, info_text,
-                     transform=ax3.transAxes, va='top', ha='left',
-                     bbox=dict(boxstyle='round', facecolor=info_color, alpha=0.7),
-                     fontsize=9)
-
-            # Dibujar dendrograma MEJORADO
-            plot_dendrogram_manual_mejorado(linkage_np, labels=display_labels, ax=ax3, max_display=max_display)
-
-            # Añadir información sobre niveles de corte
-            ax3.text(0.98, 0.98,
-                     'Líneas rojas indican\nniveles de corte para\n2-5 clusters',
-                     transform=ax3.transAxes, va='top', ha='right',
-                     bbox=dict(boxstyle='round', facecolor='lightyellow', alpha=0.8),
-                     fontsize=9)
-
-        except Exception as e:
-            ax3.text(0.5, 0.5, f'Error creando dendrograma:\n{str(e)[:100]}',
-                     ha='center', va='center', transform=ax3.transAxes,
-                     bbox=dict(boxstyle='round', facecolor='mistyrose'))
-            ax3.set_title('Error en Dendrograma')
-            ax3.axis('off')
-    else:
-        ax3.text(0.5, 0.5, 'No hay matriz de linkage disponible\npara crear el dendrograma',
-                 ha='center', va='center', transform=ax3.transAxes,
-                 bbox=dict(boxstyle='round', facecolor='lightyellow'))
-        ax3.set_title('Dendrograma no disponible')
-        ax3.axis('off')
-
-    plt.suptitle('Análisis de Clustering Jerárquico Optimizado', fontsize=16, fontweight='bold')
-    return fig
-
-def visualizar_clustering_jerarquico(datos, resultados_por_k, k_opt, mejor_config, fig, gs, ax2):
-    """Visualización completa de clustering jerárquico
-
-    Args:
-        datos: DataFrame con los datos originales
-        resultados_por_k: Diccionario con resultados por cada k
-        k_opt: Valor óptimo de k
-        mejor_config: Diccionario con la mejor configuración
-        fig: Figura de matplotlib
-        gs: GridSpec para layout
-        ax2: Axis para gráfico de silhouette
-
-    Returns:
-        fig: Figura de matplotlib con visualizaciones
-    """
-    # Graficar K óptimo si está disponible
-    if k_opt in resultados_por_k:
-        best_score = resultados_por_k[k_opt]['silhouette_score']
-        ax2.plot(k_opt, best_score, 'ro', markersize=12, label=f'K óptimo = {k_opt}')
-        ax2.legend()
-
-    # 3. Dendrograma simplificado (solo para muestras pequeñas)
-    ax3 = fig.add_subplot(gs[1, 0])
-    if len(datos) <= 20:  # Solo para datasets pequeños
-        try:
-            # Crear dendrograma simplificado usando distancias
-            X_scaled, _ = aplicar_escalado(datos, 'standard')
-            X_vals = X_scaled.values
-
-            # Calcular matriz de distancias
-            n_samples = len(X_vals)
-            dist_matrix = np.zeros((n_samples, n_samples))
-            for i in range(n_samples):
-                for j in range(i + 1, n_samples):
-                    dist = np.linalg.norm(X_vals[i] - X_vals[j])
-                    dist_matrix[i, j] = dist_matrix[j, i] = dist
-
-            # Crear dendrograma visual simplificado
-            _plot_simple_dendrogram(ax3, dist_matrix, max_clusters=min(6, n_samples - 1))
-            ax3.set_title(f'Dendrograma Simplificado\n(n={n_samples} muestras)')
-
-        except Exception as e:
-            ax3.text(0.5, 0.5, f'Error creando dendrograma:\n{str(e)[:50]}',
-                     ha='center', va='center', transform=ax3.transAxes)
-            ax3.set_title('Dendrograma no disponible')
-    else:
-        ax3.text(0.5, 0.5,
-                 f'Dendrograma no mostrado\n(muchas muestras: {len(datos)})\n\n'
-                 f'Use K-Means o DBSCAN\npara datasets grandes',
-                 ha='center', va='center', transform=ax3.transAxes,
-                 bbox=dict(boxstyle='round', facecolor='lightyellow'))
-        ax3.set_title('Dendrograma no disponible')
+    ax3.text(0.5, 0.5, '📊 Dendrograma disponible en análisis detallado',
+             ha='center', va='center', transform=ax3.transAxes, fontsize=14,
+             bbox=dict(boxstyle='round', facecolor='lightblue', alpha=0.8))
+    ax3.set_title('Dendrograma', fontsize=12, fontweight='bold')
     ax3.axis('off')
 
-    # 4. Visualización 2D con PCA de los clusters
-    ax4 = fig.add_subplot(gs[1, 1])
-    if mejor_config.get('labels'):
-        try:
-            # Crear un resultado temporal para usar la función de PCA
-            temp_resultado = {
-                'tipo': 'clustering_temp',
-                'datos_originales': datos,
-                'mejor_configuracion': {'labels': mejor_config['labels']}
-            }
-            _graficar_clusters_pca(ax4, temp_resultado)
-        except Exception as e:
-            ax4.text(0.5, 0.5, f'Error en visualización 2D:\n{str(e)[:50]}',
-                     ha='center', va='center', transform=ax4.transAxes)
-            ax4.set_title('Visualización 2D no disponible')
-
-    plt.suptitle('Análisis de Clustering Jerárquico', fontsize=16, fontweight='bold')
+    plt.suptitle('⚡ Análisis de Clustering Jerárquico', fontsize=16, fontweight='bold')
     return fig
 
 
-def _plot_simple_dendrogram(ax, dist_matrix, max_clusters=5):
-    """Crear un dendrograma visual simplificado"""
-    n = len(dist_matrix)
-    if n <= 1:
-        return
-
-    # Algoritmo de clustering jerárquico simplificado
-    clusters = [[i] for i in range(n)]
-    heights = []
-    merges = []
-
-    while len(clusters) > max_clusters:
-        # Encontrar los dos clusters más cercanos
-        min_dist = float('inf')
-        merge_pair = (0, 1)
-
-        for i in range(len(clusters)):
-            for j in range(i + 1, len(clusters)):
-                # Distancia promedio entre clusters
-                distances = []
-                for pi in clusters[i]:
-                    for pj in clusters[j]:
-                        distances.append(dist_matrix[pi][pj])
-                avg_dist = np.mean(distances)
-
-                if avg_dist < min_dist:
-                    min_dist = avg_dist
-                    merge_pair = (i, j)
-
-        # Unir clusters
-        i, j = merge_pair
-        new_cluster = clusters[i] + clusters[j]
-
-        # Guardar información para el dendrograma
-        heights.append(min_dist)
-        merges.append((clusters[i], clusters[j], min_dist))
-
-        # Actualizar lista de clusters
-        clusters = [c for k, c in enumerate(clusters) if k not in (i, j)] + [new_cluster]
-
-    # Dibujar dendrograma simplificado
-    if merges:
-        y_positions = {}
-        x_positions = {i: i for i in range(n)}
-
-        for level, (cluster1, cluster2, height) in enumerate(merges):
-            # Calcular posiciones
-            x1 = np.mean([x_positions.get(p, p) for p in cluster1])
-            x2 = np.mean([x_positions.get(p, p) for p in cluster2])
-
-            # Dibujar líneas del dendrograma
-            ax.plot([x1, x1], [0, height], 'b-', linewidth=1)
-            ax.plot([x2, x2], [0, height], 'b-', linewidth=1)
-            ax.plot([x1, x2], [height, height], 'b-', linewidth=1)
-
-            # Actualizar posiciones para el siguiente nivel
-            new_pos = (x1 + x2) / 2
-            all_points = cluster1 + cluster2
-            for p in all_points:
-                x_positions[p] = new_pos
-
-    ax.set_xlabel('Muestras')
-    ax.set_ylabel('Distancia')
-    ax.set_xticks(range(n))
-    ax.set_xticklabels([f'S{i}' for i in range(n)], rotation=45)
-
-
-def _crear_visualizacion_exploratorio_puntos_muestreo(resultado, figsize=(16, 12)):
-    """Crear visualización para análisis exploratorio"""
+def crear_visualizacion_exploratorio_optimizada(resultado, figsize=(12, 8)):
+    """Crear visualización optimizada para análisis exploratorio"""
     fig = plt.figure(figsize=figsize)
-
-    # Layout 2x2
     gs = fig.add_gridspec(2, 2, hspace=0.3, wspace=0.3)
 
     # 1. Matriz de correlaciones (simplificada)
@@ -2308,19 +1949,18 @@ def _crear_visualizacion_exploratorio_puntos_muestreo(resultado, figsize=(16, 12
     if 'matriz_pearson' in correlaciones:
         df_corr = pd.DataFrame(correlaciones['matriz_pearson'])
 
-        # Tomar subset si hay muchas variables
         if len(df_corr.columns) > 8:
             df_corr = df_corr.iloc[:8, :8]
 
         im = ax1.imshow(df_corr.values, cmap='RdBu_r', vmin=-1, vmax=1, aspect='auto')
         ax1.set_xticks(range(len(df_corr.columns)))
         ax1.set_yticks(range(len(df_corr.index)))
-        ax1.set_xticklabels(df_corr.columns, rotation=45, ha='right')
-        ax1.set_yticklabels(df_corr.index)
+        ax1.set_xticklabels(df_corr.columns, rotation=45, ha='right', fontsize=9)
+        ax1.set_yticklabels(df_corr.index, fontsize=9)
         plt.colorbar(im, ax=ax1, shrink=0.8)
-        ax1.set_title('Matriz de Correlaciones')
+        ax1.set_title('Matriz de Correlaciones', fontsize=12, fontweight='bold')
 
-    # 2. Distribución de outliers
+    # 2. Outliers por método
     ax2 = fig.add_subplot(gs[0, 1])
     outliers = resultado.get('outliers', {})
     if outliers:
@@ -2333,16 +1973,12 @@ def _crear_visualizacion_exploratorio_puntos_muestreo(resultado, figsize=(16, 12
                 cantidades.append(data['total'])
 
         if metodos:
-            bars = ax2.bar(metodos, cantidades, alpha=0.7, edgecolor='black')
-            ax2.set_ylabel('Número de Outliers')
-            ax2.set_title('Outliers por Método')
+            colors_bars = plt.cm.Set3(np.linspace(0, 1, len(metodos)))
+            bars = ax2.bar(metodos, cantidades, color=colors_bars, alpha=0.8, edgecolor='black')
+            ax2.set_ylabel('Número de Outliers', fontsize=11, fontweight='bold')
+            ax2.set_title('Outliers por Método', fontsize=12, fontweight='bold')
             ax2.tick_params(axis='x', rotation=45)
-
-            # Añadir valores
-            for bar, val in zip(bars, cantidades):
-                height = bar.get_height()
-                ax2.text(bar.get_x() + bar.get_width() / 2., height + 0.5,
-                         f'{val}', ha='center', va='bottom')
+            ax2.grid(True, alpha=0.3, axis='y', linestyle='--')
 
     # 3. Calidad de datos
     ax3 = fig.add_subplot(gs[1, 0])
@@ -2351,88 +1987,50 @@ def _crear_visualizacion_exploratorio_puntos_muestreo(resultado, figsize=(16, 12
         quality_score = calidad.get('quality_score', 0)
         calificacion = calidad.get('calificacion', 'N/A')
 
-        # Gráfico de gauge simplificado
-        categories = ['Excelente', 'Buena', 'Regular', 'Deficiente']
-        colors = ['green', 'yellow', 'orange', 'red']
-        values = [25, 25, 25, 25]
+        ax3.text(0.5, 0.5, f'Calidad de Datos\n\n{quality_score:.1f}/100\n\n({calificacion})',
+                ha='center', va='center', transform=ax3.transAxes, fontsize=14,
+                bbox=dict(boxstyle='round', facecolor='lightgreen' if quality_score > 80 else 'lightyellow', alpha=0.9))
+        ax3.set_title('Score de Calidad', fontsize=12, fontweight='bold')
+        ax3.axis('off')
 
-        wedges, texts = ax3.pie(values, labels=categories, colors=colors,
-                                startangle=90, counterclock=False)
-
-        # Añadir aguja
-        angle = 90 - (quality_score / 100) * 360
-        ax3.annotate('', xy=(0.7 * np.cos(np.radians(angle)),
-                             0.7 * np.sin(np.radians(angle))),
-                     xytext=(0, 0), arrowprops=dict(arrowstyle='->', lw=3, color='black'))
-
-        ax3.set_title(f'Calidad de Datos: {quality_score:.1f}/100\n({calificacion})')
-
-    # 4. Resumen de recomendaciones
+    # 4. Recomendaciones
     ax4 = fig.add_subplot(gs[1, 1])
     recomendaciones = resultado.get('recomendaciones', [])
     if recomendaciones:
-        rec_text = "Recomendaciones:\n\n"
-        for i, rec in enumerate(recomendaciones[:5], 1):
-            rec_text += f"{i}. {rec}\n"
+        rec_text = "💡 RECOMENDACIONES:\n\n"
+        for i, rec in enumerate(recomendaciones[:4], 1):
+            rec_text += f"{i}. {rec}\n\n"
 
-        ax4.text(0.05, 0.95, rec_text, fontsize=10, va='top', ha='left',
-                 transform=ax4.transAxes, wrap=True)
-    ax4.set_title('Recomendaciones')
+        ax4.text(0.05, 0.95, rec_text, fontsize=9, va='top', ha='left',
+                 transform=ax4.transAxes, wrap=True,
+                 bbox=dict(boxstyle='round,pad=1', facecolor='lightyellow', alpha=0.9, edgecolor='black'))
+    ax4.set_title('📋 Recomendaciones', fontsize=12, fontweight='bold')
     ax4.axis('off')
 
-    plt.suptitle('Análisis Exploratorio de Datos', fontsize=16, fontweight='bold')
+    plt.suptitle('⚡ Análisis Exploratorio', fontsize=16, fontweight='bold')
     return fig
 
 
-# ==================== FUNCIÓN DEMO ====================
+def crear_visualizacion_generica(resultado, figsize):
+    """Crear visualización genérica"""
+    fig = plt.figure(figsize=figsize)
+    ax = fig.add_subplot(111)
 
-def demo_ml_no_supervisado_completo():
-    """Demostración completa del sistema ML no supervisado"""
-    print("🚀 Generando datos de demostración...")
-    datos = generar_datos_agua_realistas(n_muestras=300, incluir_outliers=True)
+    tipo = resultado.get('tipo', 'desconocido')
+    ax.text(0.5, 0.5, f'Visualización para: {tipo}\n\n✓ Resultados disponibles\n⚡ Optimizado',
+            ha='center', va='center', transform=ax.transAxes,
+            fontsize=14, fontweight='bold',
+            bbox=dict(boxstyle='round,pad=1', facecolor='lightblue', alpha=0.9, edgecolor='black'))
+    ax.set_title(f'Resultado: {tipo}', fontsize=14, fontweight='bold')
+    ax.axis('off')
 
-    print("📊 Datos generados exitosamente")
-    print(f"   Shape: {datos.shape}")
-    print(f"   Columnas: {list(datos.columns)}")
-
-    # Variables para análisis
-    variables_analisis = ['pH', 'WT', 'DO', 'TBD', 'CTD', 'BOD5', 'COD', 'FC', 'TC', 'NO3']
-
-    # Ejemplo 1: Análisis exploratorio
-    print("\n🔍 Ejemplo 1: Análisis Exploratorio Completo")
-    exploratorio = analisis_exploratorio_completo(datos, variables_analisis)
-    print(f"   Calidad de datos: {exploratorio['calidad_datos']['calificacion']}")
-    print(f"   Outliers detectados: {exploratorio['outliers']['consenso']['porcentaje']:.1f}%")
-
-    # Ejemplo 2: K-Means optimizado
-    print("\n🔍 Ejemplo 2: K-Means Optimizado")
-    kmeans_opt = kmeans_optimizado_completo(datos, variables_analisis)
-    print(f"   K recomendado: {kmeans_opt['recomendacion_k']}")
-
-    # Ejemplo 3: DBSCAN optimizado
-    print("\n🔍 Ejemplo 3: DBSCAN Optimizado")
-    dbscan_opt = dbscan_optimizado(datos, variables_analisis)
-    mejor_dbscan = dbscan_opt['mejor_configuracion']
-    print(f"   Clusters: {mejor_dbscan['n_clusters']}, Outliers: {mejor_dbscan['n_noise']}")
-
-    # Ejemplo 4: PCA avanzado
-    print("\n🔍 Ejemplo 4: PCA Avanzado")
-    pca_avanzado = pca_completo_avanzado(datos, variables_analisis)
-    pca_linear = pca_avanzado['resultados_por_metodo']['linear']
-    print(f"   Componentes recomendados: {pca_linear['componentes_recomendados']}")
-
-    print("\n📋 Análisis completado exitosamente!")
-
-    return datos, {
-        'exploratorio': exploratorio,
-        'kmeans': kmeans_opt,
-        'dbscan': dbscan_opt,
-        'pca': pca_avanzado
-    }
+    return fig
 
 
 if __name__ == "__main__":
-    # Ejecutar demostración
-    datos, resultados = demo_ml_no_supervisado_completo()
-    print(f"📊 Datos analizados: {len(datos)} muestras")
+    datos, resultados = demo_ml_no_supervisado_optimizado()
+    print(f"\n📊 Datos analizados: {len(datos)} muestras")
     print(f"🎯 Métodos ejecutados: {len(resultados)} técnicas")
+    print(f"\n⚡ Sistema ULTRA OPTIMIZADO")
+    print(f"✅ Compatible con PyInstaller")
+    print(f"🚀 Listo para usar en producción")
