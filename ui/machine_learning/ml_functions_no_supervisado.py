@@ -1879,64 +1879,598 @@ def crear_visualizacion_pca_optimizada(resultado, figsize=(12, 8)):
     return fig
 
 
-def crear_visualizacion_jerarquico_optimizada(resultado, figsize=(12, 8)):
-    """Crear visualización optimizada para clustering jerárquico"""
-    fig = plt.figure(figsize=figsize)
+# ==================== DENDROGRAMA OPTIMIZADO ====================
 
-    mejor_config = resultado.get('mejor_configuracion', {})
-    gs = fig.add_gridspec(2, 2, hspace=0.3, wspace=0.3)
+def crear_dendrograma_desde_linkage(linkage_matrix, ax=None, max_d=None,
+                                    truncate_mode=None, p=None, figsize=(12, 6)):
+    """
+    Crear dendrograma desde matriz de linkage
 
-    # 1. Información del método
-    ax1 = fig.add_subplot(gs[0, 0])
-    tiempo_calculo = resultado.get('tiempo_calculo', 0)
-    velocidad = "⚡⚡ ULTRA RÁPIDO" if tiempo_calculo < 1 else "⚡ RÁPIDO" if tiempo_calculo < 5 else "Normal"
+    Parameters:
+    -----------
+    linkage_matrix : array-like
+        Matriz de linkage del clustering jerárquico
+    ax : matplotlib axis, optional
+        Eje donde dibujar. Si None, crea nueva figura
+    max_d : float, optional
+        Altura máxima para línea de corte
+    truncate_mode : str, optional
+        Modo de truncado: 'lastp', 'level', None
+    p : int, optional
+        Parámetro para truncate_mode
+    figsize : tuple
+        Tamaño de figura si ax es None
 
-    info_text = f"⚙️ CLUSTERING JERÁRQUICO\n"
-    info_text += f"{'='*30}\n\n"
-    info_text += f"Método: {mejor_config.get('metodo', 'ward')}\n"
-    info_text += f"Métrica: {mejor_config.get('metrica', 'euclidean')}\n"
-    info_text += f"Clusters: {mejor_config.get('n_clusters_sugeridos', 'N/A')}\n"
-    info_text += f"Silhouette: {mejor_config.get('silhouette_score', 0):.3f}\n\n"
-    info_text += f"⏱️ Tiempo: {tiempo_calculo:.2f}s\n"
-    info_text += f"Velocidad: {velocidad}"
+    Returns:
+    --------
+    ax : matplotlib axis
+        Eje con el dendrograma dibujado
+    dendrogram_data : dict
+        Datos del dendrograma generado
+    """
+    try:
+        from scipy.cluster.hierarchy import dendrogram
 
-    color_fondo = 'lightgreen' if tiempo_calculo < 5 else 'lightyellow'
-    ax1.text(0.05, 0.95, info_text, fontsize=10, va='top', ha='left',
-             transform=ax1.transAxes, family='monospace',
-             bbox=dict(boxstyle='round,pad=1', facecolor=color_fondo, alpha=0.9, edgecolor='black'))
-    ax1.set_title('⚡ Información del Análisis', fontsize=12, fontweight='bold')
-    ax1.axis('off')
+        if ax is None:
+            fig, ax = plt.subplots(figsize=figsize)
 
-    # 2. Evaluación de K
-    ax2 = fig.add_subplot(gs[0, 1])
-    resultados_por_k = resultado.get('resultados_por_k', {})
-    if resultados_por_k:
-        k_vals = list(resultados_por_k.keys())
-        silhouette_vals = [resultados_por_k[k]['silhouette_score'] for k in k_vals]
+        # Configurar parámetros del dendrograma
+        dendrogram_params = {
+            'ax': ax,
+            'color_threshold': max_d if max_d else 0,
+            'above_threshold_color': 'gray',
+            'leaf_font_size': 10,
+        }
 
-        ax2.plot(k_vals, silhouette_vals, 'o-', linewidth=2.5, markersize=10, color='darkgreen')
-        ax2.set_xlabel('Número de Clusters (K)', fontsize=11, fontweight='bold')
-        ax2.set_ylabel('Silhouette Score', fontsize=11, fontweight='bold')
-        ax2.set_title('Evaluación de K óptimo', fontsize=12, fontweight='bold')
-        ax2.grid(True, alpha=0.3, linestyle='--')
+        if truncate_mode:
+            dendrogram_params['truncate_mode'] = truncate_mode
+        if p:
+            dendrogram_params['p'] = p
 
-        k_opt = mejor_config.get('n_clusters_sugeridos')
-        if k_opt and k_opt in resultados_por_k:
-            best_score = resultados_por_k[k_opt]['silhouette_score']
-            ax2.plot(k_opt, best_score, 'ro', markersize=15, label=f'K óptimo = {k_opt}', zorder=5)
-            ax2.legend(loc='best', frameon=True, shadow=True)
+        # Generar dendrograma
+        dendrogram_data = dendrogram(linkage_matrix, **dendrogram_params)
 
-    # 3. Mensaje sobre dendrograma
-    ax3 = fig.add_subplot(gs[1, :])
-    ax3.text(0.5, 0.5, '📊 Dendrograma disponible en análisis detallado',
-             ha='center', va='center', transform=ax3.transAxes, fontsize=14,
-             bbox=dict(boxstyle='round', facecolor='lightblue', alpha=0.8))
-    ax3.set_title('Dendrograma', fontsize=12, fontweight='bold')
-    ax3.axis('off')
+        # Configurar apariencia
+        ax.set_xlabel('Muestra (o tamaño del cluster)', fontsize=11, fontweight='bold')
+        ax.set_ylabel('Distancia', fontsize=11, fontweight='bold')
+        ax.set_title('Dendrograma de Clustering Jerárquico', fontsize=13, fontweight='bold')
 
-    plt.suptitle('⚡ Análisis de Clustering Jerárquico', fontsize=16, fontweight='bold')
+        # Línea de corte si se especifica
+        if max_d:
+            ax.axhline(y=max_d, color='red', linestyle='--', linewidth=2,
+                       label=f'Corte (d={max_d:.2f})', alpha=0.7)
+            ax.legend(loc='best', frameon=True, shadow=True)
+
+        ax.grid(True, alpha=0.3, axis='y', linestyle='--')
+
+        return ax, dendrogram_data
+
+    except ImportError:
+        # Fallback: dendrograma simplificado manual
+        if ax is None:
+            fig, ax = plt.subplots(figsize=figsize)
+
+        ax.text(0.5, 0.5,
+                '⚠️ Scipy no disponible\n\n'
+                'Dendrograma completo requiere scipy.cluster.hierarchy\n\n'
+                'Resultados de clustering disponibles en otras pestañas',
+                ha='center', va='center', transform=ax.transAxes,
+                fontsize=12, bbox=dict(boxstyle='round', facecolor='lightyellow', alpha=0.9))
+        ax.set_title('Dendrograma (scipy requerido)', fontsize=13, fontweight='bold')
+        ax.axis('off')
+
+        return ax, {}
+
+
+def crear_dendrograma_desde_modelo_sklearn(model, ax=None, truncate_mode='level',
+                                           p=3, figsize=(12, 6)):
+    """
+    Crear dendrograma desde modelo de AgglomerativeClustering de sklearn
+
+    Parameters:
+    -----------
+    model : AgglomerativeClustering
+        Modelo entrenado con distance_threshold=0, n_clusters=None
+    ax : matplotlib axis, optional
+        Eje donde dibujar
+    truncate_mode : str
+        'level' o 'lastp'
+    p : int
+        Niveles a mostrar
+    figsize : tuple
+        Tamaño de figura
+
+    Returns:
+    --------
+    ax : matplotlib axis
+    dendrogram_data : dict
+    """
+    try:
+        from scipy.cluster.hierarchy import dendrogram
+
+        if ax is None:
+            fig, ax = plt.subplots(figsize=figsize)
+
+        # Crear matriz de linkage desde el modelo sklearn
+        counts = np.zeros(model.children_.shape[0])
+        n_samples = len(model.labels_)
+
+        for i, merge in enumerate(model.children_):
+            current_count = 0
+            for child_idx in merge:
+                if child_idx < n_samples:
+                    current_count += 1  # nodo hoja
+                else:
+                    current_count += counts[child_idx - n_samples]
+            counts[i] = current_count
+
+        linkage_matrix = np.column_stack([
+            model.children_,
+            model.distances_,
+            counts
+        ]).astype(float)
+
+        # Generar dendrograma
+        dendrogram_data = dendrogram(
+            linkage_matrix,
+            ax=ax,
+            truncate_mode=truncate_mode,
+            p=p,
+            leaf_font_size=10,
+            color_threshold=0.7 * max(model.distances_),
+            above_threshold_color='gray'
+        )
+
+        ax.set_xlabel('Índice de muestra (o tamaño de cluster)', fontsize=11, fontweight='bold')
+        ax.set_ylabel('Distancia', fontsize=11, fontweight='bold')
+        ax.set_title(f'Dendrograma Jerárquico (niveles: {p})', fontsize=13, fontweight='bold')
+        ax.grid(True, alpha=0.3, axis='y', linestyle='--')
+
+        return ax, dendrogram_data
+
+    except Exception as e:
+        if ax is None:
+            fig, ax = plt.subplots(figsize=figsize)
+
+        ax.text(0.5, 0.5,
+                f'⚠️ Error generando dendrograma:\n\n{str(e)[:100]}',
+                ha='center', va='center', transform=ax.transAxes,
+                fontsize=11, bbox=dict(boxstyle='round', facecolor='mistyrose', alpha=0.9))
+        ax.set_title('Error en Dendrograma', fontsize=13, fontweight='bold')
+        ax.axis('off')
+
+        return ax, {}
+
+
+def calcular_altura_corte_optima(linkage_matrix, metodo='percentil', percentil=70):
+    """
+    Calcular altura óptima para cortar el dendrograma
+
+    Parameters:
+    -----------
+    linkage_matrix : array-like
+        Matriz de linkage
+    metodo : str
+        'percentil', 'gap', 'mediana'
+    percentil : float
+        Percentil a usar (0-100)
+
+    Returns:
+    --------
+    altura_corte : float
+    """
+    distancias = linkage_matrix[:, 2]
+
+    if metodo == 'percentil':
+        return np.percentile(distancias, percentil)
+    elif metodo == 'mediana':
+        return np.median(distancias)
+    elif metodo == 'gap':
+        # Buscar el mayor salto en distancias
+        diffs = np.diff(sorted(distancias))
+        max_gap_idx = np.argmax(diffs)
+        return sorted(distancias)[max_gap_idx]
+    else:
+        return np.percentile(distancias, 70)
+
+
+def generar_dendrograma_completo(linkage_matrix, n_samples,
+                                 truncate_mode='level', p=10,
+                                 mostrar_linea_corte=True,
+                                 altura_corte=None):
+    """
+    Generar figura completa con dendrograma y opciones avanzadas
+
+    Parameters:
+    -----------
+    linkage_matrix : array-like
+        Matriz de linkage del clustering
+    n_samples : int
+        Número de muestras originales
+    truncate_mode : str
+        Modo de truncado
+    p : int
+        Parámetro de truncado
+    mostrar_linea_corte : bool
+        Si mostrar línea de corte sugerida
+    altura_corte : float, optional
+        Altura de corte personalizada
+
+    Returns:
+    --------
+    fig : matplotlib Figure
+        Figura con dendrograma
+    """
+    fig = plt.figure(figsize=(14, 8))
+    gs = fig.add_gridspec(2, 2, hspace=0.3, wspace=0.3, height_ratios=[2, 1])
+
+    # 1. Dendrograma principal (ocupa toda la fila superior)
+    ax_dendro = fig.add_subplot(gs[0, :])
+
+    if altura_corte is None and mostrar_linea_corte:
+        altura_corte = calcular_altura_corte_optima(linkage_matrix, metodo='percentil', percentil=70)
+
+    ax_dendro, dendro_data = crear_dendrograma_desde_linkage(
+        linkage_matrix,
+        ax=ax_dendro,
+        max_d=altura_corte if mostrar_linea_corte else None,
+        truncate_mode=truncate_mode,
+        p=p
+    )
+
+    # 2. Información de distancias
+    ax_dist = fig.add_subplot(gs[1, 0])
+    distancias = linkage_matrix[:, 2]
+
+    ax_dist.hist(distancias, bins=30, alpha=0.7, color='skyblue', edgecolor='black')
+    ax_dist.axvline(np.median(distancias), color='red', linestyle='--',
+                    linewidth=2, label=f'Mediana: {np.median(distancias):.2f}')
+    if altura_corte:
+        ax_dist.axvline(altura_corte, color='green', linestyle='--',
+                        linewidth=2, label=f'Corte: {altura_corte:.2f}')
+    ax_dist.set_xlabel('Distancia de Fusión', fontsize=10, fontweight='bold')
+    ax_dist.set_ylabel('Frecuencia', fontsize=10, fontweight='bold')
+    ax_dist.set_title('Distribución de Distancias', fontsize=11, fontweight='bold')
+    ax_dist.legend(loc='best', frameon=True, shadow=True)
+    ax_dist.grid(True, alpha=0.3, axis='y', linestyle='--')
+
+    # 3. Estadísticas
+    ax_stats = fig.add_subplot(gs[1, 1])
+
+    stats_text = f"📊 ESTADÍSTICAS DEL DENDROGRAMA\n"
+    stats_text += f"{'=' * 35}\n\n"
+    stats_text += f"• Muestras: {n_samples}\n"
+    stats_text += f"• Fusiones: {len(linkage_matrix)}\n"
+    stats_text += f"• Distancia mín: {np.min(distancias):.3f}\n"
+    stats_text += f"• Distancia máx: {np.max(distancias):.3f}\n"
+    stats_text += f"• Distancia media: {np.mean(distancias):.3f}\n"
+    stats_text += f"• Distancia mediana: {np.median(distancias):.3f}\n\n"
+
+    if altura_corte:
+        n_clusters_estimado = len([d for d in distancias if d > altura_corte]) + 1
+        stats_text += f"• Clusters (corte): ~{n_clusters_estimado}\n"
+
+    ax_stats.text(0.05, 0.95, stats_text, fontsize=9, va='top', ha='left',
+                  transform=ax_stats.transAxes, family='monospace',
+                  bbox=dict(boxstyle='round,pad=1', facecolor='lightgreen',
+                            alpha=0.8, edgecolor='black'))
+    ax_stats.set_title('Información', fontsize=11, fontweight='bold')
+    ax_stats.axis('off')
+
+    plt.suptitle('⚡ Dendrograma de Clustering Jerárquico',
+                 fontsize=16, fontweight='bold')
+
     return fig
 
+
+def crear_visualizacion_jerarquico_optimizada(resultado, figsize=(16, 9)):
+    """
+    Crear visualización para clustering jerárquico
+    Con etiquetas Points en el ORDEN CORRECTO del índice
+    """
+
+    mejor_config = resultado.get('mejor_configuracion', {})
+    linkage_matrix = np.array(resultado.get('linkage_matrix', []))
+    datos_originales = resultado.get('datos_originales', pd.DataFrame())
+    n_samples = len(datos_originales)
+    tiempo_calculo = resultado.get('tiempo_calculo', 0)
+
+    # Crear figura
+    fig = plt.figure(figsize=figsize, facecolor='white')
+    ax = fig.add_subplot(111)
+    ax.set_facecolor('white')
+
+    # ============================================
+    # DENDROGRAMA PRINCIPAL
+    # ============================================
+    if len(linkage_matrix) > 0:
+        try:
+            from scipy.cluster.hierarchy import dendrogram, fcluster
+
+            # ============================================
+            # EXTRAER ETIQUETAS DEL ÍNDICE (COMO TU CÓDIGO)
+            # ============================================
+            # El índice del DataFrame contiene los Points en orden
+            if isinstance(datos_originales.index, pd.Index):
+                etiquetas_points = datos_originales.index.astype(str).tolist()
+            elif 'Points' in datos_originales.columns:
+                etiquetas_points = datos_originales['Points'].astype(str).tolist()
+            else:
+                etiquetas_points = [f"S{i}" for i in range(n_samples)]
+
+            # Calcular altura de corte óptima
+            altura_corte = calcular_altura_corte_optima(
+                linkage_matrix,
+                metodo='percentil',
+                percentil=70
+            )
+
+            # Calcular número de clusters en el corte
+            n_clusters_corte = len([d for d in linkage_matrix[:, 2] if d > altura_corte]) + 1
+
+            # ============================================
+            # DECIDIR TRUNCADO
+            # ============================================
+            if n_samples > 80:
+                truncate_mode = 'lastp'
+                p_value = 50
+                usar_labels = False
+            else:
+                truncate_mode = None
+                p_value = None
+                usar_labels = True
+
+            # ============================================
+            # CONFIGURAR DENDROGRAMA
+            # ============================================
+            dendrogram_params = {
+                'ax': ax,
+                'color_threshold': altura_corte,
+                'above_threshold_color': '#95A5A6',
+                'leaf_font_size': 8,
+                'leaf_rotation': 90,
+                'orientation': 'top',
+                'distance_sort': 'ascending'
+            }
+
+            # Agregar etiquetas del índice
+            if usar_labels:
+                dendrogram_params['labels'] = etiquetas_points  # ← Del índice
+                dendrogram_params['show_leaf_counts'] = False
+            else:
+                dendrogram_params['truncate_mode'] = truncate_mode
+                dendrogram_params['p'] = p_value
+                dendrogram_params['show_leaf_counts'] = True
+
+            # Generar dendrograma
+            dendro_data = dendrogram(linkage_matrix, **dendrogram_params)
+
+            # ============================================
+            # CALCULAR MÉTRICAS DE CALIDAD
+            # ============================================
+            try:
+                k_optimo = mejor_config.get('n_clusters_sugeridos', 3)
+                cluster_labels = fcluster(linkage_matrix, k_optimo, criterion='maxclust')
+
+                # Preparar datos para métricas
+                variables = resultado.get('variables_utilizadas', [])
+                if variables and not datos_originales.empty:
+                    from sklearn.preprocessing import StandardScaler
+                    from sklearn.metrics import silhouette_score, davies_bouldin_score, calinski_harabasz_score
+
+                    X_metricas = datos_originales[variables]
+                    scaler = StandardScaler()
+                    X_scaled = scaler.fit_transform(X_metricas)
+
+                    silhouette = silhouette_score(X_scaled, cluster_labels[:len(X_scaled)])
+                    davies_bouldin = davies_bouldin_score(X_scaled, cluster_labels[:len(X_scaled)])
+                    calinski_harabasz = calinski_harabasz_score(X_scaled, cluster_labels[:len(X_scaled)])
+                else:
+                    silhouette = mejor_config.get('silhouette_score', 0)
+                    davies_bouldin = 0
+                    calinski_harabasz = 0
+            except Exception as e:
+                silhouette = mejor_config.get('silhouette_score', 0)
+                davies_bouldin = 0
+                calinski_harabasz = 0
+
+            # ============================================
+            # TÍTULO CON MÉTRICAS (COMO TU CÓDIGO)
+            # ============================================
+            metodo = mejor_config.get('metodo', 'ward').upper()
+            metrica = mejor_config.get('metrica', 'euclidean').capitalize()
+
+            # Obtener lista de variables para el título
+            variables_list = resultado.get('variables_utilizadas', [])
+            if len(variables_list) > 5:
+                vars_texto = ', '.join(variables_list[:5]) + f' (+{len(variables_list) - 5} more)'
+            else:
+                vars_texto = ', '.join(variables_list)
+
+            titulo = (
+                f'Hierarchical Clustering Dendrogram - {metodo.title()} Method\n'
+                f'(Distance Metric = {metrica}, considering {vars_texto})\n'
+                f'(Silhouette Coef.: {silhouette:.3f}, DB: {davies_bouldin:.3f}, CH: {calinski_harabasz:.0f})'
+            )
+
+            ax.set_title(titulo, fontsize=11, fontweight='bold',
+                         color='#2c3e50', pad=12)
+
+            # ============================================
+            # ETIQUETAS DE EJES (COMO TU CÓDIGO)
+            # ============================================
+            ax.set_xlabel('Monitoring Points',
+                          fontsize=12, fontweight='600',
+                          color='#34495e', labelpad=8)
+            ax.set_ylabel('Distance',
+                          fontsize=12, fontweight='600',
+                          color='#34495e', labelpad=8)
+
+            # ============================================
+            # LÍNEA DE CORTE ÓPTIMA
+            # ============================================
+            ax.axhline(y=altura_corte,
+                       color='#E74C3C',
+                       linestyle='--',
+                       linewidth=2,
+                       alpha=0.85,
+                       zorder=10,
+                       label=f'Optimal cut: {altura_corte:.3f} → {n_clusters_corte} clusters')
+
+            # ============================================
+            # ESTILO (COMO TU CÓDIGO)
+            # ============================================
+            # Grid horizontal
+            ax.yaxis.grid(True, linestyle='-', linewidth=0.3,
+                          color='#CCCCCC', alpha=0.5, zorder=0)
+            ax.set_axisbelow(True)
+            ax.set_facecolor('white')
+
+            # Todos los bordes visibles
+            for spine in ax.spines.values():
+                spine.set_visible(True)
+                spine.set_linewidth(1.2)
+                spine.set_color('#7F8C8D')
+
+            # Configurar ticks
+            ax.tick_params(axis='y', labelsize=10, colors='#2c3e50', width=1.2)
+            ax.tick_params(axis='x', labelsize=7, colors='#2c3e50',
+                           width=1.2, length=3)
+
+            # Rotación de etiquetas X
+            if usar_labels:
+                for tick in ax.get_xticklabels():
+                    tick.set_rotation(90)
+                    tick.set_ha('center')
+
+            # ============================================
+            # LEYENDA
+            # ============================================
+            legend = ax.legend(loc='upper right',
+                               frameon=True,
+                               shadow=True,
+                               fontsize=10,
+                               framealpha=0.98,
+                               edgecolor='#3498DB',
+                               facecolor='white',
+                               borderpad=0.8)
+            legend.get_frame().set_linewidth(2)
+
+            # ============================================
+            # CUADRO DE INFORMACIÓN
+            # ============================================
+            # Determinar calidad
+            if silhouette > 0.7:
+                calidad_texto = "Excellent ⭐⭐⭐"
+                box_color = '#D5F4E6'
+                edge_color = '#27AE60'
+            elif silhouette > 0.5:
+                calidad_texto = "Good ⭐⭐"
+                box_color = '#FFF3CD'
+                edge_color = '#F39C12'
+            elif silhouette > 0.3:
+                calidad_texto = "Acceptable ⭐"
+                box_color = '#FFF3CD'
+                edge_color = '#E67E22'
+            else:
+                calidad_texto = "Needs improvement"
+                box_color = '#F8D7DA'
+                edge_color = '#E74C3C'
+
+            if truncate_mode:
+                modo_texto = f"Truncated ({p_value} nodes)"
+            else:
+                modo_texto = "Complete"
+
+            info_text = (
+                f'📊 Stations: {n_samples}\n'
+                f'🎯 Suggested K: {k_optimo}\n'
+                f'⭐ Silhouette: {silhouette:.3f}\n'
+                f'📈 Quality: {calidad_texto}\n'
+                f'🔍 Mode: {modo_texto}\n'
+                f'⏱️ Time: {tiempo_calculo:.2f}s'
+            )
+
+            ax.text(0.015, 0.98, info_text,
+                    transform=ax.transAxes,
+                    fontsize=8.5, va='top', ha='left',
+                    family='monospace',
+                    bbox=dict(boxstyle='round,pad=0.6',
+                              facecolor=box_color,
+                              alpha=0.95,
+                              edgecolor=edge_color,
+                              linewidth=2))
+
+            # ============================================
+            # INSTRUCCIONES
+            # ============================================
+            instrucciones = (
+                '🖱️ Navigation:\n'
+                '• Zoom: Mouse wheel\n'
+                '• Pan: Click + Drag\n'
+                '• Reset: Home 🏠'
+            )
+
+            ax.text(0.985, 0.02, instrucciones,
+                    transform=ax.transAxes,
+                    fontsize=7.5, va='bottom', ha='right',
+                    style='italic', color='#7F8C8D',
+                    bbox=dict(boxstyle='round,pad=0.4',
+                              facecolor='#F8F9FA',
+                              alpha=0.9,
+                              edgecolor='#95A5A6',
+                              linewidth=1.2))
+
+            # ============================================
+            # AJUSTES DE ESPACIADO
+            # ============================================
+            y_min, y_max = ax.get_ylim()
+            ax.set_ylim(y_min - 0.01 * y_max, y_max * 1.08)
+
+            # Calcular margen inferior
+            if usar_labels and etiquetas_points:
+                max_label_len = max(len(str(label)) for label in etiquetas_points)
+                bottom_margin = min(0.22, 0.10 + max_label_len * 0.006)
+            else:
+                bottom_margin = 0.12
+
+            plt.tight_layout()
+            fig.subplots_adjust(
+                bottom=bottom_margin,
+                top=0.90,  # Más espacio para el título de 3 líneas
+                left=0.08,
+                right=0.98
+            )
+
+        except ImportError:
+            ax.text(0.5, 0.5,
+                    '⚠️ Scipy not installed\n\n'
+                    'Run: pip install scipy scikit-learn\n'
+                    'to generate the dendrogram',
+                    ha='center', va='center', transform=ax.transAxes,
+                    fontsize=13, color='#E67E22', weight='bold',
+                    bbox=dict(boxstyle='round,pad=1.5',
+                              facecolor='#FFF3CD',
+                              alpha=0.95,
+                              edgecolor='#E67E22',
+                              linewidth=2.5))
+            ax.axis('off')
+
+    else:
+        ax.text(0.5, 0.5,
+                '❌ No linkage data available\n\n'
+                'Hierarchical clustering did not\n'
+                'execute correctly',
+                ha='center', va='center', transform=ax.transAxes,
+                fontsize=13, color='#C0392B', weight='bold',
+                bbox=dict(boxstyle='round,pad=1.5',
+                          facecolor='#F8D7DA',
+                          alpha=0.95,
+                          edgecolor='#C0392B',
+                          linewidth=2.5))
+        ax.axis('off')
+
+    return fig
 
 def crear_visualizacion_exploratorio_optimizada(resultado, figsize=(12, 8)):
     """Crear visualización optimizada para análisis exploratorio"""

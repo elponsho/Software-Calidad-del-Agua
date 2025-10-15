@@ -556,6 +556,13 @@ class ResultsVisualizationWidget(QWidget):
         self.generate_report_btn.setEnabled(False)
         layout.addWidget(self.generate_report_btn)
 
+        # NUEVO: Botón para dendrograma completo
+        self.dendrograma_btn = QPushButton("🌳 Dendrograma Ampliado")
+        self.dendrograma_btn.setMinimumHeight(35)
+        self.dendrograma_btn.clicked.connect(self._mostrar_dendrograma_ampliado)
+        self.dendrograma_btn.setEnabled(False)
+        layout.addWidget(self.dendrograma_btn)
+
         layout.addStretch()
 
         self.status_label = QLabel("Sin resultados")
@@ -564,6 +571,85 @@ class ResultsVisualizationWidget(QWidget):
 
         toolbar.setLayout(layout)
         return toolbar
+
+    def _mostrar_dendrograma_ampliado(self):
+        """Mostrar dendrograma en ventana ampliada"""
+        if not self.current_results:
+            QMessageBox.warning(self, "Sin datos", "No hay resultados para mostrar.")
+            return
+
+        tipo = self.current_results.get('tipo', '')
+
+        if tipo != 'clustering_jerarquico_completo':
+            QMessageBox.information(
+                self, "Tipo incorrecto",
+                "El dendrograma ampliado solo está disponible para Clustering Jerárquico."
+            )
+            return
+
+        try:
+            from .ml_functions_no_supervisado import generar_dendrograma_completo
+
+            linkage_matrix = np.array(self.current_results.get('linkage_matrix', []))
+            n_samples = len(self.current_results.get('datos_originales', []))
+
+            if len(linkage_matrix) == 0:
+                QMessageBox.warning(self, "Sin datos", "No hay matriz de linkage disponible.")
+                return
+
+            # Generar dendrograma completo
+            fig = generar_dendrograma_completo(
+                linkage_matrix,
+                n_samples,
+                truncate_mode='level',
+                p=12,
+                mostrar_linea_corte=True
+            )
+
+            # Crear ventana de diálogo
+            dialog = QDialog(self)
+            dialog.setWindowTitle("🌳 Dendrograma Ampliado - Clustering Jerárquico")
+            dialog.setModal(False)
+            dialog.resize(1400, 900)
+
+            layout = QVBoxLayout()
+
+            # Canvas con el dendrograma
+            from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+            canvas = FigureCanvas(fig)
+            layout.addWidget(canvas)
+
+            # Botones
+            btn_layout = QHBoxLayout()
+
+            save_btn = QPushButton("💾 Guardar Imagen")
+            save_btn.clicked.connect(lambda: self._save_dendrograma(fig))
+            btn_layout.addWidget(save_btn)
+
+            close_btn = QPushButton("❌ Cerrar")
+            close_btn.clicked.connect(dialog.close)
+            btn_layout.addWidget(close_btn)
+
+            btn_layout.addStretch()
+            layout.addLayout(btn_layout)
+
+            dialog.setLayout(layout)
+            dialog.show()
+
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Error mostrando dendrograma:\n{e}")
+
+    def _save_dendrograma(self, fig):
+        """Guardar dendrograma"""
+        file_path, _ = QFileDialog.getSaveFileName(
+            self, "Guardar Dendrograma", "", "Imagen PNG (*.png);;Imagen JPEG (*.jpg)"
+        )
+        if file_path:
+            try:
+                fig.savefig(file_path, dpi=300, bbox_inches='tight')
+                QMessageBox.information(self, "Éxito", f"Dendrograma guardado en:\n{file_path}")
+            except Exception as e:
+                QMessageBox.critical(self, "Error", f"No se pudo guardar:\n{e}")
 
     def update_results(self, results: dict, analysis_type: str):
         """Actualizar con nuevos resultados"""
@@ -586,6 +672,12 @@ class ResultsVisualizationWidget(QWidget):
 
         self.export_results_btn.setEnabled(True)
         self.generate_report_btn.setEnabled(True)
+
+        # Habilitar botón de dendrograma solo para clustering jerárquico
+        if results.get('tipo') == 'clustering_jerarquico_completo':
+            self.dendrograma_btn.setEnabled(True)
+        else:
+            self.dendrograma_btn.setEnabled(False)
 
     def _update_summary(self, results: dict, analysis_type: str):
         """Actualizar resumen"""
