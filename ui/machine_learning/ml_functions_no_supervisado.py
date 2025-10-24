@@ -1,6 +1,6 @@
 """
-ml_functions_no_supervisado_optimizado.py - ULTRA OPTIMIZADO
-Machine Learning No Supervisado con optimizaciones algorítmicas avanzadas
+ml_functions_no_supervisado.py
+Machine Learning No Supervisado con optimizaciones algorítmicas
 Compatible con PyInstaller - Sin threading
 """
 import numpy as np
@@ -43,7 +43,7 @@ def optimized_pairwise_distances(X, metric='euclidean'):
         return optimized_pairwise_distances(X, 'euclidean')
 
 
-# ==================== K-MEANS OPTIMIZADO ====================
+# ==================== K-MEANS ====================
 
 def kmeans_plusplus_init(X, k, random_state=42):
     """Inicialización K-Means++"""
@@ -66,7 +66,7 @@ def kmeans_plusplus_init(X, k, random_state=42):
 
 
 def optimized_kmeans(X, k, max_iters=100, random_state=42, tol=1e-4):
-    """K-Means ULTRA OPTIMIZADO"""
+    """K-Means optimizado"""
     np.random.seed(random_state)
     n_samples, n_features = X.shape
     use_minibatch = n_samples > 10000
@@ -145,7 +145,7 @@ def optimized_silhouette_score(X, labels, sample_size=None):
     return float(np.mean(silhouette_vals))
 
 
-# ==================== DBSCAN OPTIMIZADO ====================
+# ==================== DBSCAN ====================
 
 def optimized_dbscan(X, eps=0.5, min_samples=5):
     """DBSCAN optimizado"""
@@ -239,7 +239,7 @@ def _dbscan_grid_accelerated(X, eps, min_samples):
     return labels
 
 
-# ==================== PCA OPTIMIZADO ====================
+# ==================== PCA ====================
 
 def optimized_pca(X, n_components=None):
     """PCA optimizado usando SVD"""
@@ -298,7 +298,7 @@ class OptimizedHierarchicalClustering:
                 pass
 
     def hierarchical_clustering_optimized(self, X, method='ward', metric='euclidean'):
-        """Clustering jerárquico ULTRA OPTIMIZADO"""
+        """Clustering jerárquico optimizado"""
         try:
             from scipy.cluster.hierarchy import linkage
             from scipy.spatial.distance import pdist
@@ -319,11 +319,11 @@ class OptimizedHierarchicalClustering:
             return linkage_matrix
 
         except ImportError:
-            self._emit_status("Scipy no disponible, usando implementación optimizada...")
+            self._emit_status("Scipy no disponible, usando implementación manual...")
             return self._hierarchical_manual_optimized(X, method, metric)
 
     def _hierarchical_manual_optimized(self, X, method='ward', metric='euclidean'):
-        """Implementación manual OPTIMIZADA"""
+        """Implementación manual optimizada"""
         n_samples = len(X)
         self._emit_status(f"Clustering manual optimizado ({n_samples} muestras)...")
         self._emit_progress(0)
@@ -417,7 +417,7 @@ class OptimizedHierarchicalClustering:
                 self._emit_progress(progress)
 
         calc_time = time.time() - start_time
-        self._emit_status(f"✓ Completado en {calc_time:.2f}s (manual optimizado)")
+        self._emit_status(f"✓ Completado en {calc_time:.2f}s (manual)")
         self._emit_progress(100)
         return np.array(linkage_matrix)
 
@@ -669,7 +669,7 @@ def calcular_indice_calidad_simple(df):
 def kmeans_optimizado_completo(data, variables=None, k_range=None, escalado='standard',
                                random_state=42, verbose=True, progress_callback=None,
                                status_callback=None):
-    """K-Means optimizado con evaluación de K óptimo"""
+    """K-Means con evaluación de K óptimo"""
 
     def emit_progress(value):
         if progress_callback:
@@ -688,7 +688,7 @@ def kmeans_optimizado_completo(data, variables=None, k_range=None, escalado='sta
             print(f"  {msg}")
 
     if verbose:
-        print("🔍 Iniciando K-Means optimizado...")
+        print("🔍 Iniciando K-Means...")
     emit_status("Iniciando K-Means...")
     emit_progress(0)
 
@@ -781,7 +781,7 @@ def kmeans_optimizado_completo(data, variables=None, k_range=None, escalado='sta
 
 def dbscan_optimizado(data, variables=None, optimizar_parametros=True, escalado='standard',
                       verbose=True, progress_callback=None, status_callback=None):
-    """DBSCAN optimizado con búsqueda de parámetros"""
+    """DBSCAN con búsqueda de parámetros"""
 
     def emit_progress(value):
         if progress_callback:
@@ -800,7 +800,7 @@ def dbscan_optimizado(data, variables=None, optimizar_parametros=True, escalado=
             print(f"  {msg}")
 
     if verbose:
-        print("🔍 Iniciando DBSCAN optimizado...")
+        print("🔍 Iniciando DBSCAN...")
     emit_status("Iniciando DBSCAN...")
     emit_progress(0)
 
@@ -919,7 +919,7 @@ def dbscan_optimizado(data, variables=None, optimizar_parametros=True, escalado=
 
 def pca_completo_avanzado(data, variables=None, explicar_varianza_objetivo=0.95, escalado='standard',
                           verbose=True, progress_callback=None, status_callback=None):
-    """PCA avanzado optimizado"""
+    """PCA avanzado"""
 
     def emit_progress(value):
         if progress_callback:
@@ -938,7 +938,7 @@ def pca_completo_avanzado(data, variables=None, explicar_varianza_objetivo=0.95,
             print(f"  {msg}")
 
     if verbose:
-        print("🔍 Iniciando PCA avanzado...")
+        print("🔍 Iniciando PCA...")
     emit_status("Iniciando PCA...")
     emit_progress(0)
 
@@ -959,7 +959,7 @@ def pca_completo_avanzado(data, variables=None, explicar_varianza_objetivo=0.95,
     X_scaled, scaler_info = aplicar_escalado(X, escalado)
     emit_progress(40)
 
-    emit_status("Calculando PCA optimizado (SVD)...")
+    emit_status("Calculando PCA (SVD)...")
     pca_result = optimized_pca(X_scaled.values)
     emit_progress(70)
 
@@ -1037,7 +1037,7 @@ def analizar_pca_detallado(pca_result, variables, varianza_objetivo):
 def clustering_jerarquico_completo(data, variables=None, metodos=['ward'], metricas=['euclidean'],
                                    max_clusters=10, escalado='standard', verbose=True,
                                    progress_callback=None, status_callback=None):
-    """Clustering jerárquico completo OPTIMIZADO"""
+    """Clustering jerárquico completo - EXTRAE ETIQUETAS DE POINTS"""
 
     def emit_progress(value):
         if progress_callback:
@@ -1056,8 +1056,8 @@ def clustering_jerarquico_completo(data, variables=None, metodos=['ward'], metri
             print(f"  {msg}")
 
     if verbose:
-        print("🔍 Iniciando clustering jerárquico OPTIMIZADO...")
-    emit_status("Iniciando clustering jerárquico optimizado...")
+        print("🔍 Iniciando clustering jerárquico...")
+    emit_status("Iniciando clustering jerárquico...")
     emit_progress(0)
 
     if variables is None:
@@ -1067,10 +1067,20 @@ def clustering_jerarquico_completo(data, variables=None, metodos=['ward'], metri
                     'Classification_6V', 'Classification_7V', 'Classification_9V']
     variables = [col for col in variables if col not in exclude_cols]
 
+    # IMPORTANTE: Extraer datos con índice preservado
     X = data[variables].dropna()
+
+    # Extraer etiquetas Points - CORRECCIÓN CLAVE
+    if 'Points' in data.columns:
+        # Alinear Points con el DataFrame limpio (después de dropna)
+        points_labels = data.loc[X.index, 'Points'].astype(str).tolist()
+    else:
+        # Si no hay columna Points, usar el índice
+        points_labels = X.index.astype(str).tolist()
 
     if verbose:
         print(f"📊 Datos: {X.shape[0]} muestras, {X.shape[1]} variables")
+        print(f"🏷️ Etiquetas extraídas: {len(points_labels)} (primeras 5: {points_labels[:5]})")
     emit_status(f"Datos: {X.shape[0]} muestras, {X.shape[1]} variables")
     emit_progress(5)
 
@@ -1081,7 +1091,7 @@ def clustering_jerarquico_completo(data, variables=None, metodos=['ward'], metri
 
     if verbose:
         print(f"   Método: {metodo}, Métrica: {metrica}")
-    emit_status(f"Ejecutando {metodo}-{metrica} optimizado...")
+    emit_status(f"Ejecutando {metodo}-{metrica}...")
 
     clustering = OptimizedHierarchicalClustering()
     clustering.set_callbacks(emit_progress, emit_status)
@@ -1158,14 +1168,13 @@ def clustering_jerarquico_completo(data, variables=None, metodos=['ward'], metri
         'mejor_configuracion': mejor_configuracion,
         'datos_originales': X,
         'scaler_info': scaler_info,
-        'sample_labels': [f"S{i}" for i in range(len(X))],
+        'sample_labels': points_labels,  # ← ETIQUETAS EXTRAÍDAS DE POINTS
         'tiempo_calculo': total_time,
         'usando_sklearn': False,
         'recomendaciones': [
             f"Mejor: {metodo}-{metrica} con {mejor_k} clusters",
             f"Silhouette Score: {mejor_silhouette:.3f}",
-            f"Tiempo: {total_time:.2f}s (⚡ OPTIMIZADO)",
-            f"Velocidad: {'⚡⚡ ULTRA RÁPIDO' if total_time < 1 else '⚡ RÁPIDO' if total_time < 5 else 'Normal'}"
+            f"Tiempo: {total_time:.2f}s"
         ]
     }
 
@@ -1456,7 +1465,7 @@ def generar_recomendaciones_exploratorio(estadisticas, correlaciones, outliers, 
 
 def analisis_exploratorio_completo(data, variables=None, escalado='standard', handle_outliers=True,
                                    verbose=True, progress_callback=None, status_callback=None):
-    """Análisis exploratorio exhaustivo optimizado"""
+    """Análisis exploratorio exhaustivo"""
 
     def emit_progress(value):
         if progress_callback:
@@ -1550,95 +1559,22 @@ def analisis_exploratorio_completo(data, variables=None, escalado='standard', ha
     }
 
 
-# ==================== FUNCIÓN DEMO ====================
-
-def demo_ml_no_supervisado_optimizado():
-    """Demostración completa del sistema ML no supervisado OPTIMIZADO"""
-    print("🚀 Generando datos de demostración...")
-    datos = generar_datos_agua_realistas(n_muestras=300, incluir_outliers=True)
-
-    print("📊 Datos generados exitosamente")
-    print(f"   Shape: {datos.shape}")
-
-    variables_analisis = ['pH', 'WT', 'DO', 'TBD', 'CTD', 'BOD5', 'COD', 'FC', 'TC', 'NO3']
-
-    print("\n⚡ Ejemplo 1: K-Means OPTIMIZADO")
-    start = time.time()
-    kmeans_opt = kmeans_optimizado_completo(datos, variables_analisis)
-    print(f"   ⏱️ Tiempo: {time.time() - start:.2f}s")
-    print(f"   K recomendado: {kmeans_opt['recomendacion_k']}")
-
-    print("\n⚡ Ejemplo 2: DBSCAN OPTIMIZADO")
-    start = time.time()
-    dbscan_opt = dbscan_optimizado(datos, variables_analisis)
-    print(f"   ⏱️ Tiempo: {time.time() - start:.2f}s")
-    mejor_dbscan = dbscan_opt['mejor_configuracion']
-    print(f"   Clusters: {mejor_dbscan['n_clusters']}, Outliers: {mejor_dbscan['n_noise']}")
-
-    print("\n⚡ Ejemplo 3: PCA OPTIMIZADO (SVD)")
-    start = time.time()
-    pca_avanzado = pca_completo_avanzado(datos, variables_analisis)
-    print(f"   ⏱️ Tiempo: {time.time() - start:.2f}s")
-    pca_linear = pca_avanzado['resultados_por_metodo']['linear']
-    print(f"   Componentes recomendados: {pca_linear['componentes_recomendados']}")
-
-    print("\n⚡ Ejemplo 4: Clustering Jerárquico OPTIMIZADO")
-    start = time.time()
-    jerarquico = clustering_jerarquico_completo(datos, variables_analisis)
-    print(f"   ⏱️ Tiempo: {time.time() - start:.2f}s")
-    print(f"   K recomendado: {jerarquico['mejor_configuracion']['n_clusters_sugeridos']}")
-
-    print("\n⚡ Ejemplo 5: Análisis Exploratorio OPTIMIZADO")
-    start = time.time()
-    exploratorio = analisis_exploratorio_completo(datos, variables_analisis)
-    print(f"   ⏱️ Tiempo: {time.time() - start:.2f}s")
-    print(f"   Calidad de datos: {exploratorio['calidad_datos']['calificacion']}")
-
-    print("\n✅ Análisis completado exitosamente (OPTIMIZADO)")
-    print("⚡⚡ Todas las operaciones usan algoritmos vectorizados y optimizados")
-
-    return datos, {
-        'kmeans': kmeans_opt,
-        'dbscan': dbscan_opt,
-        'pca': pca_avanzado,
-        'jerarquico': jerarquico,
-        'exploratorio': exploratorio
-    }
-
-
-# ==================== MAIN ====================
-
-if __name__ == "__main__":
-    datos, resultados = demo_ml_no_supervisado_optimizado()
-    print(f"\n📊 Datos analizados: {len(datos)} muestras")
-    print(f"🎯 Métodos ejecutados: {len(resultados)} técnicas")
-    print(f"\n⚡ Sistema ULTRA OPTIMIZADO con:")
-    print(f"   • K-Means++ initialization")
-    print(f"   • SVD para PCA")
-    print(f"   • Operaciones vectorizadas con NumPy")
-    print(f"   • Muestreo inteligente")
-    print(f"   • Grid acceleration para DBSCAN")
-    print(f"   • Silhouette Score optimizado")
-    print(f"\n✅ Compatible con PyInstaller - Sin threading")
-    print(f"🚀 Listo para usar en producción")
-
-
-# ==================== VISUALIZACIONES COMPLETAS ====================
+# ==================== VISUALIZACIONES ====================
 
 def generar_visualizaciones_ml_no_supervisado(resultado: Dict[str, Any],
                                               figsize: Tuple[int, int] = (12, 8)) -> plt.Figure:
-    """Generar visualizaciones optimizadas para ML No Supervisado"""
+    """Generar visualizaciones para ML No Supervisado"""
     tipo = resultado.get('tipo', '')
 
     try:
         if tipo in ['kmeans_optimizado', 'dbscan_optimizado']:
-            return crear_visualizacion_clustering_optimizada(resultado, figsize)
+            return crear_visualizacion_clustering(resultado, figsize)
         elif tipo == 'pca_completo_avanzado':
-            return crear_visualizacion_pca_optimizada(resultado, figsize)
+            return crear_visualizacion_pca(resultado, figsize)
         elif tipo == 'clustering_jerarquico_completo':
-            return crear_visualizacion_jerarquico_optimizada(resultado, figsize)
+            return crear_visualizacion_jerarquico(resultado, figsize)
         elif tipo == 'analisis_exploratorio_completo':
-            return crear_visualizacion_exploratorio_optimizada(resultado, figsize)
+            return crear_visualizacion_exploratorio(resultado, figsize)
         else:
             return crear_visualizacion_generica(resultado, figsize)
 
@@ -1653,15 +1589,15 @@ def generar_visualizaciones_ml_no_supervisado(resultado: Dict[str, Any],
         return fig
 
 
-def crear_visualizacion_clustering_optimizada(resultado, figsize=(12, 8)):
-    """Crear visualización optimizada para clustering"""
+def crear_visualizacion_clustering(resultado, figsize=(12, 8)):
+    """Crear visualización para clustering"""
     tipo = resultado.get('tipo', '')
     fig = plt.figure(figsize=figsize)
 
     if tipo == 'kmeans_optimizado':
-        return _crear_viz_kmeans_optimizada(resultado, fig)
+        return _crear_viz_kmeans(resultado, fig)
     elif tipo == 'dbscan_optimizado':
-        return _crear_viz_dbscan_optimizada(resultado, fig)
+        return _crear_viz_dbscan(resultado, fig)
     else:
         ax = fig.add_subplot(111)
         ax.text(0.5, 0.5, f'Visualización no implementada para {tipo}',
@@ -1669,8 +1605,8 @@ def crear_visualizacion_clustering_optimizada(resultado, figsize=(12, 8)):
         return fig
 
 
-def _crear_viz_kmeans_optimizada(resultado, fig):
-    """Visualización optimizada para K-Means"""
+def _crear_viz_kmeans(resultado, fig):
+    """Visualización para K-Means"""
     gs = fig.add_gridspec(2, 2, hspace=0.3, wspace=0.3)
 
     # 1. Gráfico de Silhouette Score
@@ -1713,14 +1649,14 @@ def _crear_viz_kmeans_optimizada(resultado, fig):
 
     # 3. Visualización PCA
     ax3 = fig.add_subplot(gs[1, :])
-    _graficar_clusters_pca_optimizado(ax3, resultado)
+    _graficar_clusters_pca(ax3, resultado)
 
-    plt.suptitle('⚡ Análisis K-Means OPTIMIZADO', fontsize=16, fontweight='bold')
+    plt.suptitle('Análisis K-Means', fontsize=16, fontweight='bold')
     return fig
 
 
-def _crear_viz_dbscan_optimizada(resultado, fig):
-    """Visualización optimizada para DBSCAN"""
+def _crear_viz_dbscan(resultado, fig):
+    """Visualización para DBSCAN"""
     gs = fig.add_gridspec(2, 2, hspace=0.3, wspace=0.3)
 
     mejor_config = resultado['mejor_configuracion']
@@ -1739,7 +1675,7 @@ def _crear_viz_dbscan_optimizada(resultado, fig):
     ax1.text(0.05, 0.95, info_text, fontsize=10, va='top', ha='left',
              transform=ax1.transAxes, family='monospace',
              bbox=dict(boxstyle='round,pad=1', facecolor='lightblue', alpha=0.8, edgecolor='black'))
-    ax1.set_title('⚡ Configuración DBSCAN Optimizado', fontsize=12, fontweight='bold')
+    ax1.set_title('Configuración DBSCAN', fontsize=12, fontweight='bold')
     ax1.axis('off')
 
     # 2. Distribución
@@ -1770,14 +1706,14 @@ def _crear_viz_dbscan_optimizada(resultado, fig):
 
     # 3. Visualización PCA
     ax3 = fig.add_subplot(gs[1, :])
-    _graficar_clusters_pca_optimizado(ax3, resultado)
+    _graficar_clusters_pca(ax3, resultado)
 
-    plt.suptitle('⚡ Análisis DBSCAN OPTIMIZADO', fontsize=16, fontweight='bold')
+    plt.suptitle('Análisis DBSCAN', fontsize=16, fontweight='bold')
     return fig
 
 
-def _graficar_clusters_pca_optimizado(ax, resultado):
-    """Graficar clusters usando PCA optimizado"""
+def _graficar_clusters_pca(ax, resultado):
+    """Graficar clusters usando PCA"""
     try:
         datos = resultado['datos_originales']
 
@@ -1792,7 +1728,7 @@ def _graficar_clusters_pca_optimizado(ax, resultado):
         else:
             labels = [0] * len(datos)
 
-        # Usar PCA optimizado con SVD
+        # Usar PCA
         X_scaled, _ = aplicar_escalado(datos, 'standard')
         pca_result = optimized_pca(X_scaled.values, n_components=2)
         datos_2d = pca_result['X_transformed']
@@ -1814,7 +1750,7 @@ def _graficar_clusters_pca_optimizado(ax, resultado):
         var_exp = pca_result['explained_variance_ratio']
         ax.set_xlabel(f'PC1 ({var_exp[0]*100:.1f}%)', fontsize=11, fontweight='bold')
         ax.set_ylabel(f'PC2 ({var_exp[1]*100:.1f}%)', fontsize=11, fontweight='bold')
-        ax.set_title('Clusters en Espacio PCA (Optimizado con SVD)', fontsize=12, fontweight='bold')
+        ax.set_title('Clusters en Espacio PCA', fontsize=12, fontweight='bold')
         ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left', frameon=True, shadow=True)
         ax.grid(True, alpha=0.3, linestyle='--')
 
@@ -1823,8 +1759,8 @@ def _graficar_clusters_pca_optimizado(ax, resultado):
                 ha='center', va='center', transform=ax.transAxes)
 
 
-def crear_visualizacion_pca_optimizada(resultado, figsize=(12, 8)):
-    """Crear visualización optimizada para PCA"""
+def crear_visualizacion_pca(resultado, figsize=(12, 8)):
+    """Crear visualización para PCA"""
     fig = plt.figure(figsize=figsize)
 
     if 'linear' not in resultado.get('resultados_por_metodo', {}):
@@ -1875,342 +1811,33 @@ def crear_visualizacion_pca_optimizada(resultado, figsize=(12, 8)):
         ax3.axhline(y=1, color='red', linestyle='--', linewidth=2, alpha=0.7, label='Kaiser criterion (λ=1)')
         ax3.legend(loc='best', frameon=True, shadow=True)
 
-    plt.suptitle('⚡ Análisis PCA OPTIMIZADO', fontsize=16, fontweight='bold')
+    plt.suptitle('Análisis PCA', fontsize=16, fontweight='bold')
     return fig
 
 
-# ==================== DENDROGRAMA OPTIMIZADO ====================
-
-def crear_dendrograma_desde_linkage(linkage_matrix, ax=None, max_d=None,
-                                    truncate_mode=None, p=None, figsize=(12, 6)):
-    """
-    Crear dendrograma desde matriz de linkage
-
-    Parameters:
-    -----------
-    linkage_matrix : array-like
-        Matriz de linkage del clustering jerárquico
-    ax : matplotlib axis, optional
-        Eje donde dibujar. Si None, crea nueva figura
-    max_d : float, optional
-        Altura máxima para línea de corte
-    truncate_mode : str, optional
-        Modo de truncado: 'lastp', 'level', None
-    p : int, optional
-        Parámetro para truncate_mode
-    figsize : tuple
-        Tamaño de figura si ax es None
-
-    Returns:
-    --------
-    ax : matplotlib axis
-        Eje con el dendrograma dibujado
-    dendrogram_data : dict
-        Datos del dendrograma generado
-    """
-    try:
-        from scipy.cluster.hierarchy import dendrogram
-
-        if ax is None:
-            fig, ax = plt.subplots(figsize=figsize)
-
-        # Configurar parámetros del dendrograma
-        dendrogram_params = {
-            'ax': ax,
-            'color_threshold': max_d if max_d else 0,
-            'above_threshold_color': 'gray',
-            'leaf_font_size': 10,
-        }
-
-        if truncate_mode:
-            dendrogram_params['truncate_mode'] = truncate_mode
-        if p:
-            dendrogram_params['p'] = p
-
-        # Generar dendrograma
-        dendrogram_data = dendrogram(linkage_matrix, **dendrogram_params)
-
-        # Configurar apariencia
-        ax.set_xlabel('Muestra (o tamaño del cluster)', fontsize=11, fontweight='bold')
-        ax.set_ylabel('Distancia', fontsize=11, fontweight='bold')
-        ax.set_title('Dendrograma de Clustering Jerárquico', fontsize=13, fontweight='bold')
-
-        # Línea de corte si se especifica
-        if max_d:
-            ax.axhline(y=max_d, color='red', linestyle='--', linewidth=2,
-                       label=f'Corte (d={max_d:.2f})', alpha=0.7)
-            ax.legend(loc='best', frameon=True, shadow=True)
-
-        ax.grid(True, alpha=0.3, axis='y', linestyle='--')
-
-        return ax, dendrogram_data
-
-    except ImportError:
-        # Fallback: dendrograma simplificado manual
-        if ax is None:
-            fig, ax = plt.subplots(figsize=figsize)
-
-        ax.text(0.5, 0.5,
-                '⚠️ Scipy no disponible\n\n'
-                'Dendrograma completo requiere scipy.cluster.hierarchy\n\n'
-                'Resultados de clustering disponibles en otras pestañas',
-                ha='center', va='center', transform=ax.transAxes,
-                fontsize=12, bbox=dict(boxstyle='round', facecolor='lightyellow', alpha=0.9))
-        ax.set_title('Dendrograma (scipy requerido)', fontsize=13, fontweight='bold')
-        ax.axis('off')
-
-        return ax, {}
-
-
-def crear_dendrograma_desde_modelo_sklearn(model, ax=None, truncate_mode='level',
-                                           p=3, figsize=(12, 6)):
-    """
-    Crear dendrograma desde modelo de AgglomerativeClustering de sklearn
-
-    Parameters:
-    -----------
-    model : AgglomerativeClustering
-        Modelo entrenado con distance_threshold=0, n_clusters=None
-    ax : matplotlib axis, optional
-        Eje donde dibujar
-    truncate_mode : str
-        'level' o 'lastp'
-    p : int
-        Niveles a mostrar
-    figsize : tuple
-        Tamaño de figura
-
-    Returns:
-    --------
-    ax : matplotlib axis
-    dendrogram_data : dict
-    """
-    try:
-        from scipy.cluster.hierarchy import dendrogram
-
-        if ax is None:
-            fig, ax = plt.subplots(figsize=figsize)
-
-        # Crear matriz de linkage desde el modelo sklearn
-        counts = np.zeros(model.children_.shape[0])
-        n_samples = len(model.labels_)
-
-        for i, merge in enumerate(model.children_):
-            current_count = 0
-            for child_idx in merge:
-                if child_idx < n_samples:
-                    current_count += 1  # nodo hoja
-                else:
-                    current_count += counts[child_idx - n_samples]
-            counts[i] = current_count
-
-        linkage_matrix = np.column_stack([
-            model.children_,
-            model.distances_,
-            counts
-        ]).astype(float)
-
-        # Generar dendrograma
-        dendrogram_data = dendrogram(
-            linkage_matrix,
-            ax=ax,
-            truncate_mode=truncate_mode,
-            p=p,
-            leaf_font_size=10,
-            color_threshold=0.7 * max(model.distances_),
-            above_threshold_color='gray'
-        )
-
-        ax.set_xlabel('Índice de muestra (o tamaño de cluster)', fontsize=11, fontweight='bold')
-        ax.set_ylabel('Distancia', fontsize=11, fontweight='bold')
-        ax.set_title(f'Dendrograma Jerárquico (niveles: {p})', fontsize=13, fontweight='bold')
-        ax.grid(True, alpha=0.3, axis='y', linestyle='--')
-
-        return ax, dendrogram_data
-
-    except Exception as e:
-        if ax is None:
-            fig, ax = plt.subplots(figsize=figsize)
-
-        ax.text(0.5, 0.5,
-                f'⚠️ Error generando dendrograma:\n\n{str(e)[:100]}',
-                ha='center', va='center', transform=ax.transAxes,
-                fontsize=11, bbox=dict(boxstyle='round', facecolor='mistyrose', alpha=0.9))
-        ax.set_title('Error en Dendrograma', fontsize=13, fontweight='bold')
-        ax.axis('off')
-
-        return ax, {}
-
-
-def calcular_altura_corte_optima(linkage_matrix, metodo='percentil', percentil=70):
-    """
-    Calcular altura óptima para cortar el dendrograma
-
-    Parameters:
-    -----------
-    linkage_matrix : array-like
-        Matriz de linkage
-    metodo : str
-        'percentil', 'gap', 'mediana'
-    percentil : float
-        Percentil a usar (0-100)
-
-    Returns:
-    --------
-    altura_corte : float
-    """
-    distancias = linkage_matrix[:, 2]
-
-    if metodo == 'percentil':
-        return np.percentile(distancias, percentil)
-    elif metodo == 'mediana':
-        return np.median(distancias)
-    elif metodo == 'gap':
-        # Buscar el mayor salto en distancias
-        diffs = np.diff(sorted(distancias))
-        max_gap_idx = np.argmax(diffs)
-        return sorted(distancias)[max_gap_idx]
-    else:
-        return np.percentile(distancias, 70)
-
-
-def generar_dendrograma_completo(linkage_matrix, n_samples,
-                                 truncate_mode='level', p=10,
-                                 mostrar_linea_corte=True,
-                                 altura_corte=None):
-    """
-    Generar figura completa con dendrograma y opciones avanzadas
-
-    Parameters:
-    -----------
-    linkage_matrix : array-like
-        Matriz de linkage del clustering
-    n_samples : int
-        Número de muestras originales
-    truncate_mode : str
-        Modo de truncado
-    p : int
-        Parámetro de truncado
-    mostrar_linea_corte : bool
-        Si mostrar línea de corte sugerida
-    altura_corte : float, optional
-        Altura de corte personalizada
-
-    Returns:
-    --------
-    fig : matplotlib Figure
-        Figura con dendrograma
-    """
-    fig = plt.figure(figsize=(14, 8))
-    gs = fig.add_gridspec(2, 2, hspace=0.3, wspace=0.3, height_ratios=[2, 1])
-
-    # 1. Dendrograma principal (ocupa toda la fila superior)
-    ax_dendro = fig.add_subplot(gs[0, :])
-
-    if altura_corte is None and mostrar_linea_corte:
-        altura_corte = calcular_altura_corte_optima(linkage_matrix, metodo='percentil', percentil=70)
-
-    ax_dendro, dendro_data = crear_dendrograma_desde_linkage(
-        linkage_matrix,
-        ax=ax_dendro,
-        max_d=altura_corte if mostrar_linea_corte else None,
-        truncate_mode=truncate_mode,
-        p=p
-    )
-
-    # 2. Información de distancias
-    ax_dist = fig.add_subplot(gs[1, 0])
-    distancias = linkage_matrix[:, 2]
-
-    ax_dist.hist(distancias, bins=30, alpha=0.7, color='skyblue', edgecolor='black')
-    ax_dist.axvline(np.median(distancias), color='red', linestyle='--',
-                    linewidth=2, label=f'Mediana: {np.median(distancias):.2f}')
-    if altura_corte:
-        ax_dist.axvline(altura_corte, color='green', linestyle='--',
-                        linewidth=2, label=f'Corte: {altura_corte:.2f}')
-    ax_dist.set_xlabel('Distancia de Fusión', fontsize=10, fontweight='bold')
-    ax_dist.set_ylabel('Frecuencia', fontsize=10, fontweight='bold')
-    ax_dist.set_title('Distribución de Distancias', fontsize=11, fontweight='bold')
-    ax_dist.legend(loc='best', frameon=True, shadow=True)
-    ax_dist.grid(True, alpha=0.3, axis='y', linestyle='--')
-
-    # 3. Estadísticas
-    ax_stats = fig.add_subplot(gs[1, 1])
-
-    stats_text = f"📊 ESTADÍSTICAS DEL DENDROGRAMA\n"
-    stats_text += f"{'=' * 35}\n\n"
-    stats_text += f"• Muestras: {n_samples}\n"
-    stats_text += f"• Fusiones: {len(linkage_matrix)}\n"
-    stats_text += f"• Distancia mín: {np.min(distancias):.3f}\n"
-    stats_text += f"• Distancia máx: {np.max(distancias):.3f}\n"
-    stats_text += f"• Distancia media: {np.mean(distancias):.3f}\n"
-    stats_text += f"• Distancia mediana: {np.median(distancias):.3f}\n\n"
-
-    if altura_corte:
-        n_clusters_estimado = len([d for d in distancias if d > altura_corte]) + 1
-        stats_text += f"• Clusters (corte): ~{n_clusters_estimado}\n"
-
-    ax_stats.text(0.05, 0.95, stats_text, fontsize=9, va='top', ha='left',
-                  transform=ax_stats.transAxes, family='monospace',
-                  bbox=dict(boxstyle='round,pad=1', facecolor='lightgreen',
-                            alpha=0.8, edgecolor='black'))
-    ax_stats.set_title('Información', fontsize=11, fontweight='bold')
-    ax_stats.axis('off')
-
-    plt.suptitle('⚡ Dendrograma de Clustering Jerárquico',
-                 fontsize=16, fontweight='bold')
-
-    return fig
-
-
-def crear_visualizacion_jerarquico_optimizada(resultado, figsize=(16, 9)):
-    """
-    Crear visualización para clustering jerárquico
-    Con etiquetas Points en el ORDEN CORRECTO del índice
-    """
+def crear_visualizacion_jerarquico(resultado, figsize=(16, 9)):
+    """Crear visualización para clustering jerárquico - USA sample_labels"""
 
     mejor_config = resultado.get('mejor_configuracion', {})
     linkage_matrix = np.array(resultado.get('linkage_matrix', []))
     datos_originales = resultado.get('datos_originales', pd.DataFrame())
+    sample_labels = resultado.get('sample_labels', [])  # ← USAR ETIQUETAS EXTRAÍDAS
     n_samples = len(datos_originales)
     tiempo_calculo = resultado.get('tiempo_calculo', 0)
 
-    # Crear figura
     fig = plt.figure(figsize=figsize, facecolor='white')
     ax = fig.add_subplot(111)
     ax.set_facecolor('white')
 
-    # ============================================
-    # DENDROGRAMA PRINCIPAL
-    # ============================================
     if len(linkage_matrix) > 0:
         try:
             from scipy.cluster.hierarchy import dendrogram, fcluster
 
-            # ============================================
-            # EXTRAER ETIQUETAS DEL ÍNDICE (COMO TU CÓDIGO)
-            # ============================================
-            # El índice del DataFrame contiene los Points en orden
-            if isinstance(datos_originales.index, pd.Index):
-                etiquetas_points = datos_originales.index.astype(str).tolist()
-            elif 'Points' in datos_originales.columns:
-                etiquetas_points = datos_originales['Points'].astype(str).tolist()
-            else:
-                etiquetas_points = [f"S{i}" for i in range(n_samples)]
-
-            # Calcular altura de corte óptima
-            altura_corte = calcular_altura_corte_optima(
-                linkage_matrix,
-                metodo='percentil',
-                percentil=70
-            )
-
-            # Calcular número de clusters en el corte
+            # Calcular altura de corte
+            altura_corte = np.percentile(linkage_matrix[:, 2], 70)
             n_clusters_corte = len([d for d in linkage_matrix[:, 2] if d > altura_corte]) + 1
 
-            # ============================================
-            # DECIDIR TRUNCADO
-            # ============================================
+            # Decidir truncado
             if n_samples > 80:
                 truncate_mode = 'lastp'
                 p_value = 50
@@ -2220,9 +1847,7 @@ def crear_visualizacion_jerarquico_optimizada(resultado, figsize=(16, 9)):
                 p_value = None
                 usar_labels = True
 
-            # ============================================
-            # CONFIGURAR DENDROGRAMA
-            # ============================================
+            # Configurar dendrograma
             dendrogram_params = {
                 'ax': ax,
                 'color_threshold': altura_corte,
@@ -2233,26 +1858,22 @@ def crear_visualizacion_jerarquico_optimizada(resultado, figsize=(16, 9)):
                 'distance_sort': 'ascending'
             }
 
-            # Agregar etiquetas del índice
-            if usar_labels:
-                dendrogram_params['labels'] = etiquetas_points  # ← Del índice
+            # Usar etiquetas extraídas
+            if usar_labels and sample_labels:
+                dendrogram_params['labels'] = sample_labels  # ← ETIQUETAS DE POINTS
                 dendrogram_params['show_leaf_counts'] = False
             else:
                 dendrogram_params['truncate_mode'] = truncate_mode
                 dendrogram_params['p'] = p_value
                 dendrogram_params['show_leaf_counts'] = True
 
-            # Generar dendrograma
             dendro_data = dendrogram(linkage_matrix, **dendrogram_params)
 
-            # ============================================
-            # CALCULAR MÉTRICAS DE CALIDAD
-            # ============================================
+            # Calcular métricas
             try:
                 k_optimo = mejor_config.get('n_clusters_sugeridos', 3)
                 cluster_labels = fcluster(linkage_matrix, k_optimo, criterion='maxclust')
 
-                # Preparar datos para métricas
                 variables = resultado.get('variables_utilizadas', [])
                 if variables and not datos_originales.empty:
                     from sklearn.preprocessing import StandardScaler
@@ -2269,18 +1890,15 @@ def crear_visualizacion_jerarquico_optimizada(resultado, figsize=(16, 9)):
                     silhouette = mejor_config.get('silhouette_score', 0)
                     davies_bouldin = 0
                     calinski_harabasz = 0
-            except Exception as e:
+            except:
                 silhouette = mejor_config.get('silhouette_score', 0)
                 davies_bouldin = 0
                 calinski_harabasz = 0
 
-            # ============================================
-            # TÍTULO CON MÉTRICAS (COMO TU CÓDIGO)
-            # ============================================
+            # Título con métricas
             metodo = mejor_config.get('metodo', 'ward').upper()
             metrica = mejor_config.get('metrica', 'euclidean').capitalize()
 
-            # Obtener lista de variables para el título
             variables_list = resultado.get('variables_utilizadas', [])
             if len(variables_list) > 5:
                 vars_texto = ', '.join(variables_list[:5]) + f' (+{len(variables_list) - 5} more)'
@@ -2293,73 +1911,36 @@ def crear_visualizacion_jerarquico_optimizada(resultado, figsize=(16, 9)):
                 f'(Silhouette Coef.: {silhouette:.3f}, DB: {davies_bouldin:.3f}, CH: {calinski_harabasz:.0f})'
             )
 
-            ax.set_title(titulo, fontsize=11, fontweight='bold',
-                         color='#2c3e50', pad=12)
+            ax.set_title(titulo, fontsize=11, fontweight='bold', color='#2c3e50', pad=12)
+            ax.set_xlabel('Monitoring Points', fontsize=12, fontweight='600', color='#34495e', labelpad=8)
+            ax.set_ylabel('Distance', fontsize=12, fontweight='600', color='#34495e', labelpad=8)
 
-            # ============================================
-            # ETIQUETAS DE EJES (COMO TU CÓDIGO)
-            # ============================================
-            ax.set_xlabel('Monitoring Points',
-                          fontsize=12, fontweight='600',
-                          color='#34495e', labelpad=8)
-            ax.set_ylabel('Distance',
-                          fontsize=12, fontweight='600',
-                          color='#34495e', labelpad=8)
+            # Línea de corte
+            ax.axhline(y=altura_corte, color='#E74C3C', linestyle='--', linewidth=2, alpha=0.85,
+                       zorder=10, label=f'Optimal cut: {altura_corte:.3f} → {n_clusters_corte} clusters')
 
-            # ============================================
-            # LÍNEA DE CORTE ÓPTIMA
-            # ============================================
-            ax.axhline(y=altura_corte,
-                       color='#E74C3C',
-                       linestyle='--',
-                       linewidth=2,
-                       alpha=0.85,
-                       zorder=10,
-                       label=f'Optimal cut: {altura_corte:.3f} → {n_clusters_corte} clusters')
-
-            # ============================================
-            # ESTILO (COMO TU CÓDIGO)
-            # ============================================
-            # Grid horizontal
-            ax.yaxis.grid(True, linestyle='-', linewidth=0.3,
-                          color='#CCCCCC', alpha=0.5, zorder=0)
+            # Estilo
+            ax.yaxis.grid(True, linestyle='-', linewidth=0.3, color='#CCCCCC', alpha=0.5, zorder=0)
             ax.set_axisbelow(True)
-            ax.set_facecolor('white')
 
-            # Todos los bordes visibles
             for spine in ax.spines.values():
                 spine.set_visible(True)
                 spine.set_linewidth(1.2)
                 spine.set_color('#7F8C8D')
 
-            # Configurar ticks
             ax.tick_params(axis='y', labelsize=10, colors='#2c3e50', width=1.2)
-            ax.tick_params(axis='x', labelsize=7, colors='#2c3e50',
-                           width=1.2, length=3)
+            ax.tick_params(axis='x', labelsize=7, colors='#2c3e50', width=1.2, length=3)
 
-            # Rotación de etiquetas X
             if usar_labels:
                 for tick in ax.get_xticklabels():
                     tick.set_rotation(90)
                     tick.set_ha('center')
 
-            # ============================================
-            # LEYENDA
-            # ============================================
-            legend = ax.legend(loc='upper right',
-                               frameon=True,
-                               shadow=True,
-                               fontsize=10,
-                               framealpha=0.98,
-                               edgecolor='#3498DB',
-                               facecolor='white',
-                               borderpad=0.8)
+            legend = ax.legend(loc='upper right', frameon=True, shadow=True, fontsize=10,
+                               framealpha=0.98, edgecolor='#3498DB', facecolor='white', borderpad=0.8)
             legend.get_frame().set_linewidth(2)
 
-            # ============================================
-            # CUADRO DE INFORMACIÓN
-            # ============================================
-            # Determinar calidad
+            # Cuadro de información
             if silhouette > 0.7:
                 calidad_texto = "Excellent ⭐⭐⭐"
                 box_color = '#D5F4E6'
@@ -2377,10 +1958,7 @@ def crear_visualizacion_jerarquico_optimizada(resultado, figsize=(16, 9)):
                 box_color = '#F8D7DA'
                 edge_color = '#E74C3C'
 
-            if truncate_mode:
-                modo_texto = f"Truncated ({p_value} nodes)"
-            else:
-                modo_texto = "Complete"
+            modo_texto = f"Truncated ({p_value} nodes)" if truncate_mode else "Complete"
 
             info_text = (
                 f'📊 Stations: {n_samples}\n'
@@ -2391,19 +1969,12 @@ def crear_visualizacion_jerarquico_optimizada(resultado, figsize=(16, 9)):
                 f'⏱️ Time: {tiempo_calculo:.2f}s'
             )
 
-            ax.text(0.015, 0.98, info_text,
-                    transform=ax.transAxes,
-                    fontsize=8.5, va='top', ha='left',
-                    family='monospace',
-                    bbox=dict(boxstyle='round,pad=0.6',
-                              facecolor=box_color,
-                              alpha=0.95,
-                              edgecolor=edge_color,
-                              linewidth=2))
+            ax.text(0.015, 0.98, info_text, transform=ax.transAxes, fontsize=8.5,
+                    va='top', ha='left', family='monospace',
+                    bbox=dict(boxstyle='round,pad=0.6', facecolor=box_color,
+                              alpha=0.95, edgecolor=edge_color, linewidth=2))
 
-            # ============================================
-            # INSTRUCCIONES
-            # ============================================
+            # Instrucciones
             instrucciones = (
                 '🖱️ Navigation:\n'
                 '• Zoom: Mouse wheel\n'
@@ -2411,36 +1982,23 @@ def crear_visualizacion_jerarquico_optimizada(resultado, figsize=(16, 9)):
                 '• Reset: Home 🏠'
             )
 
-            ax.text(0.985, 0.02, instrucciones,
-                    transform=ax.transAxes,
-                    fontsize=7.5, va='bottom', ha='right',
-                    style='italic', color='#7F8C8D',
-                    bbox=dict(boxstyle='round,pad=0.4',
-                              facecolor='#F8F9FA',
-                              alpha=0.9,
-                              edgecolor='#95A5A6',
-                              linewidth=1.2))
+            ax.text(0.985, 0.02, instrucciones, transform=ax.transAxes, fontsize=7.5,
+                    va='bottom', ha='right', style='italic', color='#7F8C8D',
+                    bbox=dict(boxstyle='round,pad=0.4', facecolor='#F8F9FA',
+                              alpha=0.9, edgecolor='#95A5A6', linewidth=1.2))
 
-            # ============================================
-            # AJUSTES DE ESPACIADO
-            # ============================================
+            # Ajustes de espaciado
             y_min, y_max = ax.get_ylim()
             ax.set_ylim(y_min - 0.01 * y_max, y_max * 1.08)
 
-            # Calcular margen inferior
-            if usar_labels and etiquetas_points:
-                max_label_len = max(len(str(label)) for label in etiquetas_points)
+            if usar_labels and sample_labels:
+                max_label_len = max(len(str(label)) for label in sample_labels)
                 bottom_margin = min(0.22, 0.10 + max_label_len * 0.006)
             else:
                 bottom_margin = 0.12
 
             plt.tight_layout()
-            fig.subplots_adjust(
-                bottom=bottom_margin,
-                top=0.90,  # Más espacio para el título de 3 líneas
-                left=0.08,
-                right=0.98
-            )
+            fig.subplots_adjust(bottom=bottom_margin, top=0.90, left=0.08, right=0.98)
 
         except ImportError:
             ax.text(0.5, 0.5,
@@ -2449,11 +2007,8 @@ def crear_visualizacion_jerarquico_optimizada(resultado, figsize=(16, 9)):
                     'to generate the dendrogram',
                     ha='center', va='center', transform=ax.transAxes,
                     fontsize=13, color='#E67E22', weight='bold',
-                    bbox=dict(boxstyle='round,pad=1.5',
-                              facecolor='#FFF3CD',
-                              alpha=0.95,
-                              edgecolor='#E67E22',
-                              linewidth=2.5))
+                    bbox=dict(boxstyle='round,pad=1.5', facecolor='#FFF3CD',
+                              alpha=0.95, edgecolor='#E67E22', linewidth=2.5))
             ax.axis('off')
 
     else:
@@ -2463,17 +2018,15 @@ def crear_visualizacion_jerarquico_optimizada(resultado, figsize=(16, 9)):
                 'execute correctly',
                 ha='center', va='center', transform=ax.transAxes,
                 fontsize=13, color='#C0392B', weight='bold',
-                bbox=dict(boxstyle='round,pad=1.5',
-                          facecolor='#F8D7DA',
-                          alpha=0.95,
-                          edgecolor='#C0392B',
-                          linewidth=2.5))
+                bbox=dict(boxstyle='round,pad=1.5', facecolor='#F8D7DA',
+                          alpha=0.95, edgecolor='#C0392B', linewidth=2.5))
         ax.axis('off')
 
     return fig
 
-def crear_visualizacion_exploratorio_optimizada(resultado, figsize=(12, 8)):
-    """Crear visualización optimizada para análisis exploratorio"""
+
+def crear_visualizacion_exploratorio(resultado, figsize=(12, 8)):
+    """Crear visualización para análisis exploratorio"""
     fig = plt.figure(figsize=figsize)
     gs = fig.add_gridspec(2, 2, hspace=0.3, wspace=0.3)
 
@@ -2541,7 +2094,7 @@ def crear_visualizacion_exploratorio_optimizada(resultado, figsize=(12, 8)):
     ax4.set_title('📋 Recomendaciones', fontsize=12, fontweight='bold')
     ax4.axis('off')
 
-    plt.suptitle('⚡ Análisis Exploratorio', fontsize=16, fontweight='bold')
+    plt.suptitle('Análisis Exploratorio', fontsize=16, fontweight='bold')
     return fig
 
 
@@ -2551,7 +2104,7 @@ def crear_visualizacion_generica(resultado, figsize):
     ax = fig.add_subplot(111)
 
     tipo = resultado.get('tipo', 'desconocido')
-    ax.text(0.5, 0.5, f'Visualización para: {tipo}\n\n✓ Resultados disponibles\n⚡ Optimizado',
+    ax.text(0.5, 0.5, f'Visualización para: {tipo}\n\n✓ Resultados disponibles',
             ha='center', va='center', transform=ax.transAxes,
             fontsize=14, fontweight='bold',
             bbox=dict(boxstyle='round,pad=1', facecolor='lightblue', alpha=0.9, edgecolor='black'))
@@ -2561,10 +2114,177 @@ def crear_visualizacion_generica(resultado, figsize):
     return fig
 
 
+# ==================== DENDROGRAMA COMPLETO ====================
+
+def calcular_altura_corte_optima(linkage_matrix, metodo='percentil', percentil=70):
+    """Calcular altura óptima para cortar el dendrograma"""
+    distancias = linkage_matrix[:, 2]
+
+    if metodo == 'percentil':
+        return np.percentile(distancias, percentil)
+    elif metodo == 'mediana':
+        return np.median(distancias)
+    elif metodo == 'gap':
+        diffs = np.diff(sorted(distancias))
+        max_gap_idx = np.argmax(diffs)
+        return sorted(distancias)[max_gap_idx]
+    else:
+        return np.percentile(distancias, 70)
+
+
+def generar_dendrograma_completo(linkage_matrix, n_samples,
+                                 truncate_mode='level', p=10,
+                                 mostrar_linea_corte=True,
+                                 altura_corte=None):
+    """Generar figura completa con dendrograma y opciones avanzadas"""
+    fig = plt.figure(figsize=(14, 8))
+    gs = fig.add_gridspec(2, 2, hspace=0.3, wspace=0.3, height_ratios=[2, 1])
+
+    # 1. Dendrograma principal
+    ax_dendro = fig.add_subplot(gs[0, :])
+
+    if altura_corte is None and mostrar_linea_corte:
+        altura_corte = calcular_altura_corte_optima(linkage_matrix, metodo='percentil', percentil=70)
+
+    try:
+        from scipy.cluster.hierarchy import dendrogram
+
+        dendrogram_params = {
+            'ax': ax_dendro,
+            'color_threshold': altura_corte if mostrar_linea_corte else 0,
+            'above_threshold_color': '#95A5A6',
+            'leaf_font_size': 8,
+            'leaf_rotation': 90,
+            'orientation': 'top',
+            'distance_sort': 'ascending'
+        }
+
+        if truncate_mode:
+            dendrogram_params['truncate_mode'] = truncate_mode
+            dendrogram_params['p'] = p
+
+        dendro_data = dendrogram(linkage_matrix, **dendrogram_params)
+
+        if mostrar_linea_corte and altura_corte:
+            ax_dendro.axhline(y=altura_corte, color='red', linestyle='--',
+                            linewidth=2, label=f'Corte: {altura_corte:.2f}', alpha=0.7)
+            ax_dendro.legend(loc='best', frameon=True, shadow=True)
+
+        ax_dendro.set_xlabel('Muestra (o tamaño del cluster)', fontsize=11, fontweight='bold')
+        ax_dendro.set_ylabel('Distancia', fontsize=11, fontweight='bold')
+        ax_dendro.set_title('Dendrograma de Clustering Jerárquico', fontsize=13, fontweight='bold')
+        ax_dendro.grid(True, alpha=0.3, axis='y', linestyle='--')
+
+    except ImportError:
+        ax_dendro.text(0.5, 0.5, '⚠️ Scipy requerido para dendrograma completo',
+                      ha='center', va='center', transform=ax_dendro.transAxes)
+        ax_dendro.axis('off')
+
+    # 2. Información de distancias
+    ax_dist = fig.add_subplot(gs[1, 0])
+    distancias = linkage_matrix[:, 2]
+
+    ax_dist.hist(distancias, bins=30, alpha=0.7, color='skyblue', edgecolor='black')
+    ax_dist.axvline(np.median(distancias), color='red', linestyle='--',
+                    linewidth=2, label=f'Mediana: {np.median(distancias):.2f}')
+    if altura_corte:
+        ax_dist.axvline(altura_corte, color='green', linestyle='--',
+                        linewidth=2, label=f'Corte: {altura_corte:.2f}')
+    ax_dist.set_xlabel('Distancia de Fusión', fontsize=10, fontweight='bold')
+    ax_dist.set_ylabel('Frecuencia', fontsize=10, fontweight='bold')
+    ax_dist.set_title('Distribución de Distancias', fontsize=11, fontweight='bold')
+    ax_dist.legend(loc='best', frameon=True, shadow=True)
+    ax_dist.grid(True, alpha=0.3, axis='y', linestyle='--')
+
+    # 3. Estadísticas
+    ax_stats = fig.add_subplot(gs[1, 1])
+
+    stats_text = f"📊 ESTADÍSTICAS DEL DENDROGRAMA\n"
+    stats_text += f"{'=' * 35}\n\n"
+    stats_text += f"• Muestras: {n_samples}\n"
+    stats_text += f"• Fusiones: {len(linkage_matrix)}\n"
+    stats_text += f"• Distancia mín: {np.min(distancias):.3f}\n"
+    stats_text += f"• Distancia máx: {np.max(distancias):.3f}\n"
+    stats_text += f"• Distancia media: {np.mean(distancias):.3f}\n"
+    stats_text += f"• Distancia mediana: {np.median(distancias):.3f}\n\n"
+
+    if altura_corte:
+        n_clusters_estimado = len([d for d in distancias if d > altura_corte]) + 1
+        stats_text += f"• Clusters (corte): ~{n_clusters_estimado}\n"
+
+    ax_stats.text(0.05, 0.95, stats_text, fontsize=9, va='top', ha='left',
+                  transform=ax_stats.transAxes, family='monospace',
+                  bbox=dict(boxstyle='round,pad=1', facecolor='lightgreen',
+                            alpha=0.8, edgecolor='black'))
+    ax_stats.set_title('Información', fontsize=11, fontweight='bold')
+    ax_stats.axis('off')
+
+    plt.suptitle('Dendrograma de Clustering Jerárquico',
+                 fontsize=16, fontweight='bold')
+
+    return fig
+
+
+# ==================== FUNCIÓN DEMO ====================
+
+def demo_ml_no_supervisado():
+    """Demostración completa del sistema ML no supervisado"""
+    print("🚀 Generando datos de demostración...")
+    datos = generar_datos_agua_realistas(n_muestras=300, incluir_outliers=True)
+
+    print("📊 Datos generados exitosamente")
+    print(f"   Shape: {datos.shape}")
+
+    variables_analisis = ['pH', 'WT', 'DO', 'TBD', 'CTD', 'BOD5', 'COD', 'FC', 'TC', 'NO3']
+
+    print("\n⚡ Ejemplo 1: K-Means")
+    start = time.time()
+    kmeans_result = kmeans_optimizado_completo(datos, variables_analisis)
+    print(f"   ⏱️ Tiempo: {time.time() - start:.2f}s")
+    print(f"   K recomendado: {kmeans_result['recomendacion_k']}")
+
+    print("\n⚡ Ejemplo 2: DBSCAN")
+    start = time.time()
+    dbscan_result = dbscan_optimizado(datos, variables_analisis)
+    print(f"   ⏱️ Tiempo: {time.time() - start:.2f}s")
+    mejor_dbscan = dbscan_result['mejor_configuracion']
+    print(f"   Clusters: {mejor_dbscan['n_clusters']}, Outliers: {mejor_dbscan['n_noise']}")
+
+    print("\n⚡ Ejemplo 3: PCA")
+    start = time.time()
+    pca_result = pca_completo_avanzado(datos, variables_analisis)
+    print(f"   ⏱️ Tiempo: {time.time() - start:.2f}s")
+    pca_linear = pca_result['resultados_por_metodo']['linear']
+    print(f"   Componentes recomendados: {pca_linear['componentes_recomendados']}")
+
+    print("\n⚡ Ejemplo 4: Clustering Jerárquico")
+    start = time.time()
+    jerarquico = clustering_jerarquico_completo(datos, variables_analisis)
+    print(f"   ⏱️ Tiempo: {time.time() - start:.2f}s")
+    print(f"   K recomendado: {jerarquico['mejor_configuracion']['n_clusters_sugeridos']}")
+
+    print("\n⚡ Ejemplo 5: Análisis Exploratorio")
+    start = time.time()
+    exploratorio = analisis_exploratorio_completo(datos, variables_analisis)
+    print(f"   ⏱️ Tiempo: {time.time() - start:.2f}s")
+    print(f"   Calidad de datos: {exploratorio['calidad_datos']['calificacion']}")
+
+    print("\n✅ Análisis completado exitosamente")
+
+    return datos, {
+        'kmeans': kmeans_result,
+        'dbscan': dbscan_result,
+        'pca': pca_result,
+        'jerarquico': jerarquico,
+        'exploratorio': exploratorio
+    }
+
+
+# ==================== MAIN ====================
+
 if __name__ == "__main__":
-    datos, resultados = demo_ml_no_supervisado_optimizado()
+    datos, resultados = demo_ml_no_supervisado()
     print(f"\n📊 Datos analizados: {len(datos)} muestras")
     print(f"🎯 Métodos ejecutados: {len(resultados)} técnicas")
-    print(f"\n⚡ Sistema ULTRA OPTIMIZADO")
-    print(f"✅ Compatible con PyInstaller")
+    print(f"\n✅ Compatible con PyInstaller - Sin threading")
     print(f"🚀 Listo para usar en producción")
