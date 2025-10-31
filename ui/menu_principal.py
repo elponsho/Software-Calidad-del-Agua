@@ -111,9 +111,6 @@ class ModernHeader(QFrame):
         title_container.setSpacing(15)
 
         # Icono del sistema
-        system_icon = QLabel("💧")
-        system_icon.setObjectName("systemIcon")
-        title_container.addWidget(system_icon)
 
         # Título
         title = QLabel("Sistema de Análisis de Calidad del Agua")
@@ -206,7 +203,6 @@ class MenuPrincipal(QWidget):
         self.create_data_button_section(main_layout)
 
         # Tarjetas de estadísticas rápidas
-        self.create_stats_section(main_layout)
 
         # Espaciador
         main_layout.addSpacerItem(QSpacerItem(20, 20, QSizePolicy.Minimum, QSizePolicy.Fixed))
@@ -259,31 +255,6 @@ class MenuPrincipal(QWidget):
 
         data_container.setLayout(data_layout)
         layout.addWidget(data_container)
-
-    def create_stats_section(self, layout):
-        """Crear sección de estadísticas rápidas"""
-        stats_container = QFrame()
-        stats_container.setObjectName("statsContainer")
-
-        stats_layout = QHBoxLayout()
-        stats_layout.setAlignment(Qt.AlignCenter)
-        stats_layout.setSpacing(20)
-        stats_layout.setContentsMargins(20, 15, 20, 15)
-
-        # Tarjetas de stats
-        stats_cards = [
-            ("🎯", "5", "Módulos"),
-            ("📊", "∞", "Análisis"),
-            ("🚀", "Pro", "Versión"),
-            ("💡", "AI", "Powered")
-        ]
-
-        for icon, title, subtitle in stats_cards:
-            card = StatsCard(icon, title, subtitle)
-            stats_layout.addWidget(card)
-
-        stats_container.setLayout(stats_layout)
-        layout.addWidget(stats_container)
 
     def create_modules_section(self, layout):
         """Crear sección principal de módulos"""
@@ -426,19 +397,22 @@ class MenuPrincipal(QWidget):
             #modernTitle {
                 font-size: 32px;
                 font-weight: 700;
-                color: white;
+                color: white;                 /* ← texto blanco */
+                background: transparent;      /* ← elimina fondo */
                 margin: 0px;
                 padding: 0px;
-                text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                text-shadow: 0 2px 6px rgba(0,0,0,0.3); /* más contraste */
             }
+
 
             #modernSubtitle {
                 font-size: 16px;
-                color: rgba(255, 255, 255, 0.9);
+                font-weight: 700;
+                color: white;                 /* ← texto blanco */
+                background: transparent;      /* ← elimina fondo */
                 margin: 0px;
-                padding: 0px 20px;
-                line-height: 1.5;
-                font-weight: 400;
+                padding: 0px;
+                text-shadow: 0 2px 6px rgba(0,0,0,0.3); /* más contraste */
             }
 
             /* SECCIÓN DE CARGAR DATOS */

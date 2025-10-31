@@ -361,21 +361,23 @@ class SegmentacionMLCompatible(QWidget):
         content = QFrame()
         content.setObjectName("mainContent")
 
-        layout = QVBoxLayout(content)
-        layout.setSpacing(30)
-        layout.setContentsMargins(40, 40, 40, 40)
+        main_layout = QVBoxLayout(content)
+        main_layout.setSpacing(30)
+        main_layout.setContentsMargins(40, 40, 40, 40)
+        main_layout.setAlignment(Qt.AlignCenter)  # 🔹 Centrar verticalmente todo el contenido
 
         # Descripción
         desc_label = QLabel("Selecciona el tipo de análisis que deseas realizar:")
         desc_label.setObjectName("description")
         desc_label.setAlignment(Qt.AlignCenter)
-        layout.addWidget(desc_label)
+        main_layout.addWidget(desc_label)
 
         # Contenedor de botones
         buttons_container = QFrame()
         buttons_layout = QHBoxLayout(buttons_container)
         buttons_layout.setSpacing(20)
         buttons_layout.setContentsMargins(0, 0, 0, 0)
+        buttons_layout.setAlignment(Qt.AlignCenter)  # 🔹 Centrar horizontalmente los botones
 
         # Configuración de módulos
         modules = []
@@ -427,14 +429,11 @@ class SegmentacionMLCompatible(QWidget):
             button.clicked.connect(module_config["action"])
             buttons_layout.addWidget(button)
 
-        # Añadir stretch para centrar
-        buttons_layout.addStretch()
-
-        layout.addWidget(buttons_container)
+        main_layout.addWidget(buttons_container, alignment=Qt.AlignCenter)
 
         # Información adicional
         info_frame = self.create_info_section()
-        layout.addWidget(info_frame)
+        main_layout.addWidget(info_frame, alignment=Qt.AlignCenter)
 
         return content
 
